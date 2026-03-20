@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Registrar Saída</title>
+</head>
+<body>
+
+<h1>Registrar Saída</h1>
+
+<a href="/">Voltar ao início</a>
+
+<br><br>
+
+{% if erro %}
+    <p style="color:red;">{{ erro }}</p>
+{% endif %}
+
+<form method="POST">
+
+   <select name="aluno_id">
+
+{% for aluno in alunos %}
+
+    <option value="{{ aluno[0] }}"
+{% if aluno_selecionado == aluno[0]|string %}selected{% endif %}>
+
+    {{ aluno[1] }} - {{ aluno[3] }} {{ aluno[2] }}
+</option>
+{% endfor %}
+
+</select>
+
+
+    
+
+       
+
+    <br><br>
+
+    Horário:<br>
+    <input type="text" name="horario"><br><br>
+
+    Motivo:<br>
+    <input type="text" name="motivo"><br><br>
+
+    Veículo:<br>
+    <input type="text" name="veiculo"><br><br>
+
+    Placa:<br>
+    <input type="text" name="placa"><br><br>
+
+    Responsável:<br>
+    <input type="text" name="responsavel"><br><br>
+   
+    Data:<br>
+    <input type="date" name="data_saida"><br><br>
+
+
+    <button type="submit">Registrar Saída</button>
+
+</form>
+
+</body>
+</html>

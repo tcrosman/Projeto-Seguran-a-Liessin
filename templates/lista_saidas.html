@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Saídas</title>
+</head>
+<body>
+
+<h1>Saídas Pendentes</h1>
+
+<a href="/">Voltar ao início</a>
+
+<table border="1">
+    <tr>
+        <th>Série</th>
+        <th>Turma</th>
+        <th>Aluno</th>
+        <th>Horário</th>
+        <th>Motivo</th>
+        <th>Status</th>
+        <th>Ação</th>
+        <th>Veículo</th>
+        <th>Placa</th>
+        <th>Responsável</th>
+    </tr>
+
+{% for saida in pendentes %}
+<tr>
+    <td>{{ saida.serie }}</td>
+    <td>{{ saida.turma }}</td>
+    <td>{{ saida.aluno }}</td>
+    <td>{{ saida.horario }}</td>
+    <td>{{ saida.motivo }}</td>
+    <td>{{ saida.status }}</td>
+    <td>
+        <a href="/concluir_saida/{{ saida.id }}">
+            <button>Concluir</button>
+        </a>
+    </td>
+    <td>{{ saida.veiculo }}</td>
+    <td>{{ saida.placa }}</td>
+    <td>{{ saida.responsavel }}</td>
+</tr>
+{% endfor %}
+
+</table>
+
+
+
+</table>
+</body>
+</html>

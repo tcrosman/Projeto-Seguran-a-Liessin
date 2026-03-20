@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Histórico de Alunos</title>
+</head>
+<body>
+    <h1>Histórico de Alunos</h1>
+    <a href="/">Voltar para o índice</a>
+    <hr>
+
+    {% if alunos %}
+        <table border="1" cellpadding="5" cellspacing="0">
+            <tr>
+                <th>Nome</th>
+                <th>Série</th>
+                <th>Turma</th>
+                <th>Histórico</th>
+            </tr>
+            {% for aluno in alunos %}
+            <tr>
+                <td>{{ aluno[1] }}</td>
+                <td>{{ aluno[2] or '-' }}</td>
+                <td>{{ aluno[3] or '-' }}</td>
+                <td><a href="/historico/{{ aluno[0] }}">Ver histórico</a></td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+        <p>Nenhum aluno cadastrado ainda.</p>
+    {% endif %}
+</body>
+</html>

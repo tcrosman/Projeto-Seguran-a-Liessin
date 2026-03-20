@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Cadastro de Alunos</title>
+</head>
+<body>
+    <h1>Procurar Alunos</h1>
+    <form method="GET" action="/cadastro_aluno">
+        <input type="text" name="busca" placeholder="Buscar aluno..." value="{{ busca or '' }}">
+        <button type="submit">Buscar</button>
+        <a href="/cadastro_aluno"><button type="button">Limpar</button></a>
+    </form>
+
+    <br>
+    <a href="/">Voltar para o índice</a>
+
+    {% if erro %}
+        <p style="color:red;">{{ erro }}</p>
+    {% endif %}
+
+    <h2>Resultado</h2>
+    {% if alunos %}
+        {% for serie, grupo_serie in alunos|groupby(3) %}
+            <h3>{{ serie or 'Sem série' }}</h3>
+            {% for turma, grupo_turma in grupo_serie|groupby(2) %}
+                <h4>Turma {{ turma or 'Sem turma' }}</h4>
+                <ul>
+                {% for aluno in grupo_turma %}
+                    <li>
+                        {{ aluno[1] }}
+                        [<a href="/registrar_saida?aluno_id={{ aluno[0] }}">Registrar Saída</a>]
+                        [<a href="/historico/{{ aluno[0] }}">Histórico</a>]
+                        [<a href="/deletar_aluno/{{ aluno[0] }}" onclick="return confirm('Tem certeza?');">Excluir</a>]
+                    </li>
+                {% endfor %}
+                </ul>
+            {% endfor %}
+        {% endfor %}
+    {% else %}
+        <p>Nenhum aluno encontrado.</p>
+    {% endif %}
+</body>
+</html>

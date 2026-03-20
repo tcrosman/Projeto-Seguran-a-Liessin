@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cadastro em Massa</title>
+</head>
+<body>
+<form method="POST" enctype="multipart/form-data">
+
+<h3>Importar por Excel</h3>
+
+<input type="file" name="arquivo_excel" accept=".xlsx">
+<br><br>
+
+<button type="submit">Importar Planilha</button>
+
+</form>
+
+<hr>
+
+<h3>Ou usar modo manual (opcional)</h3>
+
+
+<a href="/">Voltar ao início</a>
+
+<br><br>
+
+{% if erro %}
+    <p style="color:red;">{{ erro }}</p>
+{% endif %}
+
+<form method="POST">
+
+    <h3>Nomes dos Alunos</h3>
+    <textarea name="nomes" rows="10" cols="15"></textarea>
+
+    <h3>Turmas (uma por linha)</h3>
+    <textarea name="turmas" rows="10" cols="15"></textarea>
+
+    <h3>Séries (uma por linha)</h3>
+    <textarea name="series" rows="10" cols="15"></textarea>
+
+    <br><br>
+    <h3>Horário padrão de saída</h3>
+
+<h3>Saída Segunda (uma por linha)</h3>
+<textarea name="saida_seg" rows="10" cols="10"></textarea>
+
+<h3>Saída Terça (uma por linha)</h3>
+<textarea name="saida_ter" rows="10" cols="10"></textarea>
+
+<h3>Saída Quarta (uma por linha)</h3>
+<textarea name="saida_qua" rows="10" cols="10"></textarea>
+
+<h3>Saída Quinta (uma por linha)</h3>
+<textarea name="saida_qui" rows="10" cols="10"></textarea>
+
+<h3>Saída Sexta (uma por linha)</h3>
+<textarea name="saida_sex" rows="10" cols="10"></textarea>
+<br><br>
+
+
+    <button type="submit">Cadastrar Todos</button>
+
+</form>
+
+<p>
+Exemplo:<br>
+Se você colar 10 nomes, precisa colar 10 turmas e 10 séries.
+</p>
+
+</body>
+</html>

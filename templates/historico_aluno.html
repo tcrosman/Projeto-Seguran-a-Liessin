@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Histórico do Aluno</title>
+</head>
+<body>
+
+<h1>Histórico de {{ aluno[1] }}</h1>
+
+<a href="/cadastro_aluno">Voltar</a>
+
+<hr>
+
+<h2>📌 Informações do Aluno</h2>
+
+<p><b>Série:</b> {{ aluno[3] }}</p>
+<p><b>Turma:</b> {{ aluno[2] }}</p>
+
+<h3>Horário normal de saída</h3>
+
+<ul>
+    <li>Segunda: {{ aluno[4] or "-" }}</li>
+    <li>Terça: {{ aluno[5] or "-" }}</li>
+    <li>Quarta: {{ aluno[6] or "-" }}</li>
+    <li>Quinta: {{ aluno[7] or "-" }}</li>
+    <li>Sexta: {{ aluno[8] or "-" }}</li>
+</ul>
+
+<hr>
+
+<h2>📋 Saídas antecipadas</h2>
+
+{% if historico %}
+
+<table border="1">
+    <tr>
+<th>Data</th>
+<th>Horário</th>
+<th>Motivo</th>
+<th>Veículo</th>
+<th>Placa</th>
+<th>Responsável</th>
+
+
+    </tr>
+
+    {% for saida in historico %}
+    <tr>
+        <td>{{ saida[0] }}</td>
+        <td>{{ saida[1] }}</td>
+        <td>{{ saida[2] }}</td>
+        <td>{{ saida[3] }}</td>
+        <td>{{ saida[4] }}</td>
+        <td>{{ saida[5] }}</td>
+    </tr>
+    {% endfor %}
+
+</table>
+
+{% else %}
+<p>Este aluno ainda não possui saídas antecipadas.</p>
+{% endif %}
+
+</body>
+</html>
