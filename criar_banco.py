@@ -1,13 +1,11 @@
 import sqlite3
 
-print("Criando/atualizando banco de dados...")
+print("Criando banco de dados...")
 
 conexao = sqlite3.connect("escola.db")
 cursor = conexao.cursor()
 
-# =========================
-# TABELA ALUNOS
-# =========================
+# Tabela alunos
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS alunos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -22,48 +20,59 @@ CREATE TABLE IF NOT EXISTS alunos (
 )
 """)
 
-# =========================
-# TABELA SAIDAS
-# =========================
+# Tabela saidas
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS saidas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     aluno INTEGER NOT NULL,
-    data_saida TEXT,
+    data_saida TEXT NOT NULL,
     horario TEXT NOT NULL,
     motivo TEXT NOT NULL,
     veiculo TEXT NOT NULL,
     placa TEXT,
     responsavel TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pendente'
+    status TEXT NOT NULL
 )
 """)
 
-conexao.commit()
+# Tabela usuarios
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS usuarios (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'basico',
+    email TEXT
+)
+""")
 
-# =========================
-# GARANTIR COLUNAS (caso banco antigo já exista)
-# =========================
+# Adicionar coluna email se não existir (para bancos já criados)
+try:
+    cursor.execute("ALTER TABLE usuarios ADD COLUMN email TEXT")
+except:
+    pass
 
-def adicionar_coluna_se_nao_existir(tabela, coluna, tipo):
-    try:
-        cursor.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {tipo}")
-        print(f"Coluna {coluna} adicionada em {tabela}")
-    except:
-        pass  # já existe
+# Tabela reset_tokens
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS reset_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token TEXT UNIQUE NOT NULL,
+    expires_at TEXT NOT NULL
+)
+""")
 
-# alunos
-adicionar_coluna_se_nao_existir("alunos", "saida_seg", "TEXT")
-adicionar_coluna_se_nao_existir("alunos", "saida_ter", "TEXT")
-adicionar_coluna_se_nao_existir("alunos", "saida_qua", "TEXT")
-adicionar_coluna_se_nao_existir("alunos", "saida_qui", "TEXT")
-adicionar_coluna_se_nao_existir("alunos", "saida_sex", "TEXT")
+# Criar usuário inicial (User0) - apenas se não existir nenhum usuário
+cursor.execute("SELECT COUNT(*) FROM usuarios")
+count = cursor.fetchone()[0]
 
-# saidas
-adicionar_coluna_se_nao_existir("saidas", "data_saida", "TEXT")
-adicionar_coluna_se_nao_existir("saidas", "status", "TEXT DEFAULT 'pendente'")
+if count == 0:
+    cursor.execute("INSERT INTO usuarios (username, password, role, email) VALUES ('User0', '000000', 'admin', 'sistema.liessin1@gmail.com')")
+    print(" Usuário inicial User0 criado")
+else:
+    print(f" Já existem {count} usuários, não foi necessário criar User0")
 
 conexao.commit()
 conexao.close()
 
-print("Banco atualizado com sucesso!")
+print("Banco de dados criado com sucesso!")

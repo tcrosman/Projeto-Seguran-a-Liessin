@@ -1,72 +1,134 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-    <title>Cadastro em Massa</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastrar Aluno — Liessin</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-<form method="POST" enctype="multipart/form-data">
+<div class="layout">
+  {% include '_sidebar.html' %}
+  <main class="main">
+    <div class="topbar">
+      <a href="/inicio" class="back-link">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar ao Menu
+      </a>
+    </div>
+    <div class="page-wrap">
+      <div class="card" style="max-width: 680px; margin: 0 auto;">
+        <div class="card-header">
+          <div class="card-icon">👤</div>
+          <div>
+            <div class="card-title">Cadastrar Aluno</div>
+            <div class="card-subtitle">Adicione alunos ao sistema</div>
+          </div>
+        </div>
 
-<h3>Importar por Excel</h3>
+        {% if erro %}
+          <div class="alert alert-error">{{ erro | safe }}</div>
+        {% endif %}
 
-<input type="file" name="arquivo_excel" accept=".xlsx">
-<br><br>
+        <!-- Tabs -->
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab('individual', this)">
+            👤 Cadastro Individual
+          </button>
+          <button class="tab-btn" onclick="switchTab('excel', this)">
+            📊 Importar Excel
+          </button>
+        </div>
 
-<button type="submit">Importar Planilha</button>
+        <!-- Tab: Individual -->
+        <div class="tab-panel active" id="tab-individual">
+          <form method="POST">
+            <div class="form-group">
+              <label class="form-label">Nome Completo <span>*</span></label>
+              <input class="form-input" type="text" name="nome" placeholder="Digite o nome do aluno" required>
+            </div>
 
-</form>
+            <div class="form-row form-row-2">
+              <div class="form-group">
+                <label class="form-label">Série <span>*</span></label>
+                <select class="form-select" name="serie" required>
+                  <option value="">Selecione...</option>
+                  {% for s in series %}
+                    <option value="{{ s }}">{{ s }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Turma <span>*</span></label>
+                <input class="form-input" type="text" name="turma" placeholder="ex: A, B, C..." required>
+              </div>
+            </div>
 
-<hr>
+            <div class="horarios-section">
+              <div class="horarios-title">Horários de Saída Padrão (Opcional)</div>
+              <div class="form-row form-row-5">
+                <div class="form-group">
+                  <label class="form-label">Segunda</label>
+                  <input class="form-input" type="time" name="saida_seg">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Terça</label>
+                  <input class="form-input" type="time" name="saida_ter">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Quarta</label>
+                  <input class="form-input" type="time" name="saida_qua">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Quinta</label>
+                  <input class="form-input" type="time" name="saida_qui">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Sexta</label>
+                  <input class="form-input" type="time" name="saida_sex">
+                </div>
+              </div>
+            </div>
 
-<h3>Ou usar modo manual (opcional)</h3>
+            <div class="btn-actions">
+              <button class="btn btn-primary" type="submit">Cadastrar Aluno</button>
+              <a href="/inicio" class="btn btn-secondary">Cancelar</a>
+            </div>
+          </form>
+        </div>
 
-
-<a href="/">Voltar ao início</a>
-
-<br><br>
-
-{% if erro %}
-    <p style="color:red;">{{ erro }}</p>
-{% endif %}
-
-<form method="POST">
-
-    <h3>Nomes dos Alunos</h3>
-    <textarea name="nomes" rows="10" cols="15"></textarea>
-
-    <h3>Turmas (uma por linha)</h3>
-    <textarea name="turmas" rows="10" cols="15"></textarea>
-
-    <h3>Séries (uma por linha)</h3>
-    <textarea name="series" rows="10" cols="15"></textarea>
-
-    <br><br>
-    <h3>Horário padrão de saída</h3>
-
-<h3>Saída Segunda (uma por linha)</h3>
-<textarea name="saida_seg" rows="10" cols="10"></textarea>
-
-<h3>Saída Terça (uma por linha)</h3>
-<textarea name="saida_ter" rows="10" cols="10"></textarea>
-
-<h3>Saída Quarta (uma por linha)</h3>
-<textarea name="saida_qua" rows="10" cols="10"></textarea>
-
-<h3>Saída Quinta (uma por linha)</h3>
-<textarea name="saida_qui" rows="10" cols="10"></textarea>
-
-<h3>Saída Sexta (uma por linha)</h3>
-<textarea name="saida_sex" rows="10" cols="10"></textarea>
-<br><br>
+        <!-- Tab: Excel -->
+        <div class="tab-panel" id="tab-excel">
+          <div class="info-box">
+            <strong>Colunas obrigatórias: <code>nome</code>, <code>turma</code>, <code>serie</code></strong>
+            Colunas opcionais: <code>saida_seg</code>, <code>saida_ter</code>, <code>saida_qua</code>, <code>saida_qui</code>, <code>saida_sex</code>
+          </div>
 
 
-    <button type="submit">Cadastrar Todos</button>
+          <form method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+              <label class="form-label">Arquivo Excel (.xlsx)</label>
+              <input class="form-input" type="file" name="arquivo_excel" accept=".xlsx" required>
+            </div>
+            <div class="btn-actions">
+              <button class="btn btn-primary" type="submit">Importar Planilha</button>
+              <a href="/inicio" class="btn btn-secondary">Cancelar</a>
+            </div>
+          </form>
+        </div>
 
-</form>
+      </div>
+    </div>
+  </main>
+</div>
 
-<p>
-Exemplo:<br>
-Se você colar 10 nomes, precisa colar 10 turmas e 10 séries.
-</p>
-
+<script>
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+}
+</script>
 </body>
 </html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Esqueci minha senha — Liessin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-icon">🎓</div>
+      <span class="login-logo-text">Liessin</span>
+    </div>
+
+    <h1 class="login-title">Recuperar senha</h1>
+    <p class="login-sub">Digite seu email para receber o link de redefinição</p>
+
+    {% if mensagem %}
+      <div class="alert alert-success">{{ mensagem }}</div>
+    {% endif %}
+
+    <form method="post">
+      <div class="form-group">
+        <label class="form-label">Email cadastrado</label>
+        <input class="form-input" type="email" name="email" placeholder="seu@email.com" required>
+      </div>
+      <button class="btn btn-primary btn-full" type="submit">Enviar link de redefinição</button>
+    </form>
+
+    <div style="text-align: center; margin-top: 16px;">
+      <a href="/" class="login-forgot">← Voltar ao login</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>

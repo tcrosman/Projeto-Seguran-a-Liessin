@@ -1,64 +1,87 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-    <title>Registrar Saída</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registrar Saída — Liessin</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+<div class="layout">
+  {% include '_sidebar.html' %}
+  <main class="main">
+    <div class="topbar">
+      <a href="/cadastro_aluno" class="back-link">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar
+      </a>
+    </div>
+    <div class="page-wrap">
+      <div class="card" style="max-width: 640px; margin: 0 auto;">
+        <div class="card-header">
+          <div class="card-icon">📋</div>
+          <div>
+            <div class="card-title">Registrar Saída</div>
+            <div class="card-subtitle">Preencha os dados da saída antecipada</div>
+          </div>
+        </div>
 
-<h1>Registrar Saída</h1>
+        {% if erro %}
+          <div class="alert alert-error">{{ erro }}</div>
+        {% endif %}
 
-<a href="/">Voltar ao início</a>
+        <form method="POST">
+          <div class="form-group">
+            <label class="form-label">Aluno <span>*</span></label>
+            <select class="form-select" name="aluno_id" required>
+              {% for aluno in alunos %}
+                <option value="{{ aluno[0] }}" {% if aluno_selecionado == aluno[0]|string %}selected{% endif %}>
+                  {{ aluno[1] }} — {{ aluno[3] }} Turma {{ aluno[2] }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
 
-<br><br>
+          <div class="form-row form-row-2">
+            <div class="form-group">
+              <label class="form-label">Data <span>*</span></label>
+              <input class="form-input" type="date" name="data_saida">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Horário <span>*</span></label>
+              <input class="form-input" type="time" name="horario" required placeholder="ex: 14:30">
+            </div>
+          </div>
 
-{% if erro %}
-    <p style="color:red;">{{ erro }}</p>
-{% endif %}
+          <div class="form-group">
+            <label class="form-label">Motivo <span>*</span></label>
+            <input class="form-input" type="text" name="motivo" required placeholder="ex: Consulta médica">
+          </div>
 
-<form method="POST">
+          <div class="form-row form-row-2">
+            <div class="form-group">
+              <label class="form-label">Veículo <span>*</span></label>
+              <input class="form-input" type="text" name="veiculo" required placeholder="ex: Carro, Moto, Van">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Placa</label>
+              <input class="form-input" type="text" name="placa" placeholder="ex: ABC-1234">
+            </div>
+          </div>
 
-   <select name="aluno_id">
+          <div class="form-group">
+            <label class="form-label">Responsável <span>*</span></label>
+            <input class="form-input" type="text" name="responsavel" required placeholder="ex: Pai, Mãe, Avó...">
+          </div>
 
-{% for aluno in alunos %}
-
-    <option value="{{ aluno[0] }}"
-{% if aluno_selecionado == aluno[0]|string %}selected{% endif %}>
-
-    {{ aluno[1] }} - {{ aluno[3] }} {{ aluno[2] }}
-</option>
-{% endfor %}
-
-</select>
-
-
-    
-
-       
-
-    <br><br>
-
-    Horário:<br>
-    <input type="text" name="horario"><br><br>
-
-    Motivo:<br>
-    <input type="text" name="motivo"><br><br>
-
-    Veículo:<br>
-    <input type="text" name="veiculo"><br><br>
-
-    Placa:<br>
-    <input type="text" name="placa"><br><br>
-
-    Responsável:<br>
-    <input type="text" name="responsavel"><br><br>
-   
-    Data:<br>
-    <input type="date" name="data_saida"><br><br>
-
-
-    <button type="submit">Registrar Saída</button>
-
-</form>
-
+          <div class="btn-actions">
+            <button class="btn btn-primary" type="submit">Registrar Saída</button>
+            <a href="/cadastro_aluno" class="btn btn-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
 </body>
 </html>

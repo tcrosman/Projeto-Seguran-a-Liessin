@@ -1,51 +1,140 @@
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
-    <title>Saídas</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Saídas — Liessin</title>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+<div class="layout">
+  {% include '_sidebar.html' %}
+  <main class="main">
+    <div class="topbar">
+      <a href="/inicio" class="back-link">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar ao Menu
+      </a>
+    </div>
+    <div class="page-wrap">
 
-<h1>Saídas Pendentes</h1>
+      <div class="list-topbar">
+        <div class="list-topbar-left">
+          <h1>Saídas</h1>
+          <p>{{ pendentes|length }} saída{{ 's' if pendentes|length != 1 else '' }} pendente{{ 's' if pendentes|length != 1 else '' }} de autorização</p>
+        </div>
+        <div class="filter-bar">
+          <label>Data:</label>
+          <form method="get">
+            <input type="date" name="data" value="{{ data_selecionada }}" min="{{ data_min }}" max="{{ data_max }}" onchange="this.form.submit()">
+          </form>
+        </div>
+      </div>
 
-<a href="/">Voltar ao início</a>
+      <!-- Pendentes -->
+      <div class="section-title">
+        Pendentes
+        <span class="section-count">{{ pendentes|length }}</span>
+      </div>
 
-<table border="1">
-    <tr>
-        <th>Série</th>
-        <th>Turma</th>
-        <th>Aluno</th>
-        <th>Horário</th>
-        <th>Motivo</th>
-        <th>Status</th>
-        <th>Ação</th>
-        <th>Veículo</th>
-        <th>Placa</th>
-        <th>Responsável</th>
-    </tr>
+      {% if pendentes %}
+        {% for saida in pendentes %}
+        <div class="saida-card">
+          <div class="saida-card-top">
+            <div class="saida-student">
+              <div class="student-avatar" style="background: #dc2626; width:44px; height:44px; font-size:16px;">{{ saida.aluno[0] if saida.aluno else '?' }}</div>
+              <div>
+                <div class="saida-student-label">Nome Completo</div>
+                <div class="saida-student-name">{{ saida.aluno or '—' }}</div>
+              </div>
+            </div>
+            <div class="saida-turma-serie">
+              <div class="saida-turma-serie-label">Turma/Série</div>
+              <div class="saida-turma-serie-val">{{ saida.serie or '—' }} &bull; Turma {{ saida.turma or '—' }}</div>
+            </div>
+          </div>
 
-{% for saida in pendentes %}
-<tr>
-    <td>{{ saida.serie }}</td>
-    <td>{{ saida.turma }}</td>
-    <td>{{ saida.aluno }}</td>
-    <td>{{ saida.horario }}</td>
-    <td>{{ saida.motivo }}</td>
-    <td>{{ saida.status }}</td>
-    <td>
-        <a href="/concluir_saida/{{ saida.id }}">
-            <button>Concluir</button>
-        </a>
-    </td>
-    <td>{{ saida.veiculo }}</td>
-    <td>{{ saida.placa }}</td>
-    <td>{{ saida.responsavel }}</td>
-</tr>
-{% endfor %}
+          <div class="saida-card-grid">
+            <div>
+              <div class="saida-field-label">Data Saída Antecipada</div>
+              <div class="saida-field-val">📅 {{ data_selecionada }}</div>
+            </div>
+            <div>
+              <div class="saida-field-label">Horário Saída Antecipada</div>
+              <div class="saida-field-val">🕐 {{ saida.horario }}</div>
+            </div>
+            <div>
+              <div class="saida-field-label">Motivo Saída</div>
+              <div class="saida-field-val">{{ saida.motivo }}</div>
+            </div>
+            <div>
+              <div class="saida-field-label">Responsável</div>
+              <div class="saida-field-val">👤 {{ saida.responsavel }}</div>
+            </div>
+            <div>
+              <div class="saida-field-label">Placa e Tipo Carro</div>
+              <div class="saida-field-val">🚗 {{ saida.veiculo }}{% if saida.placa %} &bull; {{ saida.placa }}{% endif %}</div>
+            </div>
+          </div>
 
-</table>
+          <a href="/concluir_saida/{{ saida.id }}" class="btn btn-success btn-full">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="9 11 12 14 22 4"/></svg>
+            AUTORIZAR SAÍDA
+          </a>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="card">
+          <div class="empty-state">
+            <div class="empty-state-icon">✅</div>
+            <p>Nenhuma saída pendente para este dia.</p>
+          </div>
+        </div>
+      {% endif %}
 
+      <!-- Concluídas -->
+      <div class="section-title" style="margin-top: 32px;">
+        Concluídas
+        <span class="section-count">{{ concluidas|length }}</span>
+      </div>
 
+      {% if concluidas %}
+        <div class="card" style="padding: 0; overflow: hidden;">
+          <table class="student-table">
+            <thead>
+              <tr>
+                <th>Aluno</th>
+                <th>Série / Turma</th>
+                <th>Horário</th>
+                <th>Motivo</th>
+                <th>Responsável</th>
+                <th>Veículo / Placa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for saida in concluidas %}
+              <tr>
+                <td>{{ saida.aluno }}</td>
+                <td style="color:#6b7280;">{{ saida.serie }} / {{ saida.turma }}</td>
+                <td>{{ saida.horario }}</td>
+                <td>{{ saida.motivo }}</td>
+                <td>{{ saida.responsavel }}</td>
+                <td>{{ saida.veiculo }}{% if saida.placa %} &bull; {{ saida.placa }}{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="card">
+          <div class="empty-state">
+            <p>Nenhuma saída concluída neste dia.</p>
+          </div>
+        </div>
+      {% endif %}
 
-</table>
+    </div>
+  </main>
+</div>
 </body>
 </html>

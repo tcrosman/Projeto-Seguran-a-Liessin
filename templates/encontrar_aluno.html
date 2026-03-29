@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Registrar Saída — Liessin</title>
+  <title>Histórico — Liessin</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -17,17 +17,38 @@
       </a>
     </div>
     <div class="page-wrap">
+
+      {% if not busca %}
+      <!-- Search-first view -->
+      <div class="card" style="max-width: 640px; margin: 0 auto; text-align: center; padding: 48px 40px;">
+        <h1 style="font-size: 26px; font-weight: 800; margin-bottom: 8px;">HISTÓRICO</h1>
+        <p style="color: #6b7280; margin-bottom: 28px;">Selecione o aluno para ver o histórico de saídas</p>
+        <form method="GET">
+          <div class="search-wrap" style="text-align:left;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" type="text" name="busca" placeholder="Buscar aluno por nome, série ou turma..." autofocus>
+          </div>
+          <button class="btn btn-primary" type="submit" style="margin-top: 12px; width: 100%;">Buscar</button>
+        </form>
+        <div class="search-empty" style="margin-top: 16px;">
+          <p>Digite o nome do aluno para começar a busca</p>
+        </div>
+      </div>
+
+      {% else %}
+      <!-- Results view -->
       <div class="list-topbar">
         <div class="list-topbar-left">
-          <h1>Registrar Saída</h1>
-          <p>Selecione o aluno para registrar a saída antecipada</p>
+          <h1>Histórico</h1>
+          <p>Resultados para "{{ busca }}"</p>
         </div>
+        <a href="/encontrar_aluno" class="btn btn-outline">Limpar busca</a>
       </div>
 
       <form method="GET" style="margin-bottom: 20px;">
         <div class="search-wrap">
           <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input class="search-input" type="text" name="busca" placeholder="Buscar aluno por nome, série ou turma..." value="{{ busca or '' }}" autofocus>
+          <input class="search-input" type="text" name="busca" value="{{ busca }}" placeholder="Buscar aluno...">
         </div>
       </form>
 
@@ -41,10 +62,10 @@
             <table class="student-table">
               <thead>
                 <tr>
-                  <th style="width:50%;">Aluno</th>
-                  <th style="width:20%;">Série</th>
-                  <th style="width:10%;">Turma</th>
-                  <th style="text-align:right; width:20%;">Ações</th>
+                  <th>Aluno</th>
+                  <th>Série</th>
+                  <th>Turma</th>
+                  <th style="text-align:right;">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -52,23 +73,16 @@
                 <tr>
                   <td>
                     <div class="student-name-cell">
-                      <div class="student-avatar" style="background: #1F6EFD;">{{ aluno[1][0] }}</div>
+                      <div class="student-avatar" style="background: #0891b2;">{{ aluno[1][0] }}</div>
                       {{ aluno[1] }}
                     </div>
                   </td>
                   <td style="color:#6b7280;">{{ aluno[3] }}</td>
-                  <td style="color:#6b7280;">{{ aluno[2] }}</td>
+                  <td style="color:#6b7280;">Turma {{ aluno[2] }}</td>
                   <td style="text-align:right;">
-                    <a href="/registrar_saida?aluno_id={{ aluno[0] }}" class="btn btn-primary" style="padding: 7px 14px; font-size: 13px;">
-                      Registrar Saída
+                    <a href="/historico/{{ aluno[0] }}" class="btn btn-outline" style="padding: 7px 14px; font-size: 13px;">
+                      Ver Histórico
                     </a>
-                    {% if session.role == 'admin' %}
-                    <a href="/deletar_aluno/{{ aluno[0] }}"
-                       onclick="return confirm('Apagar {{ aluno[1] }}? Esta ação não pode ser desfeita.')"
-                       class="action-btn danger" title="Apagar aluno">
-                      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                    </a>
-                    {% endif %}
                   </td>
                 </tr>
                 {% endfor %}
@@ -76,17 +90,14 @@
             </table>
           </div>
         {% endfor %}
-      {% elif busca %}
+      {% else %}
         <div class="search-empty">
           <div style="font-size:36px; margin-bottom:8px;">🔍</div>
           Nenhum aluno encontrado para "<strong>{{ busca }}</strong>"
         </div>
-      {% else %}
-        <div class="search-empty">
-          <div style="font-size:36px; margin-bottom:8px;">👥</div>
-          Nenhum aluno cadastrado ainda.
-        </div>
       {% endif %}
+      {% endif %}
+
     </div>
   </main>
 </div>
