@@ -207,6 +207,26 @@ body {
 
 .form-textarea { resize: vertical; min-height: 130px; font-family: inherit; }
 
+.file-upload-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  cursor: pointer;
+  color: #6b7280;
+  font-size: 14px;
+  transition: border-color 0.15s, background 0.15s;
+  background: #f9fafb;
+}
+
+.file-upload-wrap:hover {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
 .form-row {
   display: grid;
   gap: 16px;
@@ -668,6 +688,79 @@ body {
 .login-sub { font-size: 14px; color: #6b7280; margin-bottom: 28px; }
 .login-forgot { font-size: 13px; color: #2563eb; text-decoration: none; display: block; margin-top: 8px; }
 .login-forgot:hover { text-decoration: underline; }
+
+/* ── Radio group (tipo de saída) ── */
+.radio-group {
+  display: flex;
+  gap: 12px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  transition: all 0.15s;
+  flex: 1;
+  justify-content: center;
+}
+
+.radio-option:has(input:checked) {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.radio-option input[type="radio"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+
+/* ── Student photo in saida card ── */
+.saida-student-photo {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 2px solid #f3f4f6;
+}
+
+/* ── Responsaveis section ── */
+.responsaveis-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.responsaveis-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 14px;
+}
+
+/* ── Foto upload section ── */
+.foto-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.foto-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 14px;
+}
 
 /* ── Horários section ── */
 .horarios-section {

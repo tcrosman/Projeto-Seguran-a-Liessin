@@ -73,7 +73,11 @@
                 <tr>
                   <td>
                     <div class="student-name-cell">
-                      <div class="student-avatar" style="background: #0891b2;">{{ aluno[1][0] }}</div>
+                      {% if aluno[4] %}
+                        <img src="/uploads/{{ aluno[4] }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; margin-right:10px; flex-shrink:0;" alt="">
+                      {% else %}
+                        <div class="student-avatar" style="background: #0891b2;">{{ aluno[1][0] }}</div>
+                      {% endif %}
                       {{ aluno[1] }}
                     </div>
                   </td>

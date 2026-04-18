@@ -21,12 +21,23 @@
       {% if aluno %}
       <div class="card">
         <div class="card-header" style="background: linear-gradient(135deg, #1F6EFD 0%, #37CAF0 100%); border-radius: 12px; padding: 20px 24px; margin: -32px -32px 24px -32px;">
-          <div class="student-avatar" style="background: rgba(255,255,255,0.25); width: 52px; height: 52px; font-size: 20px; border-radius: 14px; color: #fff;">{{ aluno[1][0] }}</div>
+          {% if aluno[10] %}
+            <img src="/uploads/{{ aluno[10] }}" style="width:52px; height:52px; border-radius:14px; object-fit:cover; border:2px solid rgba(255,255,255,0.3); flex-shrink:0;" alt="">
+          {% else %}
+            <div class="student-avatar" style="background: rgba(255,255,255,0.25); width: 52px; height: 52px; font-size: 20px; border-radius: 14px; color: #fff;">{{ aluno[1][0] }}</div>
+          {% endif %}
           <div>
             <div class="card-title" style="color:#fff;">{{ aluno[1] }}</div>
-            <div class="card-subtitle" style="color:rgba(255,255,255,0.8);">{{ aluno[3] }} &bull; Turma {{ aluno[2] }}</div>
+            <div class="card-subtitle" style="color:rgba(255,255,255,0.8);">{{ aluno[2] }} &bull; Turma {{ aluno[3] }}</div>
           </div>
         </div>
+
+        {% if aluno[9] %}
+        <div style="margin-bottom:20px; padding:12px 16px; background:#f0f9ff; border-radius:8px; border:1px solid #bae6fd;">
+          <div style="font-size:12px; font-weight:700; color:#0369a1; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Responsáveis Autorizados</div>
+          <div style="font-size:14px; color:#0c4a6e;">{{ aluno[9] }}</div>
+        </div>
+        {% endif %}
 
         <div class="horarios-title" style="color:#1F6EFD; font-weight:700;">Horários Normais de Saída</div>
         <div class="horarios-grid" style="margin-bottom: 24px;">
@@ -65,9 +76,9 @@
                   <th style="color:#1F6EFD;">Data</th>
                   <th style="color:#1F6EFD;">Horário</th>
                   <th style="color:#1F6EFD;">Motivo</th>
-                  <th style="color:#1F6EFD;">Veículo</th>
-                  <th style="color:#1F6EFD;">Placa</th>
                   <th style="color:#1F6EFD;">Responsável</th>
+                  <th style="color:#1F6EFD;">Resp. Escola</th>
+                  <th style="color:#1F6EFD;">Tipo de Saída</th>
                 </tr>
               </thead>
               <tbody>
@@ -78,7 +89,15 @@
                   <td>{{ saida[2] }}</td>
                   <td>{{ saida[3] }}</td>
                   <td style="color:#6b7280;">{{ saida[4] or '—' }}</td>
-                  <td>{{ saida[5] }}</td>
+                  <td>
+                    {% if saida[5] == 'acompanhado' %}
+                      Acompanhado(a){% if saida[6] %} — {{ saida[6] }}{% endif %}
+                    {% elif saida[5] == 'sozinho' %}
+                      Sozinho(a)
+                    {% else %}
+                      {{ saida[5] or '—' }}
+                    {% endif %}
+                  </td>
                 </tr>
                 {% endfor %}
               </tbody>

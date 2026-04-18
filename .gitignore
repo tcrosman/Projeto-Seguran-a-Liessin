@@ -34,3 +34,7 @@ sqlite3
 escola.db
 log_sistema.txt
 .DS_Store
+.env
+uploads/
+escola.db-shm
+escola.db-wal

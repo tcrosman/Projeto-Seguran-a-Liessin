@@ -30,7 +30,7 @@
           <div class="alert alert-error">{{ erro }}</div>
         {% endif %}
 
-        <form method="POST">
+        <form method="POST" enctype="multipart/form-data">
           <div class="form-group">
             <label class="form-label">Aluno <span>*</span></label>
             <select class="form-select" name="aluno_id" required>
@@ -49,7 +49,7 @@
             </div>
             <div class="form-group">
               <label class="form-label">Horário <span>*</span></label>
-              <input class="form-input" type="time" name="horario" required placeholder="ex: 14:30">
+              <input class="form-input" type="time" name="horario" required>
             </div>
           </div>
 
@@ -58,20 +58,41 @@
             <input class="form-input" type="text" name="motivo" required placeholder="ex: Consulta médica">
           </div>
 
-          <div class="form-row form-row-2">
-            <div class="form-group">
-              <label class="form-label">Veículo <span>*</span></label>
-              <input class="form-input" type="text" name="veiculo" required placeholder="ex: Carro, Moto, Van">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Placa</label>
-              <input class="form-input" type="text" name="placa" placeholder="ex: ABC-1234">
-            </div>
+          <div class="form-group">
+            <label class="form-label">Responsável da escola <span>*</span></label>
+            <input class="form-input" type="text" name="responsavel_escola" required placeholder="ex: Inspetor, Coordenador...">
           </div>
 
           <div class="form-group">
-            <label class="form-label">Responsável <span>*</span></label>
-            <input class="form-input" type="text" name="responsavel" required placeholder="ex: Pai, Mãe, Avó...">
+            <label class="form-label">Tipo de Saída <span>*</span></label>
+            <div class="radio-group">
+              <label class="radio-option">
+                <input type="radio" name="tipo_saida" value="sozinho" required onchange="toggleAcompanhante(this)">
+                <span>Sozinho(a)</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="tipo_saida" value="acompanhado" onchange="toggleAcompanhante(this)">
+                <span>Acompanhado(a)</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-group" id="acompanhante-group" style="display:none;">
+            <label class="form-label">Com quem? <span>*</span></label>
+            <input class="form-input" type="text" name="acompanhante" id="acompanhante-input" placeholder="Nome do acompanhante">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">
+              Documento do responsável pela retirada
+              <span style="color:#6b7280; font-weight:400;">(opcional — RG, CNH, etc.)</span>
+            </label>
+            <div class="file-upload-wrap" onclick="document.getElementById('documento').click()">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span id="doc-label">Clique para anexar documento (PDF, JPG, PNG)</span>
+            </div>
+            <input type="file" id="documento" name="documento" accept=".pdf,.jpg,.jpeg,.png" style="display:none;"
+              onchange="document.getElementById('doc-label').textContent = this.files[0] ? this.files[0].name : 'Clique para anexar documento (PDF, JPG, PNG)'">
           </div>
 
           <div class="btn-actions">
@@ -83,5 +104,19 @@
     </div>
   </main>
 </div>
+<script>
+function toggleAcompanhante(radio) {
+  var group = document.getElementById('acompanhante-group');
+  var input = document.getElementById('acompanhante-input');
+  if (radio.value === 'acompanhado') {
+    group.style.display = '';
+    input.required = true;
+  } else {
+    group.style.display = 'none';
+    input.required = false;
+    input.value = '';
+  }
+}
+</script>
 </body>
 </html>
