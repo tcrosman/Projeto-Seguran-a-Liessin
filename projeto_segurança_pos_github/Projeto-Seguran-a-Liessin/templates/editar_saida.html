@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editar Saída — Liessin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="layout">
+  {% include '_sidebar.html' %}
+  <main class="main">
+    <div class="topbar">
+      <a href="/saidas" class="back-link">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar
+      </a>
+    </div>
+    <div class="page-wrap">
+      <div class="card" style="max-width: 600px; margin: 0 auto;">
+        <div class="card-header">
+          <div class="card-icon">✏️</div>
+          <div>
+            <div class="card-title">Editar Saída</div>
+            <div class="card-subtitle">Aluno: {{ saida[6] }}</div>
+          </div>
+        </div>
+
+        <form method="post">
+          <div class="form-group">
+            <label class="form-label">Horário <span>*</span></label>
+            <input class="form-input" type="time" name="horario" value="{{ saida[1] }}" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Motivo <span>*</span></label>
+            <input class="form-input" type="text" name="motivo" value="{{ saida[2] }}" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Responsável da Escola <span>*</span></label>
+            <input class="form-input" type="text" name="responsavel_escola" value="{{ saida[3] }}" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tipo de Saída <span>*</span></label>
+            <select class="form-select" name="tipo_saida" id="tipo_saida" onchange="toggleAcompanhante()">
+              <option value="sozinho" {% if saida[4] == 'sozinho' %}selected{% endif %}>Sozinho(a)</option>
+              <option value="acompanhado" {% if saida[4] == 'acompanhado' %}selected{% endif %}>Acompanhado(a)</option>
+            </select>
+          </div>
+          <div class="form-group" id="acompanhante_group" style="display: {% if saida[4] == 'acompanhado' %}block{% else %}none{% endif %};">
+            <label class="form-label">Com quem? <span>*</span></label>
+            <input class="form-input" type="text" name="acompanhante" value="{{ saida[5] or '' }}">
+          </div>
+
+          <div class="btn-actions">
+            <button class="btn btn-primary" type="submit">Salvar Alterações</button>
+            <a href="/saidas" class="btn btn-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+function toggleAcompanhante() {
+  var tipo = document.getElementById('tipo_saida').value;
+  var group = document.getElementById('acompanhante_group');
+  group.style.display = (tipo === 'acompanhado') ? 'block' : 'none';
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Histórico de Saídas — Liessin</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .badge-warning { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .badge-success { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .filtros-form { margin-bottom: 24px; }
+    .student-table th { background: #f8faff; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  {% include '_sidebar.html' %}
+  <main class="main">
+    <div class="topbar">
+      <a href="/inicio" class="back-link">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar ao Menu
+      </a>
+    </div>
+    <div class="page-wrap">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">📋</div>
+          <div>
+            <div class="card-title">Histórico de Saídas</div>
+            <div class="card-subtitle">Consulte saídas antecipadas por aluno, data, turma ou série</div>
+          </div>
+        </div>
+
+        <!-- Formulário de filtros -->
+        <form method="get" class="filtros-form">
+          <div class="form-row form-row-2">
+            <div class="form-group">
+              <label class="form-label">Nome do Aluno</label>
+              <input class="form-input" type="text" name="nome" placeholder="Digite o nome" value="{{ nome or '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Data Inicial</label>
+              <input class="form-input" type="date" name="data_ini" value="{{ data_ini or '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Data Final</label>
+              <input class="form-input" type="date" name="data_fim" value="{{ data_fim or '' }}">
+            </div>
+          </div>
+          <div class="form-row form-row-2">
+            <div class="form-group">
+              <label class="form-label">Turma</label>
+              <select class="form-select" name="turma">
+                <option value="">Todas</option>
+                {% for t in turmas %}
+                  <option value="{{ t }}" {% if turma_selecionada == t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Série</label>
+              <select class="form-select" name="serie">
+                <option value="">Todas</option>
+                {% for s in series %}
+                  <option value="{{ s }}" {% if serie_selecionada == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+          <div class="btn-actions">
+            <button class="btn btn-primary" type="submit">Buscar</button>
+            <a href="/historico" class="btn btn-secondary">Limpar Filtros</a>
+          </div>
+        </form>
+
+        <!-- Resultados -->
+        {% if resultados %}
+          <div class="section-title" style="margin-top: 32px;">
+            Resultados <span class="section-count">{{ resultados|length }}</span>
+          </div>
+          <div style="overflow-x: auto;">
+            <table class="student-table">
+              <thead>
+                <tr>
+                  <th>Aluno</th><th>Turma</th><th>Série</th><th>Data</th><th>Horário</th>
+                  <th>Motivo</th><th>Resp. Escola</th><th>Tipo</th><th>Status</th><th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for r in resultados %}
+                <tr>
+                  <td>
+                    <div class="student-name-cell">
+                      {% if r[11] %}
+                        <img src="/uploads/{{ r[11] }}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; margin-right:8px;">
+                      {% else %}
+                        <div class="student-avatar" style="background:#1F6EFD; width:28px; height:28px; font-size:11px;">{{ r[1][0] }}</div>
+                      {% endif %}
+                      {{ r[1] }}
+                    </div>
+                  </td>
+                  <td>{{ r[2] }}</td>
+                  <td>{{ r[3] }}</td>
+                  <td>{{ r[4] }}</td>
+                  <td>{{ r[5] }}</td>
+                  <td>{{ r[6] }}</td>
+                  <td>{{ r[7] or '—' }}</td>
+                  <td>
+                    {% if r[8] == 'acompanhado' %}
+                      Acompanhado{% if r[9] %} ({{ r[9] }}){% endif %}
+                    {% else %}
+                      Sozinho
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if r[10] == 'pendente' %}
+                      <span class="badge-warning">Pendente</span>
+                    {% else %}
+                      <span class="badge-success">Concluída</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <a href="/historico_aluno/{{ r[0] }}" class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;">Detalhes</a>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% elif request.args %}
+          <div class="search-empty" style="margin-top: 20px;">Nenhum resultado encontrado.</div>
+        {% else %}
+          <div class="search-empty" style="margin-top: 20px;">Use os filtros acima para consultar o histórico.</div>
+        {% endif %}
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

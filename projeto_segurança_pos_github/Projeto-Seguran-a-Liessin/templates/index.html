@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Menu Principal — Liessin</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="layout">
+
+  <!-- Sidebar -->
+  {% include '_sidebar.html' %}
+
+  <main class="main">
+    <div class="home-wrap">
+      <h1 class="home-title">Sistema de Controle de Saídas</h1>
+      <p class="home-sub">Liessin Security System &bull; Selecione uma opção</p>
+
+      <div class="home-grid">
+        <a href="/cadastro_aluno" class="home-card blue">
+          <div class="home-card-icon">📋</div>
+          <div class="home-card-title">REGISTRAR</div>
+          <div class="home-card-sub">Registrar saída antecipada</div>
+        </a>
+        {% if session.role == 'admin' %}
+        <a href="/cadastro_massa" class="home-card green">
+          <div class="home-card-icon">👤</div>
+          <div class="home-card-title">CADASTRAR ALUNO</div>
+          <div class="home-card-sub">Adicionar alunos ao sistema</div>
+        </a>
+        {% endif %}
+        <a href="/encontrar_aluno" class="home-card cyan">
+          <div class="home-card-icon">📑</div>
+          <div class="home-card-title">HISTÓRICO DO ALUNO</div>
+          <div class="home-card-sub">Ver histórico de saídas</div>
+        </a>
+        <a href="/saidas" class="home-card yellow {% if session.role != 'admin' %}home-card-centered{% endif %}">
+          <div class="home-card-icon">✅</div>
+          <div class="home-card-title">SAÍDAS</div>
+          <div class="home-card-sub">Ver e autorizar saídas</div>
+        </a>
+      </div>
+
+      <div class="home-status">Sistema Ativo &bull; Database Connected</div>
+    </div>
+  </main>
+
+</div>
+</body>
+</html>
