@@ -5,7 +5,7 @@ print("Criando banco de dados...")
 conexao = sqlite3.connect("escola.db")
 cursor = conexao.cursor()
 
-# Tabela alunos
+# Tabela alunos (versão completa)
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS alunos (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -16,7 +16,14 @@ CREATE TABLE IF NOT EXISTS alunos (
     saida_ter TEXT,
     saida_qua TEXT,
     saida_qui TEXT,
-    saida_sex TEXT
+    saida_sex TEXT,
+    responsaveis TEXT,
+    foto_path TEXT,
+    telefone TEXT,
+    email_responsavel TEXT,
+    data_nascimento TEXT,
+    alergias TEXT,
+    observacoes TEXT
 )
 """)
 
@@ -31,7 +38,12 @@ CREATE TABLE IF NOT EXISTS saidas (
     veiculo TEXT NOT NULL,
     placa TEXT,
     responsavel TEXT NOT NULL,
-    status TEXT NOT NULL
+    status TEXT NOT NULL,
+    responsavel_escola TEXT,
+    tipo_saida TEXT,
+    acompanhante TEXT,
+    documento_path TEXT,
+    usuario_autorizou INTEGER
 )
 """)
 
@@ -46,12 +58,6 @@ CREATE TABLE IF NOT EXISTS usuarios (
 )
 """)
 
-# Adicionar coluna email se não existir (para bancos já criados)
-try:
-    cursor.execute("ALTER TABLE usuarios ADD COLUMN email TEXT")
-except:
-    pass
-
 # Tabela reset_tokens
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS reset_tokens (
@@ -62,17 +68,40 @@ CREATE TABLE IF NOT EXISTS reset_tokens (
 )
 """)
 
-# Criar usuário inicial (User0) - apenas se não existir nenhum usuário
+# Tabela horarios_padrao
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS horarios_padrao (
+    serie TEXT PRIMARY KEY,
+    saida_seg TEXT,
+    saida_ter TEXT,
+    saida_qua TEXT,
+    saida_qui TEXT,
+    saida_sex TEXT
+)
+""")
+
+# Tabela logs_alunos (auditoria)
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS logs_alunos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    aluno_id INTEGER NOT NULL,
+    usuario_id INTEGER NOT NULL,
+    acao TEXT NOT NULL,
+    dados_antigos TEXT,
+    dados_novos TEXT,
+    data_hora TEXT NOT NULL
+)
+""")
+
+# Criar usuário inicial (User0) apenas se não existir nenhum
 cursor.execute("SELECT COUNT(*) FROM usuarios")
 count = cursor.fetchone()[0]
-
 if count == 0:
     cursor.execute("INSERT INTO usuarios (username, password, role, email) VALUES ('User0', '000000', 'admin', 'sistema.liessin1@gmail.com')")
-    print(" Usuário inicial User0 criado")
+    print("Usuário inicial User0 criado")
 else:
-    print(f" Já existem {count} usuários, não foi necessário criar User0")
+    print(f"Já existem {count} usuários, não foi necessário criar User0")
 
 conexao.commit()
 conexao.close()
-
 print("Banco de dados criado com sucesso!")
