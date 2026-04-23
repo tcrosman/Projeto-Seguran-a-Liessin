@@ -760,7 +760,11 @@ def cadastro_massa():
             except Exception as e:
                 print("Erro na importação:", e)
                 mensagem_erro = "Erro ao processar o arquivo. Verifique o formato do Excel."
-    return render_template("cadastro_massa.html", erro=mensagem_erro, series=SERIES)
+    conn = conectar()
+    rows = conn.execute("SELECT serie, saida_seg, saida_ter, saida_qua, saida_qui, saida_sex FROM horarios_padrao").fetchall()
+    conn.close()
+    horarios_padrao = {r[0]: {'seg': r[1] or '', 'ter': r[2] or '', 'qua': r[3] or '', 'qui': r[4] or '', 'sex': r[5] or ''} for r in rows}
+    return render_template("cadastro_massa.html", erro=mensagem_erro, series=SERIES, horarios_padrao=horarios_padrao)
 
 @app.route("/historico", methods=["GET", "POST"])
 def historico_unificado():
@@ -846,12 +850,40 @@ def historico_aluno(id_aluno):
     conn.close()
     return render_template("historico_aluno.html", aluno=aluno, historico=historico)
 
+@app.route("/configuracoes")
+def configuracoes():
+    if session.get('role') != 'admin':
+        return redirect("/inicio")
+    conn = conectar()
+    total_alunos = conn.execute("SELECT COUNT(*) FROM alunos").fetchone()[0]
+    total_usuarios = conn.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0]
+    total_saidas = conn.execute("SELECT COUNT(*) FROM saidas").fetchone()[0]
+    saidas_hoje = conn.execute(
+        "SELECT COUNT(*) FROM saidas WHERE DATE(data_saida) = DATE('now', 'localtime')"
+    ).fetchone()[0]
+    conn.close()
+    backups = sorted(Path("backups").glob("*.db")) if Path("backups").exists() else []
+    ultimo_backup = backups[-1].name if backups else None
+    total_backups = len(backups)
+    return render_template("configuracoes.html",
+        total_alunos=total_alunos,
+        total_usuarios=total_usuarios,
+        total_saidas=total_saidas,
+        saidas_hoje=saidas_hoje,
+        ultimo_backup=ultimo_backup,
+        total_backups=total_backups,
+    )
+
 @app.route("/admin/backup")
 def admin_backup():
     if session.get('role') != 'admin':
-        return "Acesso negado"
-    backup_path = backup_database()
-    return f"Backup criado em {backup_path} <a href='/inicio'>Voltar</a>"
+        return redirect("/inicio")
+    try:
+        os.makedirs("backups", exist_ok=True)
+        backup_path = backup_database()
+        return redirect(f"/configuracoes?backup=ok&arquivo={os.path.basename(backup_path)}")
+    except Exception as e:
+        return redirect(f"/configuracoes?backup=erro&msg={str(e)}")
 
 @app.route("/manual")
 def manual():

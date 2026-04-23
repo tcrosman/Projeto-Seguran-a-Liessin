@@ -45,7 +45,7 @@
           <div class="form-row form-row-2">
             <div class="form-group">
               <label class="form-label">Data <span>*</span></label>
-              <input class="form-input" type="date" name="data_saida" value="{{ request.form.data_saida or '' }}">
+              <input class="form-input" type="date" name="data_saida">
             </div>
             <div class="form-group">
               <label class="form-label">Horário <span>*</span></label>
@@ -109,7 +109,7 @@ function toggleAcompanhante(radio) {
   var group = document.getElementById('acompanhante-group');
   var input = document.getElementById('acompanhante-input');
   if (radio.value === 'acompanhado') {
-    group.style.display = 'block';
+    group.style.display = '';
     input.required = true;
   } else {
     group.style.display = 'none';

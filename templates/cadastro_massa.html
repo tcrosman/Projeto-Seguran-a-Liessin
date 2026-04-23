@@ -45,7 +45,7 @@
             <div class="form-row form-row-2">
               <div class="form-group">
                 <label class="form-label">Série <span>*</span></label>
-                <select class="form-select" name="serie" required>
+                <select class="form-select" name="serie" required onchange="preencherHorarios(this.value)">
                   <option value="">Selecione...</option>
                   {% for s in series %}
                     <option value="{{ s }}">{{ s }}</option>
@@ -67,33 +67,6 @@
               </div>
             </div>
 
-            <div class="form-row form-row-2">
-              <div class="form-group">
-                <label class="form-label">Telefone do Responsável</label>
-                <input class="form-input" type="text" name="telefone" placeholder="(11) 99999-9999">
-              </div>
-              <div class="form-group">
-                <label class="form-label">E-mail do Responsável</label>
-                <input class="form-input" type="email" name="email_responsavel" placeholder="responsavel@email.com">
-              </div>
-            </div>
-
-            <div class="form-row form-row-2">
-              <div class="form-group">
-                <label class="form-label">Data de Nascimento</label>
-                <input class="form-input" type="date" name="data_nascimento">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Alergias / Condições</label>
-                <input class="form-input" type="text" name="alergias" placeholder="Ex: rinite, asma...">
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Observações Gerais</label>
-              <textarea class="form-input" name="observacoes" rows="2" placeholder="Informações adicionais..."></textarea>
-            </div>
-
             <div class="foto-section">
               <div class="foto-title">Foto do Aluno <span style="font-weight:400; color:#6b7280;">(opcional)</span></div>
               <div class="form-group" style="margin-bottom:0;">
@@ -111,11 +84,11 @@
             <div class="horarios-section">
               <div class="horarios-title">Horários de Saída Padrão <span style="font-weight:400; color:#6b7280;">(opcional)</span></div>
               <div class="form-row form-row-5">
-                <div class="form-group"><label class="form-label">Segunda</label><input class="form-input" type="time" name="saida_seg"></div>
-                <div class="form-group"><label class="form-label">Terça</label><input class="form-input" type="time" name="saida_ter"></div>
-                <div class="form-group"><label class="form-label">Quarta</label><input class="form-input" type="time" name="saida_qua"></div>
-                <div class="form-group"><label class="form-label">Quinta</label><input class="form-input" type="time" name="saida_qui"></div>
-                <div class="form-group"><label class="form-label">Sexta</label><input class="form-input" type="time" name="saida_sex"></div>
+                <div class="form-group"><label class="form-label">Segunda</label><input class="form-input" type="time" name="saida_seg" id="saida_seg"></div>
+                <div class="form-group"><label class="form-label">Terça</label><input class="form-input" type="time" name="saida_ter" id="saida_ter"></div>
+                <div class="form-group"><label class="form-label">Quarta</label><input class="form-input" type="time" name="saida_qua" id="saida_qua"></div>
+                <div class="form-group"><label class="form-label">Quinta</label><input class="form-input" type="time" name="saida_qui" id="saida_qui"></div>
+                <div class="form-group"><label class="form-label">Sexta</label><input class="form-input" type="time" name="saida_sex" id="saida_sex"></div>
               </div>
             </div>
 
@@ -129,7 +102,7 @@
         <div class="tab-panel" id="tab-excel">
           <div class="info-box">
             <strong>Colunas obrigatórias: <code>nome</code>, <code>turma</code>, <code>serie</code></strong><br>
-            Colunas opcionais: <code>saida_seg</code>, <code>saida_ter</code>, <code>saida_qua</code>, <code>saida_qui</code>, <code>saida_sex</code>, <code>responsaveis</code>, <code>telefone</code>, <code>email_responsavel</code>, <code>data_nascimento</code>, <code>alergias</code>, <code>observacoes</code>
+            Colunas opcionais: <code>saida_seg</code>, <code>saida_ter</code>, <code>saida_qua</code>, <code>saida_qui</code>, <code>saida_sex</code>, <code>responsaveis</code>
           </div>
 
           <form method="POST" enctype="multipart/form-data">
@@ -186,7 +159,19 @@
   </main>
 </div>
 
+<script type="application/json" id="horarios-data">{{ horarios_padrao | tojson }}</script>
 <script>
+const HORARIOS_PADRAO = JSON.parse(document.getElementById('horarios-data').textContent);
+
+function preencherHorarios(serie) {
+  const h = HORARIOS_PADRAO[serie] || {};
+  document.getElementById('saida_seg').value = h.seg || '';
+  document.getElementById('saida_ter').value = h.ter || '';
+  document.getElementById('saida_qua').value = h.qua || '';
+  document.getElementById('saida_qui').value = h.qui || '';
+  document.getElementById('saida_sex').value = h.sex || '';
+}
+
 function switchTab(tab, btn) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -198,7 +183,7 @@ function previewFoto(input, labelId, previewId) {
   const label = document.getElementById(labelId);
   const preview = document.getElementById(previewId);
   const img = document.getElementById(labelId.replace('label', 'img'));
-  if (input.files ; input.files[0]) {
+  if (input.files && input.files[0]) {
     label.textContent = input.files[0].name;
     const reader = new FileReader();
     reader.onload = function(e) { img.src = e.target.result; preview.style.display = ''; };

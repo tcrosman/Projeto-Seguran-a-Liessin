@@ -993,3 +993,50 @@ body {
   .home-grid { grid-template-columns: 1fr; }
   .horarios-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── Config cards ───────────────────────────────────────────── */
+.config-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 20px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+.config-card:hover {
+  border-color: #2563eb;
+  box-shadow: 0 4px 16px rgba(37,99,235,0.10);
+  transform: translateY(-1px);
+}
+.config-card-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.config-card-body {
+  flex: 1;
+  min-width: 0;
+}
+.config-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 4px;
+}
+.config-card-desc {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+.config-card-arrow {
+  color: #9ca3af;
+  flex-shrink: 0;
+}

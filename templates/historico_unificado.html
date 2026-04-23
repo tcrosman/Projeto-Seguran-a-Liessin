@@ -32,45 +32,15 @@
           </div>
         </div>
 
-        <!-- Formulário de filtros -->
+        <!-- Busca -->
         <form method="get" class="filtros-form">
-          <div class="form-row form-row-2">
-            <div class="form-group">
-              <label class="form-label">Nome do Aluno</label>
-              <input class="form-input" type="text" name="nome" placeholder="Digite o nome" value="{{ nome or '' }}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Data Inicial</label>
-              <input class="form-input" type="date" name="data_ini" value="{{ data_ini or '' }}">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Data Final</label>
-              <input class="form-input" type="date" name="data_fim" value="{{ data_fim or '' }}">
-            </div>
-          </div>
-          <div class="form-row form-row-2">
-            <div class="form-group">
-              <label class="form-label">Turma</label>
-              <select class="form-select" name="turma">
-                <option value="">Todas</option>
-                {% for t in turmas %}
-                  <option value="{{ t }}" {% if turma_selecionada == t %}selected{% endif %}>{{ t }}</option>
-                {% endfor %}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Série</label>
-              <select class="form-select" name="serie">
-                <option value="">Todas</option>
-                {% for s in series %}
-                  <option value="{{ s }}" {% if serie_selecionada == s %}selected{% endif %}>{{ s }}</option>
-                {% endfor %}
-              </select>
-            </div>
+          <div class="search-wrap" style="margin-bottom: 12px;">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" type="text" name="nome" placeholder="Buscar aluno por nome..." value="{{ nome or '' }}" autofocus>
           </div>
           <div class="btn-actions">
             <button class="btn btn-primary" type="submit">Buscar</button>
-            <a href="/historico" class="btn btn-secondary">Limpar Filtros</a>
+            {% if nome %}<a href="/historico" class="btn btn-secondary">Limpar</a>{% endif %}
           </div>
         </form>
 

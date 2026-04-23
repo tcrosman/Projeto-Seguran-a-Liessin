@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurações — Liessin</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    /* ── Stats strip ─────────────────────────────── */
+    .cfg-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .cfg-stat {
+      background: #fff;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .cfg-stat-value {
+      font-size: 26px;
+      font-weight: 800;
+      color: #111827;
+      line-height: 1;
+    }
+    .cfg-stat-label {
+      font-size: 12px;
+      color: #6b7280;
+      font-weight: 500;
+    }
+    .cfg-stat-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+    }
+
+    /* ── Section labels ──────────────────────────── */
+    .cfg-section-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      margin: 28px 0 10px;
+    }
+
+    /* ── Config items ────────────────────────────── */
+    .cfg-list { display: flex; flex-direction: column; gap: 8px; }
+
+    .cfg-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: #fff;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 18px 20px;
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      width: 100%;
+      font-family: inherit;
+      cursor: pointer;
+    }
+    .cfg-item:hover {
+      border-color: #2563eb;
+      box-shadow: 0 2px 12px rgba(37,99,235,0.09);
+    }
+    .cfg-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .cfg-text { flex: 1; min-width: 0; text-align: left; }
+    .cfg-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 3px;
+    }
+    .cfg-desc {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.45;
+    }
+    .cfg-meta {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    .cfg-meta-tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+    .cfg-meta-tag.blue  { background: #eff6ff; color: #2563eb; }
+    .cfg-meta-tag.green { background: #f0fdf4; color: #16a34a; }
+    .cfg-meta-tag.yellow{ background: #fefce8; color: #ca8a04; }
+    .cfg-meta-sub {
+      font-size: 11px;
+      color: #9ca3af;
+      white-space: nowrap;
+    }
+    .cfg-chevron { color: #d1d5db; flex-shrink: 0; margin-left: 4px; }
+
+    /* ── Action buttons ──────────────────────────── */
+    .cfg-action-btn {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: #fff;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 20px;
+      text-decoration: none;
+      color: inherit;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    .cfg-action-btn:hover {
+      border-color: #2563eb;
+      box-shadow: 0 4px 16px rgba(37,99,235,0.10);
+      transform: translateY(-1px);
+    }
+    .cfg-action-btn:hover .cfg-action-cta {
+      background: #2563eb;
+      color: #fff;
+    }
+    .cfg-action-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 4px;
+    }
+    .cfg-action-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #111827;
+    }
+    .cfg-action-sub {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    .cfg-action-cta {
+      margin-top: 10px;
+      align-self: flex-start;
+      font-size: 12px;
+      font-weight: 600;
+      color: #2563eb;
+      background: #eff6ff;
+      padding: 5px 14px;
+      border-radius: 20px;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    /* ── Alert banner ────────────────────────────── */
+    .cfg-alert {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+    .cfg-alert.success { background:#f0fdf4; border:1px solid #bbf7d0; color:#15803d; }
+    .cfg-alert.error   { background:#fef2f2; border:1px solid #fecaca; color:#dc2626; }
+    .cfg-alert-icon { flex-shrink:0; margin-top:1px; }
+    .cfg-alert-title { font-weight:700; margin-bottom:2px; }
+
+    @media (max-width: 700px) {
+      .cfg-stats { grid-template-columns: repeat(2, 1fr); }
+      .cfg-meta { display: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  {% include '_sidebar.html' %}
+  <main class="main">
+    <div class="topbar">
+      <a href="/inicio" class="back-link">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar ao Menu
+      </a>
+    </div>
+    <div class="page-wrap">
+
+      <div class="list-topbar" style="margin-bottom: 24px;">
+        <div class="list-topbar-left">
+          <h1>Configurações</h1>
+          <p>Ferramentas e ajustes administrativos do sistema</p>
+        </div>
+      </div>
+
+      {% if request.args.get('backup') == 'ok' %}
+        <div class="cfg-alert success">
+          <div class="cfg-alert-icon">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div>
+            <div class="cfg-alert-title">Backup criado com sucesso</div>
+            <div>Arquivo salvo: <strong>{{ request.args.get('arquivo') }}</strong></div>
+          </div>
+        </div>
+      {% elif request.args.get('backup') == 'erro' %}
+        <div class="cfg-alert error">
+          <div class="cfg-alert-icon">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <div>
+            <div class="cfg-alert-title">Erro ao criar backup</div>
+            <div>{{ request.args.get('msg') }}</div>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Stats -->
+      <div class="cfg-stats">
+        <div class="cfg-stat">
+          <div class="cfg-stat-icon" style="background:#eff6ff; color:#2563eb;">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+          </div>
+          <div class="cfg-stat-value">{{ total_alunos }}</div>
+          <div class="cfg-stat-label">Alunos cadastrados</div>
+        </div>
+        <div class="cfg-stat">
+          <div class="cfg-stat-icon" style="background:#f0fdf4; color:#16a34a;">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="9 11 12 14 22 4"/></svg>
+          </div>
+          <div class="cfg-stat-value">{{ saidas_hoje }}</div>
+          <div class="cfg-stat-label">Saídas hoje</div>
+        </div>
+        <div class="cfg-stat">
+          <div class="cfg-stat-icon" style="background:#faf5ff; color:#7c3aed;">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          </div>
+          <div class="cfg-stat-value">{{ total_usuarios }}</div>
+          <div class="cfg-stat-label">Usuários do sistema</div>
+        </div>
+        <div class="cfg-stat">
+          <div class="cfg-stat-icon" style="background:#fefce8; color:#ca8a04;">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </div>
+          <div class="cfg-stat-value">{{ total_backups }}</div>
+          <div class="cfg-stat-label">Backups salvos</div>
+        </div>
+      </div>
+
+      <div class="cfg-section-label">Ferramentas</div>
+      <!-- Botões de ação -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;">
+
+        <a href="/novo" class="cfg-action-btn">
+          <div class="cfg-action-icon" style="background:#eff6ff; color:#2563eb;">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          </div>
+          <div class="cfg-action-title">Usuários</div>
+          <div class="cfg-action-sub">{{ total_usuarios }} usuário{{ 's' if total_usuarios != 1 else '' }} cadastrado{{ 's' if total_usuarios != 1 else '' }}</div>
+          <div class="cfg-action-cta">Gerenciar →</div>
+        </a>
+
+        <a href="/configurar_horarios" class="cfg-action-btn">
+          <div class="cfg-action-icon" style="background:#f0fdf4; color:#16a34a;">
+            <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </div>
+          <div class="cfg-action-title">Horários Padrão</div>
+          <div class="cfg-action-sub">Horários de saída por série</div>
+          <div class="cfg-action-cta">Configurar →</div>
+        </a>
+
+        <form action="/admin/backup" method="GET" onsubmit="return confirm('Criar um backup do banco de dados agora?')">
+          <button type="submit" class="cfg-action-btn" style="width:100%; text-align:left;">
+            <div class="cfg-action-icon" style="background:#fefce8; color:#ca8a04;">
+              <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="cfg-action-title">Backup</div>
+            <div class="cfg-action-sub">
+              {% if ultimo_backup %}Último: {{ ultimo_backup[:15] }}{% else %}Nenhum backup ainda{% endif %}
+            </div>
+            <div class="cfg-action-cta">Criar backup →</div>
+          </button>
+        </form>
+
+      </div>
+
+    </div>
+  </main>
+</div>
+</body>
+</html>

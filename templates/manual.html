@@ -371,12 +371,12 @@
         <ul>
           <li><a href="#login">Login</a></li>
           <li><a href="#menu">Menu Principal</a></li>
-          <li><a href="#registrar">Registrar Saída</a></li>
+          <li><a href="#registrar">Alunos</a></li>
           <li><a href="#saidas">Saídas</a></li>
           <li><a href="#historico">Histórico do Aluno</a></li>
           {% if session.role == 'admin' %}
           <li><a href="#cadastrar">Cadastrar Aluno</a></li>
-          <li><a href="#usuarios">Usuários</a></li>
+          <li><a href="#configuracoes">Configurações</a></li>
           {% endif %}
         </ul>
       </div>
@@ -446,13 +446,12 @@
               <div class="mockup-sidebar">
                 <div class="mockup-sidebar-logo"><span>LIESSIN</span></div>
                 <div class="mockup-nav-item active">Menu Principal</div>
-                <div class="mockup-nav-item">Registrar Saída</div>
+                <div class="mockup-nav-item">Alunos</div>
                 <div class="mockup-nav-item">Saídas</div>
-                <div class="mockup-nav-item">Histórico do Aluno</div>
                 <div class="mockup-nav-item">Manual</div>
                 {% if session.role == 'admin' %}
                 <div class="mockup-nav-item">Cadastrar Aluno</div>
-                <div class="mockup-nav-item">Usuários</div>
+                <div class="mockup-nav-item">Configurações</div>
                 {% endif %}
               </div>
               <div class="mockup-content">
@@ -460,8 +459,8 @@
                 <div class="home-mockup-grid">
                   <div class="home-mockup-card blue">
                     <div class="icon">📋</div>
-                    <div class="title">REGISTRAR</div>
-                    <div class="sub">Registrar saída antecipada</div>
+                    <div class="title">ALUNOS</div>
+                    <div class="sub">Registrar saída · Ver histórico</div>
                   </div>
                   {% if session.role == 'admin' %}
                   <div class="home-mockup-card green">
@@ -470,15 +469,15 @@
                     <div class="sub">Adicionar alunos ao sistema</div>
                   </div>
                   {% endif %}
-                  <div class="home-mockup-card cyan">
-                    <div class="icon">📑</div>
-                    <div class="title">HISTÓRICO DO ALUNO</div>
-                    <div class="sub">Ver histórico de saídas</div>
-                  </div>
                   <div class="home-mockup-card yellow">
                     <div class="icon">✅</div>
                     <div class="title">SAÍDAS</div>
                     <div class="sub">Ver e autorizar saídas</div>
+                  </div>
+                  <div class="home-mockup-card cyan">
+                    <div class="icon">❓</div>
+                    <div class="title">MANUAL</div>
+                    <div class="sub">Guia de uso do sistema</div>
                   </div>
                 </div>
               </div>
@@ -494,26 +493,25 @@
           <table class="mockup-table" style="font-size:13px;">
             <thead><tr><th>Opção</th><th>O que faz</th></tr></thead>
             <tbody>
-              <tr><td><strong>Registrar Saída</strong></td><td>Lança uma nova saída antecipada de um aluno</td></tr>
+              <tr><td><strong>Alunos</strong></td><td>Registra saídas antecipadas e acessa o histórico individual de cada aluno</td></tr>
               <tr><td><strong>Saídas</strong></td><td>Lista e autoriza saídas do dia</td></tr>
-              <tr><td><strong>Histórico do Aluno</strong></td><td>Consulta o histórico de saídas de um aluno específico</td></tr>
               <tr><td><strong>Manual</strong></td><td>Este guia de ajuda</td></tr>
               {% if session.role == 'admin' %}
               <tr><td><strong>Cadastrar Aluno</strong></td><td>Adiciona novos alunos ao sistema (admin)</td></tr>
-              <tr><td><strong>Usuários</strong></td><td>Gerencia os acessos ao sistema (admin)</td></tr>
+              <tr><td><strong>Configurações</strong></td><td>Gerencia usuários, horários padrão e backups (admin)</td></tr>
               {% endif %}
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- 3. Registrar Saída -->
+      <!-- 3. Alunos -->
       <div class="manual-section" id="registrar">
         <div class="section-header">
           <div class="section-number">3</div>
           <div>
-            <div class="section-title">Registrar Saída</div>
-            <div class="section-sub">Como lançar a saída antecipada de um aluno</div>
+            <div class="section-title">Alunos</div>
+            <div class="section-sub">Registrar saídas e consultar o histórico de cada aluno</div>
           </div>
         </div>
 
@@ -554,11 +552,12 @@
         </div>
 
         <ol class="steps">
-          <li><span>No Menu Principal, clique em <strong>Registrar Saída</strong> (ou use o link no menu lateral).</span></li>
+          <li><span>No Menu Principal, clique em <strong>Alunos</strong> (ou use o link no menu lateral).</span></li>
           <li><span>A lista de alunos aparece agrupada por série e turma. Se o aluno tiver foto cadastrada, ela aparece ao lado do nome.</span></li>
           <li><span>Use a <strong>barra de busca</strong> no topo para filtrar pelo nome do aluno.</span></li>
-          <li><span>Clique em <strong>Registrar Saída</strong> ao lado do aluno desejado.</span></li>
-          <li><span>Preencha os campos do formulário:</span></li>
+          <li><span>Para <strong>registrar uma saída</strong>, clique no botão <strong>Registrar Saída</strong> ao lado do aluno desejado.</span></li>
+          <li><span>Para <strong>ver o histórico</strong> de um aluno específico, clique diretamente no <strong>nome do aluno</strong> (sublinhado).</span></li>
+          <li><span>Preencha os campos do formulário de saída:</span></li>
         </ol>
 
         <div class="mockup-card" style="background:#fff; margin-bottom:16px;">
@@ -693,9 +692,9 @@
         </div>
 
         <ol class="steps">
-          <li><span>No menu lateral, clique em <strong>Histórico do Aluno</strong>.</span></li>
-          <li><span>Digite o nome (ou parte do nome) do aluno na barra de busca e clique em <strong>Buscar</strong>.</span></li>
-          <li><span>Selecione o aluno correto nos resultados e clique em <strong>Histórico</strong>.</span></li>
+          <li><span>Acesse o histórico de duas formas: clique no <strong>nome do aluno</strong> (sublinhado) na tela de Alunos, ou clique no botão <strong>Histórico do Aluno</strong> no Menu Principal e busque pelo nome.</span></li>
+          <li><span>Na busca, digite o nome (ou parte do nome) do aluno e clique em <strong>Buscar</strong>.</span></li>
+          <li><span>Selecione o aluno correto nos resultados e clique em <strong>Ver Histórico</strong>.</span></li>
           <li><span>A tela mostrará os <strong>horários de saída padrão</strong> do aluno (por dia da semana) e o <strong>histórico completo</strong> de todas as saídas registradas.</span></li>
         </ol>
       </div>
@@ -748,10 +747,10 @@
           <ol class="steps" style="margin-bottom:20px;">
             <li><span>Acesse <strong>Cadastrar Aluno</strong> no menu lateral.</span></li>
             <li><span>Na aba <strong>Cadastro Individual</strong>, preencha o <strong>Nome Completo</strong>, <strong>Série</strong> e <strong>Turma</strong>.</span></li>
+            <li><span>Ao selecionar a <strong>Série</strong>, os campos de <strong>horário de saída padrão</strong> são preenchidos automaticamente com base nos horários configurados em Configurações.</span></li>
             <li><span><strong>Responsáveis (opcional):</strong> escreva os nomes e parentesco das pessoas autorizadas a retirar o aluno. Ex: <em>Maria Silva (mãe), João Silva (pai)</em>.</span></li>
             <li><span><strong>Foto do aluno (opcional):</strong> clique na área de foto e selecione uma imagem JPG ou PNG. Uma prévia circular aparecerá antes de salvar.</span></li>
-            <li><span>Opcionalmente, informe os <strong>horários de saída padrão</strong> por dia da semana.</span></li>
-            <li><span>Clique em <strong>Cadastrar Aluno</strong>.</span></li>
+            <li><span>Ajuste os <strong>horários de saída</strong> manualmente se necessário e clique em <strong>Cadastrar Aluno</strong>.</span></li>
           </ol>
 
           <p style="font-size:14px; color:#374151; margin-bottom:12px; font-weight:600;">Importação em Lote via Excel:</p>
@@ -778,14 +777,15 @@
       </div>
 
       <!-- 7. Usuários (admin) -->
-      <div class="manual-section" id="usuarios">
+      <!-- 7. Configurações -->
+      <div class="manual-section" id="configuracoes">
         <div class="section-header">
           <div class="section-number">7</div>
           <div>
-            <div class="section-title">Usuários</div>
+            <div class="section-title">Configurações</div>
             <div class="section-sub">
               <span class="admin-badge" style="font-size:10px; padding:1px 8px; margin-bottom:0; vertical-align:middle;">Admin</span>
-              Criar e gerenciar acessos ao sistema
+              Horários padrão e backup do sistema
             </div>
           </div>
         </div>
@@ -793,101 +793,54 @@
         <div class="admin-section">
           <span class="admin-badge">Apenas administradores</span>
 
-          <div class="mockup" style="margin-bottom:16px;">
-            <div class="mockup-bar">
-              <div class="mockup-dot red"></div>
-              <div class="mockup-dot yellow"></div>
-              <div class="mockup-dot green"></div>
-              <div class="mockup-url">liessin / novo</div>
-            </div>
-            <div class="mockup-body">
-              <div class="mockup-card" style="margin-bottom:10px;">
-                <div class="mockup-card-title">Novo Usuário</div>
-                <div style="display:flex; gap:6px; margin-bottom:6px;">
-                  <div class="mockup-input">Usuário</div>
-                  <div class="mockup-input">Senha</div>
-                </div>
-                <div style="display:flex; gap:6px; margin-bottom:8px;">
-                  <div class="mockup-input">email@exemplo.com</div>
-                  <div class="mockup-input">Tipo ▾</div>
-                </div>
-                <div class="mockup-btn blue" style="width:100%;">Criar Usuário</div>
-              </div>
-              <div class="mockup-card">
-                <div class="mockup-card-title">Usuários Cadastrados</div>
-                <table class="mockup-table">
-                  <thead><tr><th>Usuário</th><th>Email</th><th>Tipo</th><th></th></tr></thead>
-                  <tbody>
-                    <tr>
-                      <td>admin</td>
-                      <td style="color:#6b7280;">admin@escola.com</td>
-                      <td><span class="mockup-badge admin">Admin</span></td>
-                      <td style="color:#f59e0b; font-size:10px; font-weight:700;">você</td>
-                    </tr>
-                    <tr>
-                      <td>portaria</td>
-                      <td style="color:#6b7280;">portaria@escola.com</td>
-                      <td><span class="mockup-badge basic">Básico</span></td>
-                      <td><span style="font-size:10px; color:#ef4444;">🗑</span></td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <p style="font-size:14px; color:#374151; margin-bottom:12px; font-weight:600;">Criar novo usuário:</p>
-          <ol class="steps" style="margin-bottom:20px;">
-            <li><span>Acesse <strong>Usuários</strong> no menu lateral.</span></li>
-            <li><span>Preencha o <strong>nome de usuário</strong> (login), a <strong>senha</strong> e o <strong>e-mail</strong>.</span></li>
-            <li><span>Selecione o <strong>Tipo</strong>: <em>Básico</em> (só registra e visualiza saídas) ou <em>Admin</em> (acesso completo, incluindo cadastro de alunos e usuários).</span></li>
-            <li><span>Clique em <strong>Criar Usuário</strong>.</span></li>
-          </ol>
-
-          <p style="font-size:14px; color:#374151; margin-bottom:12px; font-weight:600;">Excluir usuário:</p>
-          <ol class="steps" style="margin-bottom:16px;">
-            <li><span>Na tabela de usuários, localize o usuário que deseja remover.</span></li>
-            <li><span>Clique no ícone de <strong>lixeira</strong> na coluna Ações.</span></li>
-            <li><span>Confirme a exclusão na caixa de diálogo. O usuário não poderá mais acessar o sistema.</span></li>
-          </ol>
-
-          <div class="warn-box">
-            <strong>Atenção</strong>
-            Você não pode excluir a própria conta. O sistema também impede que o último administrador seja removido, garantindo sempre um acesso admin ativo.
-          </div>
-        </div>
-      </div>
-
-      <!-- Section: Horários Padrão -->
-      <div class="section-card">
-        <div class="section-header" onclick="toggleSection('horarios')">
-          <div class="section-header-left">
-            <div class="section-icon" style="background:#f0fdf4; color:#16a34a;">
-              <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            </div>
-            <div>
-              <div class="section-title">8. Horários Padrão</div>
-              <div class="section-subtitle">Configure o horário de saída padrão por série</div>
-            </div>
-          </div>
-          <svg class="chevron" id="chevron-horarios" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
-        </div>
-        <div class="section-body" id="section-horarios" style="display:none;">
           <div class="info-box" style="margin-bottom:20px;">
-            Os horários padrão definem automaticamente o campo <em>Horário de Saída</em> ao cadastrar um novo aluno, com base na série selecionada. Todas as séries possuem horário fixo por dia da semana — basta configurar uma vez.
+            A página de <strong>Configurações</strong> reúne as ferramentas administrativas do sistema. Acesse pelo menu lateral clicando em <strong>Configurações</strong>.
           </div>
 
-          <p style="font-size:14px; color:#374151; margin-bottom:12px; font-weight:600;">Como configurar os horários:</p>
-          <ol class="steps" style="margin-bottom:20px;">
-            <li><span>Acesse <strong>Horários Padrão</strong> no menu lateral (visível apenas para administradores).</span></li>
+          <!-- Usuários -->
+          <p style="font-size:14px; color:#374151; margin-bottom:6px; font-weight:600;">
+            👤 Usuários
+          </p>
+          <p style="font-size:13px; color:#6b7280; margin-bottom:10px;">Cria e gerencia os acessos ao sistema. Cada usuário tem um nível: <em>Básico</em> (registra e visualiza saídas) ou <em>Admin</em> (acesso completo).</p>
+          <ol class="steps" style="margin-bottom:16px;">
+            <li><span>Acesse <strong>Configurações</strong> no menu lateral e clique em <strong>Usuários</strong>.</span></li>
+            <li><span>Preencha o nome de usuário, senha, e-mail e selecione o tipo.</span></li>
+            <li><span>Clique em <strong>Criar Usuário</strong>. Para remover, clique no ícone de lixeira ao lado do usuário.</span></li>
+          </ol>
+          <div class="warn-box" style="margin-bottom:24px;">
+            <strong>Atenção</strong>
+            Você não pode excluir a própria conta. O sistema impede que o último administrador seja removido.
+          </div>
+
+          <!-- Horários Padrão -->
+          <p style="font-size:14px; color:#374151; margin-bottom:6px; font-weight:600;">
+            🕐 Horários Padrão
+          </p>
+          <p style="font-size:13px; color:#6b7280; margin-bottom:10px;">Define automaticamente o horário de saída ao cadastrar um novo aluno, com base na série selecionada.</p>
+          <ol class="steps" style="margin-bottom:16px;">
+            <li><span>Acesse <strong>Configurações</strong> no menu lateral e clique em <strong>Horários Padrão</strong>.</span></li>
             <li><span>A tabela exibe todas as séries agrupadas por nível (Educação Infantil, Ensino Fundamental I, II e Ensino Médio).</span></li>
-            <li><span>Para cada série, preencha o horário de saída de cada dia da semana (Segunda a Sexta).</span></li>
+            <li><span>Para cada série, preencha o horário de saída por dia da semana (Segunda a Sexta).</span></li>
             <li><span>Clique em <strong>Salvar Horários</strong> para confirmar.</span></li>
           </ol>
+          <div class="warn-box" style="background:#f0fdf4; border-color:#bbf7d0; color:#15803d; margin-bottom:24px;">
+            <strong>Preenchimento automático</strong>
+            Ao selecionar a série no cadastro de um novo aluno, os horários são preenchidos automaticamente. Alunos já cadastrados não são afetados.
+          </div>
 
-          <div class="warn-box" style="background:#f0fdf4; border-color:#bbf7d0; color:#15803d;">
-            <strong>Como funciona o preenchimento automático</strong>
-            Ao cadastrar um novo aluno e selecionar a série, o sistema preencherá automaticamente os campos de horário de saída com os valores configurados aqui. Alunos já cadastrados não são afetados — apenas novos cadastros utilizarão os horários definidos.
+          <!-- Backup -->
+          <p style="font-size:14px; color:#374151; margin-bottom:6px; font-weight:600;">
+            💾 Backup
+          </p>
+          <p style="font-size:13px; color:#6b7280; margin-bottom:10px;">Salva uma cópia completa do banco de dados com data e hora na pasta <code style="background:#f3f4f6; padding:1px 5px; border-radius:4px;">backups/</code> do servidor.</p>
+          <ol class="steps" style="margin-bottom:16px;">
+            <li><span>Acesse <strong>Configurações</strong> no menu lateral e clique em <strong>Backup</strong>.</span></li>
+            <li><span>Confirme a criação do backup na caixa de diálogo.</span></li>
+            <li><span>Uma mensagem verde confirmará o nome do arquivo gerado. Em caso de erro, uma mensagem vermelha indicará o problema.</span></li>
+          </ol>
+          <div class="warn-box">
+            <strong>Recomendação</strong>
+            Realize backups periodicamente, especialmente antes de importar planilhas em lote ou fazer alterações em massa no sistema.
           </div>
         </div>
       </div>

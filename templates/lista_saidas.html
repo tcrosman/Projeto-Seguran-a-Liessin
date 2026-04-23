@@ -17,98 +17,161 @@
       </a>
     </div>
     <div class="page-wrap">
+
       <div class="list-topbar">
         <div class="list-topbar-left">
           <h1>Saídas</h1>
-          <p>{{ saidas|selectattr("status", "equalto", "pendente")|list|length }} pendente(s)</p>
+          <p>{{ pendentes|length }} saída{{ 's' if pendentes|length != 1 else '' }} pendente{{ 's' if pendentes|length != 1 else '' }} de autorização</p>
         </div>
         <div class="filter-bar">
-          <form method="get" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-            <input type="date" name="data" value="{{ data_selecionada }}" min="2020-01-01" max="2030-12-31">
-            <input type="text" name="busca_nome" placeholder="Nome do aluno" value="{{ busca_nome }}">
-            <select name="turma">
-              <option value="">Todas as turmas</option>
-              {% for t in turmas %}
-                <option value="{{ t }}" {% if turma_filtro == t %}selected{% endif %}>{{ t }}</option>
-              {% endfor %}
-            </select>
-            <input type="text" name="responsavel" placeholder="Responsável escola" value="{{ responsavel_filtro }}">
-            <select name="status">
-              <option value="pendente" {% if status_filtro == 'pendente' %}selected{% endif %}>Pendentes</option>
-              <option value="concluida" {% if status_filtro == 'concluida' %}selected{% endif %}>Concluídas</option>
-              <option value="todas" {% if status_filtro == 'todas' %}selected{% endif %}>Todas</option>
-            </select>
-            <button type="submit" class="btn btn-primary">Filtrar</button>
-            <a href="/saidas" class="btn btn-secondary">Limpar</a>
+          <label>Data:</label>
+          <form method="get">
+            <input type="date" name="data" value="{{ data_selecionada }}" min="{{ data_min }}" max="{{ data_max }}" onchange="this.form.submit()">
           </form>
         </div>
       </div>
 
-      {% set pendentes = saidas|selectattr("status", "equalto", "pendente")|list %}
+      <!-- Pendentes -->
+      <div class="section-title">
+        Pendentes
+        <span class="section-count">{{ pendentes|length }}</span>
+      </div>
+
       {% if pendentes %}
-        <div class="section-title">Pendentes <span class="section-count">{{ pendentes|length }}</span></div>
         {% for saida in pendentes %}
         <div class="saida-card">
           <div class="saida-card-top">
             <div class="saida-student">
               {% if saida.foto_path %}
-                <img src="/uploads/{{ saida.foto_path }}" class="saida-student-photo" alt="Foto">
+                <img src="/uploads/{{ saida.foto_path }}" class="saida-student-photo" alt="Foto de {{ saida.aluno }}">
               {% else %}
-                <div class="student-avatar" style="background: #dc2626; width:44px; height:44px; font-size:16px;">{{ saida.aluno[0] if saida.aluno else '?' }}</div>
+                <div class="student-avatar" style="background: #dc2626; width:44px; height:44px; font-size:16px; flex-shrink:0;">{{ saida.aluno[0] if saida.aluno else '?' }}</div>
               {% endif %}
               <div>
                 <div class="saida-student-label">Nome Completo</div>
-                <div class="saida-student-name">{{ saida.aluno }}</div>
+                <div class="saida-student-name">{{ saida.aluno or '—' }}</div>
               </div>
             </div>
             <div class="saida-turma-serie">
               <div class="saida-turma-serie-label">Turma/Série</div>
-              <div class="saida-turma-serie-val">{{ saida.serie }} &bull; Turma {{ saida.turma }}</div>
+              <div class="saida-turma-serie-val">{{ saida.serie or '—' }} &bull; Turma {{ saida.turma or '—' }}</div>
             </div>
           </div>
+
           <div class="saida-card-grid">
-            <div><div class="saida-field-label">Horário</div><div class="saida-field-val">🕐 {{ saida.horario }}</div></div>
-            <div><div class="saida-field-label">Motivo</div><div class="saida-field-val">{{ saida.motivo }}</div></div>
-            <div><div class="saida-field-label">Resp. Escola</div><div class="saida-field-val">🏫 {{ saida.responsavel_escola }}</div></div>
-            <div><div class="saida-field-label">Tipo Saída</div><div class="saida-field-val">{% if saida.tipo_saida == 'acompanhado' %}👥 Acompanhado - {{ saida.acompanhante }}{% else %}🚶 Sozinho{% endif %}</div></div>
+            <div>
+              <div class="saida-field-label">Data Saída Antecipada</div>
+              <div class="saida-field-val">📅 {{ data_selecionada }}</div>
+            </div>
+            <div>
+              <div class="saida-field-label">Horário Saída Antecipada</div>
+              <div class="saida-field-val">🕐 {{ saida.horario }}</div>
+            </div>
+            <div>
+              <div class="saida-field-label">Motivo Saída</div>
+              <div class="saida-field-val">{{ saida.motivo }}</div>
+            </div>
+            <div>
+              <div class="saida-field-label">Responsável da Escola</div>
+              <div class="saida-field-val">🏫 {{ saida.responsavel_escola or '—' }}</div>
+            </div>
+            <div>
+              <div class="saida-field-label">Tipo de Saída</div>
+              <div class="saida-field-val">
+                {% if saida.tipo_saida == 'acompanhado' %}
+                  👥 Acompanhado(a){% if saida.acompanhante %} — {{ saida.acompanhante }}{% endif %}
+                {% elif saida.tipo_saida == 'sozinho' %}
+                  🚶 Sozinho(a)
+                {% else %}
+                  {{ saida.tipo_saida or '—' }}
+                {% endif %}
+              </div>
+            </div>
           </div>
+
           {% if saida.documento_path %}
-          <div><a href="/uploads/{{ saida.documento_path }}" target="_blank" class="btn-link">📄 Ver documento</a></div>
-          {% endif %}
-          <div style="display: flex; gap: 10px; margin-top: 10px;">
-            <a href="/concluir_saida/{{ saida.id }}" class="btn btn-success">✅ AUTORIZAR</a>
-            <a href="/editar_saida/{{ saida.id }}" class="btn btn-outline">✏️ Editar</a>
+          <div style="margin-bottom:14px;">
+            <a href="/uploads/{{ saida.documento_path }}" target="_blank"
+               style="display:inline-flex; align-items:center; gap:6px; font-size:13px; color:#2563eb; text-decoration:none; font-weight:600;">
+              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              Ver documento do responsável
+            </a>
           </div>
+          {% endif %}
+
+          <a href="/concluir_saida/{{ saida.id }}" class="btn btn-success btn-full">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="9 11 12 14 22 4"/></svg>
+            AUTORIZAR SAÍDA
+          </a>
         </div>
         {% endfor %}
       {% else %}
-        <div class="card"><div class="empty-state">Nenhuma saída pendente.</div></div>
+        <div class="card">
+          <div class="empty-state">
+            <div class="empty-state-icon">✅</div>
+            <p>Nenhuma saída pendente para este dia.</p>
+          </div>
+        </div>
       {% endif %}
 
-      {% set concluidas = saidas|selectattr("status", "equalto", "concluida")|list %}
+      <!-- Concluídas -->
+      <div class="section-title" style="margin-top: 32px;">
+        Concluídas
+        <span class="section-count">{{ concluidas|length }}</span>
+      </div>
+
       {% if concluidas %}
-        <div class="section-title" style="margin-top: 32px;">Concluídas <span class="section-count">{{ concluidas|length }}</span></div>
-        <div class="card" style="padding:0; overflow:auto;">
+        <div class="card" style="padding: 0; overflow: hidden;">
           <table class="student-table">
             <thead>
-              <tr><th>Aluno</th><th>Horário</th><th>Motivo</th><th>Resp. Escola</th><th>Tipo</th></tr>
+              <tr>
+                <th>Aluno</th>
+                <th>Série / Turma</th>
+                <th>Horário</th>
+                <th>Motivo</th>
+                <th>Resp. Escola</th>
+                <th>Tipo de Saída</th>
+              </tr>
             </thead>
             <tbody>
               {% for saida in concluidas %}
               <tr>
-                <td><div class="student-name-cell">{% if saida.foto_path %}<img src="/uploads/{{ saida.foto_path }}" style="width:28px;height:28px;border-radius:50%;">{% endif %}{{ saida.aluno }}</div></td>
+                <td>
+                  <div class="student-name-cell">
+                    {% if saida.foto_path %}
+                      <img src="/uploads/{{ saida.foto_path }}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; margin-right:8px; flex-shrink:0;" alt="">
+                    {% else %}
+                      <div class="student-avatar" style="background:#6b7280; width:28px; height:28px; font-size:11px;">{{ saida.aluno[0] if saida.aluno else '?' }}</div>
+                    {% endif %}
+                    {{ saida.aluno }}
+                  </div>
+                </td>
+                <td style="color:#6b7280;">{{ saida.serie }} / {{ saida.turma }}</td>
                 <td>{{ saida.horario }}</td>
                 <td>{{ saida.motivo }}</td>
-                <td>{{ saida.responsavel_escola }}</td>
-                <td>{% if saida.tipo_saida == 'acompanhado' %}Acompanhado{% else %}Sozinho{% endif %}</td>
+                <td>{{ saida.responsavel_escola or '—' }}</td>
+                <td>
+                  {% if saida.tipo_saida == 'acompanhado' %}
+                    Acompanhado(a){% if saida.acompanhante %} — {{ saida.acompanhante }}{% endif %}
+                  {% elif saida.tipo_saida == 'sozinho' %}
+                    Sozinho(a)
+                  {% else %}
+                    {{ saida.tipo_saida or '—' }}
+                  {% endif %}
+                </td>
               </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
       {% else %}
-        <div class="card"><div class="empty-state">Nenhuma saída concluída.</div></div>
+        <div class="card">
+          <div class="empty-state">
+            <p>Nenhuma saída concluída neste dia.</p>
+          </div>
+        </div>
       {% endif %}
+
     </div>
   </main>
 </div>

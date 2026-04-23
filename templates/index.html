@@ -20,8 +20,8 @@
       <div class="home-grid">
         <a href="/cadastro_aluno" class="home-card blue">
           <div class="home-card-icon">📋</div>
-          <div class="home-card-title">REGISTRAR</div>
-          <div class="home-card-sub">Registrar saída antecipada</div>
+          <div class="home-card-title">ALUNOS</div>
+          <div class="home-card-sub">Registrar saída · Ver histórico do aluno</div>
         </a>
         {% if session.role == 'admin' %}
         <a href="/cadastro_massa" class="home-card green">
@@ -30,15 +30,15 @@
           <div class="home-card-sub">Adicionar alunos ao sistema</div>
         </a>
         {% endif %}
-        <a href="/encontrar_aluno" class="home-card cyan">
-          <div class="home-card-icon">📑</div>
-          <div class="home-card-title">HISTÓRICO DO ALUNO</div>
-          <div class="home-card-sub">Ver histórico de saídas</div>
-        </a>
-        <a href="/saidas" class="home-card yellow {% if session.role != 'admin' %}home-card-centered{% endif %}">
+        <a href="/saidas" class="home-card yellow">
           <div class="home-card-icon">✅</div>
           <div class="home-card-title">SAÍDAS</div>
           <div class="home-card-sub">Ver e autorizar saídas</div>
+        </a>
+        <a href="/manual" class="home-card cyan {% if session.role != 'admin' %}home-card-centered{% endif %}">
+          <div class="home-card-icon">❓</div>
+          <div class="home-card-title">MANUAL</div>
+          <div class="home-card-sub">Guia de uso do sistema</div>
         </a>
       </div>
 
