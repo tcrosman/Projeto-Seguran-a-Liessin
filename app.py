@@ -374,53 +374,36 @@ def lista_saidas():
     conn.execute("DELETE FROM saidas WHERE status='concluida' AND data_saida < date('now', '-30 days')")
     conn.commit()
     data_selecionada = request.args.get("data", datetime.now().strftime("%Y-%m-%d"))
-    turma_filtro = request.args.get("turma", "")
-    responsavel_filtro = request.args.get("responsavel", "")
-    status_filtro = request.args.get("status", "pendente")
-    busca_nome = request.args.get("busca_nome", "")
-    base_query = """
+    rows = conn.execute("""
         SELECT s.id, a.nome, s.horario, s.motivo, s.responsavel_escola,
                s.tipo_saida, s.acompanhante, s.documento_path, s.status,
                a.serie, a.turma, a.foto_path
         FROM saidas s
         JOIN alunos a ON s.aluno = a.id
-        WHERE 1=1
-    """
-    params = []
-    if status_filtro != "todas":
-        base_query += " AND s.status = ?"
-        params.append(status_filtro)
-    if data_selecionada:
-        base_query += " AND s.data_saida = ?"
-        params.append(data_selecionada)
-    if turma_filtro:
-        base_query += " AND a.turma = ?"
-        params.append(turma_filtro)
-    if responsavel_filtro:
-        base_query += " AND s.responsavel_escola LIKE ?"
-        params.append(f"%{responsavel_filtro}%")
-    if busca_nome:
-        base_query += " AND a.nome LIKE ?"
-        params.append(f"%{busca_nome}%")
-    base_query += " ORDER BY s.horario ASC"
-    rows = conn.execute(base_query, params).fetchall()
-    saidas = []
+        WHERE s.data_saida = ?
+        ORDER BY s.horario ASC
+    """, (data_selecionada,)).fetchall()
+    pendentes = []
+    concluidas = []
     for r in rows:
-        saidas.append({
+        entry = {
             "id": r[0], "aluno": r[1], "horario": r[2], "motivo": r[3],
             "responsavel_escola": r[4], "tipo_saida": r[5], "acompanhante": r[6],
             "documento_path": r[7], "status": r[8], "serie": r[9], "turma": r[10], "foto_path": r[11]
-        })
-    turmas = [t[0] for t in conn.execute("SELECT DISTINCT turma FROM alunos ORDER BY turma").fetchall()]
+        }
+        if r[8] == "pendente":
+            pendentes.append(entry)
+        else:
+            concluidas.append(entry)
+    data_min = conn.execute("SELECT MIN(data_saida) FROM saidas").fetchone()[0] or datetime.now().strftime("%Y-%m-%d")
+    data_max = datetime.now().strftime("%Y-%m-%d")
     conn.close()
     return render_template("lista_saidas.html",
-                           saidas=saidas,
+                           pendentes=pendentes,
+                           concluidas=concluidas,
                            data_selecionada=data_selecionada,
-                           turmas=turmas,
-                           turma_filtro=turma_filtro,
-                           responsavel_filtro=responsavel_filtro,
-                           status_filtro=status_filtro,
-                           busca_nome=busca_nome)
+                           data_min=data_min,
+                           data_max=data_max)
 
 @app.route("/concluir_saida/<int:id_saida>")
 def concluir_saida(id_saida):
