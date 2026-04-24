@@ -450,7 +450,6 @@
                 <div class="mockup-nav-item">Saídas</div>
                 <div class="mockup-nav-item">Manual</div>
                 {% if session.role == 'admin' %}
-                <div class="mockup-nav-item">Cadastrar Aluno</div>
                 <div class="mockup-nav-item">Configurações</div>
                 {% endif %}
               </div>
@@ -462,13 +461,6 @@
                     <div class="title">ALUNOS</div>
                     <div class="sub">Registrar saída · Ver histórico</div>
                   </div>
-                  {% if session.role == 'admin' %}
-                  <div class="home-mockup-card green">
-                    <div class="icon">👤</div>
-                    <div class="title">CADASTRAR ALUNO</div>
-                    <div class="sub">Adicionar alunos ao sistema</div>
-                  </div>
-                  {% endif %}
                   <div class="home-mockup-card yellow">
                     <div class="icon">✅</div>
                     <div class="title">SAÍDAS</div>
@@ -497,8 +489,7 @@
               <tr><td><strong>Saídas</strong></td><td>Lista e autoriza saídas do dia</td></tr>
               <tr><td><strong>Manual</strong></td><td>Este guia de ajuda</td></tr>
               {% if session.role == 'admin' %}
-              <tr><td><strong>Cadastrar Aluno</strong></td><td>Adiciona novos alunos ao sistema (admin)</td></tr>
-              <tr><td><strong>Configurações</strong></td><td>Gerencia usuários, horários padrão e backups (admin)</td></tr>
+              <tr><td><strong>Configurações</strong></td><td>Cadastrar alunos, gerenciar usuários, horários padrão e backups (admin)</td></tr>
               {% endif %}
             </tbody>
           </table>
@@ -537,13 +528,13 @@
                     <td><div style="width:22px;height:22px;border-radius:50%;background:#1F6EFD;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:700;">A</div></td>
                     <td>Ana Souza</td>
                     <td style="color:#6b7280;">3º ano EF</td>
-                    <td><div class="mockup-btn blue" style="width:80px;">Registrar</div></td>
+                    <td style="display:flex;gap:4px;"><div class="mockup-btn blue" style="width:70px;font-size:9px;">Registrar</div><div class="mockup-btn" style="width:70px;font-size:9px;background:#f3f4f6;color:#374151;">Histórico</div></td>
                   </tr>
                   <tr>
                     <td><div style="width:22px;height:22px;border-radius:50%;background:#1F6EFD;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:9px;font-weight:700;">B</div></td>
                     <td>Bruno Lima</td>
                     <td style="color:#6b7280;">3º ano EF</td>
-                    <td><div class="mockup-btn blue" style="width:80px;">Registrar</div></td>
+                    <td style="display:flex;gap:4px;"><div class="mockup-btn blue" style="width:70px;font-size:9px;">Registrar</div><div class="mockup-btn" style="width:70px;font-size:9px;background:#f3f4f6;color:#374151;">Histórico</div></td>
                   </tr>
                 </tbody>
               </table>
@@ -556,7 +547,7 @@
           <li><span>A lista de alunos aparece agrupada por série e turma. Se o aluno tiver foto cadastrada, ela aparece ao lado do nome.</span></li>
           <li><span>Use a <strong>barra de busca</strong> no topo para filtrar pelo nome do aluno.</span></li>
           <li><span>Para <strong>registrar uma saída</strong>, clique no botão <strong>Registrar Saída</strong> ao lado do aluno desejado.</span></li>
-          <li><span>Para <strong>ver o histórico</strong> de um aluno específico, clique diretamente no <strong>nome do aluno</strong> (sublinhado).</span></li>
+          <li><span>Para <strong>ver o histórico</strong> de um aluno, clique no botão <strong>Ver Histórico</strong> ao lado do nome, ou clique diretamente no <strong>nome do aluno</strong> (sublinhado).</span></li>
           <li><span>Preencha os campos do formulário de saída:</span></li>
         </ol>
 
@@ -603,8 +594,10 @@
             <div class="mockup-url">liessin / saidas</div>
           </div>
           <div class="mockup-body">
-            <div class="mockup-form-row" style="justify-content:flex-end; margin-bottom:12px;">
-              <div class="mockup-input" style="max-width:140px;">📅 18/04/2026</div>
+            <div class="mockup-form-row" style="margin-bottom:12px; gap:6px;">
+              <div class="mockup-input" style="flex:2;">🔍  Buscar aluno por nome...</div>
+              <div class="mockup-input" style="max-width:120px;">📅 18/04/2026</div>
+              <div class="mockup-btn blue" style="width:60px; font-size:9px;">Filtrar</div>
             </div>
             <div style="font-size:11px; font-weight:700; color:#374151; margin-bottom:8px;">Saídas Pendentes</div>
             <div class="mockup-card" style="margin-bottom:8px;">
@@ -640,7 +633,7 @@
 
         <ol class="steps">
           <li><span>No menu lateral, clique em <strong>Saídas</strong>.</span></li>
-          <li><span>Por padrão, o sistema mostra as saídas do <strong>dia atual</strong>. Use o campo de data para consultar outros dias.</span></li>
+          <li><span>Por padrão, o sistema mostra as saídas do <strong>dia atual</strong>. Use o campo de data para consultar outros dias e a <strong>barra de pesquisa</strong> para filtrar por nome do aluno.</span></li>
           <li><span>A seção <strong>Saídas Pendentes</strong> exibe um card por aluno com foto (se cadastrada), horário, motivo, responsável da escola, tipo de saída e acompanhante (se houver). Se um documento foi anexado, um link para visualizá-lo aparece no card.</span></li>
           <li><span>Quando o aluno estiver pronto para sair, clique em <strong>Autorizar Saída</strong>.</span></li>
           <li><span>A saída passa para a seção <strong>Concluídas</strong>, que lista horário, motivo, responsável da escola e tipo de saída.</span></li>
@@ -745,7 +738,7 @@
 
           <p style="font-size:14px; color:#374151; margin-bottom:12px; font-weight:600;">Cadastro Individual:</p>
           <ol class="steps" style="margin-bottom:20px;">
-            <li><span>Acesse <strong>Cadastrar Aluno</strong> no menu lateral.</span></li>
+            <li><span>Acesse <strong>Configurações</strong> no menu lateral e clique em <strong>Cadastrar Aluno</strong>.</span></li>
             <li><span>Na aba <strong>Cadastro Individual</strong>, preencha o <strong>Nome Completo</strong>, <strong>Série</strong> e <strong>Turma</strong>.</span></li>
             <li><span>Ao selecionar a <strong>Série</strong>, os campos de <strong>horário de saída padrão</strong> são preenchidos automaticamente com base nos horários configurados em Configurações.</span></li>
             <li><span><strong>Responsáveis (opcional):</strong> escreva os nomes e parentesco das pessoas autorizadas a retirar o aluno. Ex: <em>Maria Silva (mãe), João Silva (pai)</em>.</span></li>

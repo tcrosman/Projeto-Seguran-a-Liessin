@@ -693,7 +693,10 @@ def cadastro_massa():
             try:
                 import pandas as pd
                 df = pd.read_excel(arquivo)
-                df.columns = df.columns.str.lower().str.strip()
+                df.columns = [
+                    ''.join(c for c in unicodedata.normalize('NFKD', str(col)) if not unicodedata.combining(c)).lower().strip()
+                    for col in df.columns
+                ]
                 erros = []
                 rows = []
                 for i, linha in df.iterrows():
