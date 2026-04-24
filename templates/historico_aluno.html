@@ -32,12 +32,14 @@
           </div>
         </div>
 
-        {% if aluno[9] %}
         <div style="margin-bottom:20px; padding:12px 16px; background:#f0f9ff; border-radius:8px; border:1px solid #bae6fd;">
           <div style="font-size:12px; font-weight:700; color:#0369a1; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Responsáveis Autorizados</div>
-          <div style="font-size:14px; color:#0c4a6e;">{{ aluno[9] }}</div>
+          {% if aluno[9] %}
+            <div style="font-size:14px; color:#0c4a6e;">{{ aluno[9] }}</div>
+          {% else %}
+            <div style="font-size:14px; color:#9ca3af;">Não informado</div>
+          {% endif %}
         </div>
-        {% endif %}
 
         <div class="horarios-title" style="color:#1F6EFD; font-weight:700;">Horários Normais de Saída</div>
         <div class="horarios-grid" style="margin-bottom: 24px;">
