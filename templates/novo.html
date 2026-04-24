@@ -28,13 +28,6 @@
           </div>
         </div>
 
-        {% if request.args.get('sucesso') %}
-          <div class="alert alert-success">Usuário criado com sucesso!</div>
-        {% endif %}
-        {% if request.args.get('erro') %}
-          <div class="alert alert-error">Erro! Usuário já existe.</div>
-        {% endif %}
-
         <form method="post">
           <div class="form-row form-row-2">
             <div class="form-group">

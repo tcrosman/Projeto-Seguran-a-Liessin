@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, Response, session, send_from_directory
+from flask import Flask, render_template, request, redirect, Response, session, send_from_directory, flash
 import sqlite3
 from datetime import datetime, timedelta
 import secrets
@@ -250,10 +250,12 @@ def novo():
                         (request.form["u"], request.form["s"], request.form["r"], request.form.get("e", "").strip().lower()))
             conn.commit()
             conn.close()
-            return redirect("/novo?sucesso=1")
+            flash("Usuário criado com sucesso!", "success")
+            return redirect("/novo")
         except:
             conn.close()
-            return redirect("/novo?erro=1")
+            flash("Erro! Usuário já existe ou dados inválidos.", "error")
+            return redirect("/novo")
     conn = conectar()
     usuarios = conn.execute("SELECT id, username, role, email FROM usuarios ORDER BY id").fetchall()
     conn.close()
@@ -276,6 +278,7 @@ def deletar_usuario(id_usuario):
     conn.execute("DELETE FROM usuarios WHERE id = ?", (id_usuario,))
     conn.commit()
     conn.close()
+    flash("Usuário removido.", "success")
     return redirect("/novo")
 
 # ------------------ ROTAS PRINCIPAIS ------------------
@@ -330,6 +333,7 @@ def registrar_saida():
                     """, (id_aluno, data_saida, horario, motivo, '', '', '', responsavel_escola, tipo_saida, acompanhante, documento_path, "pendente"))
                     conn.commit()
                     log_operacao(session.get('username'), "REGISTROU SAÍDA", f"Aluno ID: {id_aluno}")
+                    flash("Saída registrada com sucesso!", "success")
                     return redirect("/saidas")
         conn.close()
     conn = conectar()
@@ -354,6 +358,7 @@ def editar_saida(id_saida):
         """, (horario, motivo, responsavel_escola, tipo_saida, acompanhante, id_saida))
         conn.commit()
         conn.close()
+        flash("Saída atualizada com sucesso!", "success")
         return redirect("/saidas")
     saida = conn.execute("""
         SELECT s.id, s.horario, s.motivo, s.responsavel_escola, s.tipo_saida, s.acompanhante, a.nome
@@ -434,6 +439,7 @@ def concluir_saida(id_saida):
             """
             enviar_email(info[7], f"Saída autorizada - {info[8]}", corpo)
         log_operacao(session.get('username'), "CONCLUIU SAÍDA", f"ID Saída: {id_saida}")
+        flash("Saída autorizada!", "success")
     conn.close()
     return redirect("/saidas")
 
@@ -483,7 +489,8 @@ def configurar_horarios():
             """, (serie, seg, ter, qua, qui, sex))
         conn.commit()
         conn.close()
-        return redirect("/configurar_horarios?sucesso=1")
+        flash("Horários salvos com sucesso!", "success")
+        return redirect("/configurar_horarios")
     horarios = {}
     rows = conn.execute("SELECT serie, saida_seg, saida_ter, saida_qua, saida_qui, saida_sex FROM horarios_padrao").fetchall()
     for row in rows:
@@ -543,6 +550,7 @@ def cadastro_aluno():
             log_aluno(aluno_id, session['user_id'], 'INSERT', None, {'nome': nome, 'turma': turma, 'serie': serie})
             log_operacao(session.get('username'), "CADASTROU ALUNO", f"Nome: {nome}")
             conn.close()
+            flash(f"Aluno {nome} cadastrado com sucesso!", "success")
             return redirect("/cadastro_aluno")
     conn = conectar()
     busca = request.args.get("busca")
@@ -593,6 +601,7 @@ def editar_aluno(id_aluno):
         novo_dict = dict(zip(colunas, novo))
         log_aluno(id_aluno, session['user_id'], 'UPDATE', antigo_dict, novo_dict)
         conn.close()
+        flash("Dados do aluno atualizados.", "success")
         return redirect("/cadastro_aluno")
     aluno = conn.execute("SELECT * FROM alunos WHERE id=?", (id_aluno,)).fetchone()
     conn.close()
@@ -608,12 +617,14 @@ def deletar_aluno(id_aluno):
     pendentes = conn.execute("SELECT COUNT(*) FROM saidas WHERE aluno=? AND status='pendente'", (id_aluno,)).fetchone()[0]
     if pendentes > 0:
         conn.close()
-        return redirect("/cadastro_aluno?erro=aluno_possui_pendencias")
+        flash("Não é possível remover aluno com saídas pendentes.", "error")
+        return redirect("/cadastro_aluno")
     aluno = conn.execute("SELECT * FROM alunos WHERE id=?", (id_aluno,)).fetchone()
     if aluno:
         log_aluno(id_aluno, session['user_id'], 'DELETE', dict(aluno), None)
         conn.execute("DELETE FROM alunos WHERE id=?", (id_aluno,))
         conn.commit()
+        flash(f"Aluno removido.", "success")
     conn.close()
     return redirect("/cadastro_aluno")
 
@@ -667,6 +678,7 @@ def cadastro_massa():
                 conn.commit()
                 conn.close()
                 log_operacao(session.get('username'), "CADASTROU ALUNO", f"Nome: {nome}")
+                flash(f"Aluno {nome} cadastrado com sucesso!", "success")
                 return redirect("/cadastro_massa")
         # Importação Excel
         arquivo = request.files["arquivo_excel"]
@@ -739,6 +751,7 @@ def cadastro_massa():
                     conn.commit()
                     conn.close()
                     log_operacao(session.get('username'), "IMPORTOU EXCEL", f"{alunos_inseridos} alunos")
+                    flash(f"{alunos_inseridos} aluno{'s' if alunos_inseridos != 1 else ''} importado{'s' if alunos_inseridos != 1 else ''} com sucesso!", "success")
                     return redirect("/cadastro_aluno")
             except Exception as e:
                 print("Erro na importação:", e)
