@@ -23,13 +23,19 @@
           <h1>Saídas</h1>
           <p>{{ pendentes|length }} saída{{ 's' if pendentes|length != 1 else '' }} pendente{{ 's' if pendentes|length != 1 else '' }} de autorização</p>
         </div>
-        <div class="filter-bar">
-          <label>Data:</label>
-          <form method="get">
-            <input type="date" name="data" value="{{ data_selecionada }}" min="{{ data_min }}" max="{{ data_max }}" onchange="this.form.submit()">
-          </form>
-        </div>
       </div>
+
+      <form method="get" style="display:flex; gap:10px; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
+        <div class="search-wrap" style="flex:1; min-width:200px;">
+          <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="search-input" type="text" name="busca" placeholder="Buscar aluno por nome..." value="{{ busca or '' }}">
+        </div>
+        <input type="date" class="form-input" name="data" value="{{ data_selecionada }}" min="{{ data_min }}" max="{{ data_max }}" style="width:auto;">
+        <button type="submit" class="btn btn-primary" style="padding:8px 18px;">Filtrar</button>
+        {% if busca %}
+          <a href="/saidas?data={{ data_selecionada }}" class="btn btn-secondary" style="padding:8px 14px;">Limpar</a>
+        {% endif %}
+      </form>
 
       <!-- Pendentes -->
       <div class="section-title">

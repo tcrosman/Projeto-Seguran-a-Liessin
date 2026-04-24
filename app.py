@@ -379,15 +379,21 @@ def lista_saidas():
     conn.execute("DELETE FROM saidas WHERE status='concluida' AND data_saida < date('now', '-30 days')")
     conn.commit()
     data_selecionada = request.args.get("data", datetime.now().strftime("%Y-%m-%d"))
-    rows = conn.execute("""
+    busca = request.args.get("busca", "").strip()
+    query = """
         SELECT s.id, a.nome, s.horario, s.motivo, s.responsavel_escola,
                s.tipo_saida, s.acompanhante, s.documento_path, s.status,
                a.serie, a.turma, a.foto_path
         FROM saidas s
         JOIN alunos a ON s.aluno = a.id
         WHERE s.data_saida = ?
-        ORDER BY s.horario ASC
-    """, (data_selecionada,)).fetchall()
+    """
+    params = [data_selecionada]
+    if busca:
+        query += " AND a.nome LIKE ?"
+        params.append(f"%{busca}%")
+    query += " ORDER BY s.horario ASC"
+    rows = conn.execute(query, params).fetchall()
     pendentes = []
     concluidas = []
     for r in rows:
@@ -408,7 +414,8 @@ def lista_saidas():
                            concluidas=concluidas,
                            data_selecionada=data_selecionada,
                            data_min=data_min,
-                           data_max=data_max)
+                           data_max=data_max,
+                           busca=busca)
 
 @app.route("/concluir_saida/<int:id_saida>")
 def concluir_saida(id_saida):
