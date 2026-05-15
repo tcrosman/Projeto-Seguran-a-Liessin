@@ -339,7 +339,8 @@ def registrar_saida():
     conn = conectar()
     alunos = conn.execute("SELECT id, nome, turma, serie FROM alunos").fetchall()
     conn.close()
-    return render_template("registrar_saida.html", alunos=alunos, erro=mensagem_erro, aluno_selecionado=aluno_pre_selecionado)
+    today = datetime.now().strftime("%Y-%m-%d")
+    return render_template("registrar_saida.html", alunos=alunos, erro=mensagem_erro, aluno_selecionado=aluno_pre_selecionado, today=today)
 
 @app.route("/editar_saida/<int:id_saida>", methods=["GET", "POST"])
 def editar_saida(id_saida):
