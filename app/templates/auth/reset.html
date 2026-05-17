@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Redefinir Senha — SecureEdu</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo" style="flex-direction:column;align-items:center;margin-bottom:28px;">
+      <img src="/static/images/logo-full.png" alt="SecureEdu" style="height:100px;width:auto;">
+    </div>
+
+    <h1 class="login-title">Nova senha</h1>
+    <p class="login-sub">Digite e confirme sua nova senha</p>
+
+    {% if erro %}
+      <div class="alert alert-error">{{ erro }}</div>
+    {% endif %}
+
+    {% if token %}
+      <form method="post">
+        <div class="form-group">
+          <label class="form-label">Nova senha</label>
+          <input class="form-input" type="password" name="senha" id="pwd-input" placeholder="Mínimo 8 caracteres" required minlength="8">
+          <ul id="pwd-hints" style="margin-top:8px; padding:0; list-style:none; display:flex; flex-direction:column; gap:4px;">
+            <li id="h-len" class="pwd-req">Mínimo 8 caracteres</li>
+            <li id="h-low" class="pwd-req">Letra minúscula (a–z)</li>
+            <li id="h-up"  class="pwd-req">Letra maiúscula (A–Z)</li>
+            <li id="h-num" class="pwd-req">Número (0–9)</li>
+            <li id="h-esp" class="pwd-req">Caractere especial (!@#$%...)</li>
+          </ul>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirmar senha</label>
+          <input class="form-input" type="password" name="confirma" placeholder="Repita a senha" required minlength="8">
+        </div>
+        <button class="btn btn-primary btn-full" type="submit">Redefinir senha</button>
+      </form>
+      <style>
+        .pwd-req { font-size:12px; color:#9ca3af; display:flex; align-items:center; gap:6px; transition: color .15s; }
+        .pwd-req::before { content:'✗'; font-size:11px; font-weight:700; color:#d1d5db; flex-shrink:0; }
+        .pwd-req.ok { color:#065f46; }
+        .pwd-req.ok::before { content:'✓'; color:#16a34a; }
+      </style>
+      <script>
+        (function(){
+          var inp = document.getElementById('pwd-input');
+          if(!inp) return;
+          inp.addEventListener('input', function(){
+            var v = inp.value;
+            toggle('h-len', v.length >= 8);
+            toggle('h-low', /[a-z]/.test(v));
+            toggle('h-up',  /[A-Z]/.test(v));
+            toggle('h-num', /\d/.test(v));
+            toggle('h-esp', /[\W_]/.test(v));
+          });
+          function toggle(id, ok){
+            var el = document.getElementById(id);
+            if(el) el.classList.toggle('ok', ok);
+          }
+        })();
+      </script>
+    {% else %}
+      <a href="/esqueci_senha" class="btn btn-primary btn-full">Solicitar novo link</a>
+    {% endif %}
+
+    <div style="text-align: center; margin-top: 16px;">
+      <a href="/" class="login-forgot">← Voltar ao login</a>
+    </div>
+  </div>
+</div>
+</body>
+</html>

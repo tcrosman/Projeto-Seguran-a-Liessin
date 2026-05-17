@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editar Saída — SecureEdu</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="layout">
+  {% include 'sidebar.html' %}
+  <main class="main">
+    <div class="topbar">
+      <a href="/saidas" class="back-link">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar
+      </a>
+    </div>
+    <div class="page-wrap">
+      <div class="card" style="max-width: 600px; margin: 0 auto;">
+        <div class="card-header">
+          <div class="card-icon">✏️</div>
+          <div>
+            <div class="card-title">Editar Saída</div>
+            <div class="card-subtitle">Aluno: {{ saida.aluno }}</div>
+          </div>
+        </div>
+
+        <form method="post">
+          <div class="form-group">
+            <label class="form-label">Horário <span>*</span></label>
+            <input class="form-input" type="time" name="horario" value="{{ saida.horario }}" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Motivo <span>*</span></label>
+            <input class="form-input" type="text" name="motivo" value="{{ saida.motivo }}" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Responsável da Escola <span>*</span></label>
+            <input class="form-input" type="text" name="responsavel_escola" value="{{ saida.responsavel_escola }}" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Tipo de Saída <span>*</span></label>
+            <select class="form-select" name="tipo_saida" id="tipo_saida" onchange="toggleAcompanhante()">
+              <option value="sozinho" {% if saida.tipo_saida == 'sozinho' %}selected="selected"{% endif %}>Sozinho(a)</option>
+              <option value="acompanhado" {% if saida.tipo_saida == 'acompanhado' %}selected="selected"{% endif %}>Acompanhado(a)</option>
+            </select>
+          </div>
+          
+          {% if saida.tipo_saida == 'acompanhado' %}
+          <div class="form-group" id="acompanhante_group" style="display: block;">
+            <label class="form-label">Com quem? <span>*</span></label>
+            <input class="form-input" type="text" name="acompanhante" value="{{ saida.acompanhante or '' }}">
+          </div>
+          {% else %}
+          <div class="form-group" id="acompanhante_group" style="display: none;">
+            <label class="form-label">Com quem? <span>*</span></label>
+            <input class="form-input" type="text" name="acompanhante" value="{{ saida.acompanhante or '' }}">
+          </div>
+          {% endif %}
+
+          <div class="btn-actions">
+            <button class="btn btn-primary" type="submit">Salvar Alterações</button>
+            <a href="/saidas" class="btn btn-secondary">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+function toggleAcompanhante() {
+  var tipo = document.getElementById('tipo_saida').value;
+  var group = document.getElementById('acompanhante_group');
+  if (tipo === 'acompanhado') {
+    group.style.display = 'block';
+  } else {
+    group.style.display = 'none';
+  }
+}
+</script>
+</body>
+</html>

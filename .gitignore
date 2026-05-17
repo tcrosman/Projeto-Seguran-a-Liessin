@@ -38,3 +38,6 @@ log_sistema.txt
 uploads/
 escola.db-shm
 escola.db-wal
+logs/
+backups/
+storage/
