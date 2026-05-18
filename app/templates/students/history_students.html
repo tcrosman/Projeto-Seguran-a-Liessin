@@ -89,7 +89,7 @@
                   <td><span style="background:#dbeafe; color:#1F6EFD; padding:2px 8px; border-radius:20px; font-size:12px; font-weight:600;">{{ saida.data_saida }}</span></td>
                   <td><span style="background:#f0fdf4; color:#1F8755; padding:2px 8px; border-radius:20px; font-size:12px; font-weight:600;">🕐 {{ saida.horario }}</span></td>
                   <td>{{ saida.motivo }}</td>
-                  <td>{{ saida.responsavel or '—' }}</td>
+                  <td>{{ saida.acompanhante or '—' }}</td>
                   <td style="color:#6b7280;">{{ saida.responsavel_escola or '—' }}</td>
                   <td>
                     {% if saida.tipo_saida == 'acompanhado' %}

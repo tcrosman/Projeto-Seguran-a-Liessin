@@ -60,6 +60,9 @@
                     <a href="/historico_aluno/{{ aluno.id }}" class="btn btn-secondary" style="padding: 7px 14px; font-size: 13px;">
                       Ver Histórico
                     </a>
+                    <a href="/editar_aluno/{{ aluno.id }}" class="btn btn-secondary" style="padding: 7px 14px; font-size: 13px;">
+                      Editar
+                    </a>
                     {% if session.role == 'admin' %}
                     <a href="/deletar_aluno/{{ aluno.id }}"
                        onclick="return confirm('Apagar {{ aluno.nome }}? Esta ação não pode ser desfeita.')"

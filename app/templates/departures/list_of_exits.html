@@ -51,11 +51,11 @@
               {% if saida.foto_path %}
                 <img src="/uploads/{{ saida.foto_path }}" class="saida-student-photo" alt="Foto de {{ saida.aluno }}">
               {% else %}
-                <div class="student-avatar" style="background: #dc2626; width:44px; height:44px; font-size:16px; flex-shrink:0;">{{ saida.aluno[0] if saida.aluno else '?' }}</div>
+                <div class="student-avatar" style="background: #dc2626; width:44px; height:44px; font-size:16px; flex-shrink:0;">{{ saida.nome[0] if saida.nome else '?' }}</div>
               {% endif %}
               <div>
                 <div class="saida-student-label">Nome Completo</div>
-                <div class="saida-student-name">{{ saida.aluno or '—' }}</div>
+                <div class="saida-student-name">{{ saida.nome or '—' }}</div>
               </div>
             </div>
             <div class="saida-turma-serie">
@@ -105,6 +105,9 @@
           </div>
           {% endif %}
 
+          <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <a href="/editar_saida/{{ saida.id }}" class="btn btn-secondary" style="flex:1; text-align:center;">Editar</a>
+          </div>
           <a href="/concluir_saida/{{ saida.id }}" class="btn btn-success btn-full">
             <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="9 11 12 14 22 4"/></svg>
             AUTORIZAR SAÍDA
@@ -147,9 +150,9 @@
                     {% if saida.foto_path %}
                       <img src="/uploads/{{ saida.foto_path }}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; margin-right:8px; flex-shrink:0;" alt="">
                     {% else %}
-                      <div class="student-avatar" style="background:#6b7280; width:28px; height:28px; font-size:11px;">{{ saida.aluno[0] if saida.aluno else '?' }}</div>
+                      <div class="student-avatar" style="background:#6b7280; width:28px; height:28px; font-size:11px;">{{ saida.nome[0] if saida.nome else '?' }}</div>
                     {% endif %}
-                    {{ saida.aluno }}
+                    {{ saida.nome }}
                   </div>
                 </td>
                 <td style="color:#6b7280;">{{ saida.serie }} / {{ saida.turma }}</td>
