@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Horários Padrão — S2E</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .horarios-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .horarios-table th {
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 10px 12px;
+      border-bottom: 2px solid #f3f4f6;
+      white-space: nowrap;
+    }
+    .horarios-table th:first-child { width: 30%; }
+    .horarios-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #f9fafb;
+      vertical-align: middle;
+    }
+    .horarios-table tr:last-child td { border-bottom: none; }
+    .horarios-table tr:hover td { background: #f9fafb; }
+    .horarios-table input[type="time"] {
+      width: 100%;
+      padding: 7px 10px;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 7px;
+      font-size: 13px;
+      color: #111827;
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .horarios-table input[type="time"]:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+    }
+    .serie-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #111827;
+    }
+    .serie-group-header td {
+      background: #f8faff;
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #2563eb;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .sticky-save {
+      position: sticky;
+      bottom: 0;
+      background: #fff;
+      border-top: 1px solid #e5e7eb;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 10;
+      margin: 0 -32px -32px;
+      border-radius: 0 0 16px 16px;
+    }
+    .table-bottom-spacer { height: 72px; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  {% include 'sidebar.html' %}
+  <main class="main">
+    <div class="topbar">
+      <a href="/configuracoes" class="back-link">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar às Configurações
+      </a>
+    </div>
+    <div class="page-wrap">
+      <div class="list-topbar">
+        <div class="list-topbar-left">
+          <h1>Horários Padrão</h1>
+          <p>Configure o horário de saída padrão de cada série por dia da semana</p>
+        </div>
+      </div>
+
+      <div class="info-box" style="margin-bottom: 20px;">
+        Defina aqui o horário de saída de cada série por dia da semana. Ao cadastrar um novo aluno, o sistema preencherá os horários automaticamente com base na série selecionada.
+      </div>
+
+      <div class="card" style="padding: 0; overflow: hidden;">
+        <form method="POST">
+          <table class="horarios-table">
+            <thead>
+              <tr>
+                <th>Série</th>
+                <th>Segunda</th>
+                <th>Terça</th>
+                <th>Quarta</th>
+                <th>Quinta</th>
+                <th>Sexta</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% set grupos = [
+                ('Educação Infantil', ['Berçário 1', 'Berçário 2', 'Pré 1', 'Pré 2']),
+                ('Ensino Fundamental I', ['1º ano EF', '2º ano EF', '3º ano EF', '4º ano EF', '5º ano EF']),
+                ('Ensino Fundamental II', ['6º ano EF', '7º ano EF', '8º ano EF', '9º ano EF']),
+                ('Ensino Médio', ['1º ano EM', '2º ano EM', '3º ano EM']),
+              ] %}
+              {% for grupo_nome, grupo_series in grupos %}
+                <tr class="serie-group-header">
+                  <td colspan="6">{{ grupo_nome }}</td>
+                 </tr>
+                {% for serie in grupo_series %}
+                  {% if serie in series %}
+                  <tr>
+                    <td><span class="serie-label">{{ serie }}</span></td>
+                    <td><input type="time" name="seg_{{ serie }}" value="{{ horarios.get(serie, {}).get('seg', '') }}"></td>
+                    <td><input type="time" name="ter_{{ serie }}" value="{{ horarios.get(serie, {}).get('ter', '') }}"></td>
+                    <td><input type="time" name="qua_{{ serie }}" value="{{ horarios.get(serie, {}).get('qua', '') }}"></td>
+                    <td><input type="time" name="qui_{{ serie }}" value="{{ horarios.get(serie, {}).get('qui', '') }}"></td>
+                    <td><input type="time" name="sex_{{ serie }}" value="{{ horarios.get(serie, {}).get('sex', '') }}"></td>
+                   </tr>
+                  {% endif %}
+                {% endfor %}
+              {% endfor %}
+              <tr><td colspan="6" class="table-bottom-spacer" style="border:none;"></td></tr>
+            </tbody>
+          </table>
+
+          <div class="sticky-save">
+            <button class="btn btn-primary" type="submit">Salvar Horários</button>
+            <a href="/inicio" class="btn btn-secondary">Cancelar</a>
+            <span style="font-size:13px; color:#6b7280; margin-left:4px;">As alterações se aplicam a novos cadastros. Alunos já cadastrados não são afetados.</span>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
