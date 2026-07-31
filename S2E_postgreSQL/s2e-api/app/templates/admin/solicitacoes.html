@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solicitações de Saída — SecureEdu</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .badge-aguardando { background:#fef9c3; color:#92400e; border:1px solid #fde68a; }
+    .badge-aprovado   { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
+    .badge-rejeitado  { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+    .status-badge { display:inline-block; padding:2px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  {% include 'sidebar.html' %}
+  <main class="main">
+    <div class="topbar">
+      <a href="/inicio" class="back-link">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar ao Menu
+      </a>
+    </div>
+    <div class="page-wrap">
+      <div class="list-topbar" style="margin-bottom:24px;">
+        <div class="list-topbar-left">
+          <h1>Solicitações dos Responsáveis</h1>
+          <p>Revise e aprove as saídas solicitadas pelos pais</p>
+        </div>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}" style="margin-bottom:16px;">{{ message }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      {% if aguardando %}
+        <h2 style="font-size:14px; font-weight:700; color:#92400e; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">
+          ⏳ Aguardando revisão ({{ aguardando|length }})
+        </h2>
+        <div class="card" style="padding:0; overflow:hidden; margin-bottom:28px;">
+          <table style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr style="background:#fffbeb;">
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #fde68a;">Aluno</th>
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #fde68a;">Responsável</th>
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #fde68a;">Data</th>
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #fde68a;">Motivo</th>
+                <th style="padding:10px 16px; border-bottom:1px solid #fde68a;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in aguardando %}
+                <tr style="border-bottom:1px solid #f9fafb;">
+                  <td style="padding:12px 16px;">
+                    <div style="font-size:14px; font-weight:600; color:#111827;">{{ s.aluno_nome }}</div>
+                    <div style="font-size:12px; color:#9ca3af;">{{ s.serie }} — Turma {{ s.turma }}</div>
+                  </td>
+                  <td style="padding:12px 16px;">
+                    <div style="font-size:13px; color:#374151;">{{ s.responsavel_nome }}</div>
+                    <div style="font-size:12px; color:#9ca3af;">{{ s.responsavel_email }}</div>
+                  </td>
+                  <td style="padding:12px 16px; font-size:13px; color:#374151;">
+                    {{ s.data_solicitada }}
+                    {% if s.horario_solicitado %}
+                      <div style="font-size:12px; color:#9ca3af;">{{ s.horario_solicitado }}</div>
+                    {% endif %}
+                  </td>
+                  <td style="padding:12px 16px; font-size:13px; color:#374151;">{{ s.motivo or '—' }}</td>
+                  <td style="padding:12px 16px;">
+                    <div style="display:flex; gap:8px;">
+                      <form method="POST" action="/admin/solicitacoes/{{ s.id }}/aprovar">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-primary" style="font-size:12px; padding:5px 14px;" type="submit">Aprovar</button>
+                      </form>
+                      <form method="POST" action="/admin/solicitacoes/{{ s.id }}/rejeitar">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-secondary" style="font-size:12px; padding:5px 14px; color:#dc2626;" type="submit">Rejeitar</button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:16px 20px; margin-bottom:24px; font-size:14px; color:#15803d;">
+          ✓ Nenhuma solicitação aguardando revisão.
+        </div>
+      {% endif %}
+
+      {% if historico %}
+        <h2 style="font-size:14px; font-weight:700; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">
+          Histórico recente
+        </h2>
+        <div class="card" style="padding:0; overflow:hidden;">
+          <table style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr style="background:#f9fafb;">
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Aluno</th>
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Responsável</th>
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Data</th>
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in historico %}
+                <tr style="border-bottom:1px solid #f9fafb;">
+                  <td style="padding:12px 16px; font-size:14px; font-weight:600; color:#111827;">{{ s.aluno_nome }}</td>
+                  <td style="padding:12px 16px; font-size:13px; color:#374151;">{{ s.responsavel_nome }}</td>
+                  <td style="padding:12px 16px; font-size:13px; color:#374151;">{{ s.data_solicitada }}</td>
+                  <td style="padding:12px 16px;">
+                    {% if s.status == 'aprovado' %}
+                      <span class="status-badge badge-aprovado">Aprovado</span>
+                    {% elif s.status == 'rejeitado' %}
+                      <span class="status-badge badge-rejeitado">Rejeitado</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </div>
+  </main>
+</div>
+</body>
+</html>

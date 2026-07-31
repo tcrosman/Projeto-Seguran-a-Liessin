@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minhas Solicitações — SecureEdu</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .badge-aguardando { background:#fef9c3; color:#92400e; border:1px solid #fde68a; }
+    .badge-aprovado   { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
+    .badge-rejeitado  { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+    .status-badge {
+      display:inline-block; padding:2px 10px; border-radius:20px;
+      font-size:12px; font-weight:600;
+    }
+  </style>
+</head>
+<body style="background:#f9fafb; min-height:100vh;">
+
+  <div style="background:#fff; border-bottom:1px solid #e5e7eb; padding:14px 24px; display:flex; align-items:center; justify-content:space-between;">
+    <div style="overflow:hidden; width:120px; height:34px;">
+      <img src="/static/images/logo-dark.png" style="width:190px; margin-left:-34px; margin-top:-5px;" alt="SecureEdu">
+    </div>
+    <div style="display:flex; gap:8px;">
+      <a href="/pais/dashboard" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">← Meus filhos</a>
+      <a href="/pais/logout" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">Sair</a>
+    </div>
+  </div>
+
+  <div style="max-width:720px; margin:0 auto; padding:32px 20px;">
+    <div style="margin-bottom:24px;">
+      <h1 style="font-size:22px; font-weight:800; color:#111827;">Minhas solicitações</h1>
+      <p style="font-size:14px; color:#6b7280; margin-top:4px;">Histórico de saídas solicitadas por você.</p>
+    </div>
+
+    {% if solicitacoes %}
+      <div class="card" style="padding:0; overflow:hidden;">
+        <table style="width:100%; border-collapse:collapse;">
+          <thead>
+            <tr style="background:#f9fafb;">
+              <th style="text-align:left; padding:12px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Aluno</th>
+              <th style="text-align:left; padding:12px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Data</th>
+              <th style="text-align:left; padding:12px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Motivo</th>
+              <th style="text-align:left; padding:12px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in solicitacoes %}
+              <tr style="border-bottom:1px solid #f3f4f6;">
+                <td style="padding:12px 16px;">
+                  <div style="font-size:14px; font-weight:600; color:#111827;">{{ s.aluno_nome }}</div>
+                  <div style="font-size:12px; color:#9ca3af;">{{ s.serie }} — Turma {{ s.turma }}</div>
+                </td>
+                <td style="padding:12px 16px; font-size:14px; color:#374151;">
+                  {{ s.data_solicitada }}
+                  {% if s.horario_solicitado %}
+                    <div style="font-size:12px; color:#9ca3af;">{{ s.horario_solicitado }}</div>
+                  {% endif %}
+                </td>
+                <td style="padding:12px 16px; font-size:14px; color:#374151;">{{ s.motivo or '—' }}</td>
+                <td style="padding:12px 16px;">
+                  {% if s.status == 'aguardando' %}
+                    <span class="status-badge badge-aguardando">Aguardando</span>
+                  {% elif s.status == 'aprovado' %}
+                    <span class="status-badge badge-aprovado">Aprovado</span>
+                  {% elif s.status == 'rejeitado' %}
+                    <span class="status-badge badge-rejeitado">Rejeitado</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div style="text-align:center; padding:60px 24px; color:#9ca3af;">
+        <div style="font-size:40px; margin-bottom:12px;">📭</div>
+        <p style="font-size:16px; font-weight:600; color:#374151; margin-bottom:8px;">Nenhuma solicitação ainda</p>
+        <p style="font-size:13px;">Você ainda não fez nenhuma solicitação de saída.</p>
+        <a href="/pais/dashboard" class="btn btn-primary" style="margin-top:16px; display:inline-block;">Solicitar saída</a>
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>

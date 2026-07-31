@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meus Filhos — SecureEdu</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .pai-topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #fff;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 14px 24px;
+    }
+    .pai-logo { display: flex; align-items: center; gap: 10px; }
+    .pai-logo img { width: 120px; }
+    .pai-nav { display: flex; gap: 8px; align-items: center; }
+    .filho-card {
+      background: #fff;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .filho-card:hover { border-color: #2563eb; box-shadow: 0 4px 16px rgba(37,99,235,0.10); }
+    .filho-foto {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: #f3f4f6; object-fit: cover; flex-shrink: 0;
+    }
+    .filho-foto-placeholder {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: #eff6ff; display: flex; align-items: center;
+      justify-content: center; font-size: 24px; flex-shrink: 0;
+    }
+    .filho-info { flex: 1; }
+    .filho-nome { font-size: 16px; font-weight: 700; color: #111827; }
+    .filho-serie { font-size: 13px; color: #6b7280; margin-top: 2px; }
+    .empty-state { text-align: center; padding: 60px 24px; color: #9ca3af; }
+  </style>
+</head>
+<body style="background:#f9fafb; min-height:100vh;">
+
+  <div class="pai-topbar">
+    <div class="pai-logo">
+      <div style="overflow:hidden; width:120px; height:34px;">
+        <img src="/static/images/logo-dark.png" style="width:190px; margin-left:-34px; margin-top:-5px;" alt="SecureEdu">
+      </div>
+    </div>
+    <div class="pai-nav">
+      <span style="font-size:13px; color:#6b7280;">Olá, <strong>{{ nome }}</strong></span>
+      <a href="/pais/minhas_solicitacoes" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">Minhas solicitações</a>
+      <a href="/pais/logout" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">Sair</a>
+    </div>
+  </div>
+
+  <div style="max-width:720px; margin:0 auto; padding:32px 20px;">
+
+    {% with messages = get_flashed_messages(with_categories=True) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}" style="margin-bottom:16px;">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <div style="margin-bottom:24px;">
+      <h1 style="font-size:22px; font-weight:800; color:#111827;">Meus filhos</h1>
+      <p style="font-size:14px; color:#6b7280; margin-top:4px;">Selecione o aluno para solicitar uma saída antecipada.</p>
+    </div>
+
+    {% if filhos %}
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        {% for filho in filhos %}
+          <div class="filho-card">
+            {% if filho.foto_path %}
+              <img class="filho-foto" src="/uploads/{{ filho.foto_path }}" alt="{{ filho.nome }}">
+            {% else %}
+              <div class="filho-foto-placeholder">👤</div>
+            {% endif %}
+            <div class="filho-info">
+              <div class="filho-nome">{{ filho.nome }}</div>
+              <div class="filho-serie">{{ filho.serie }} — Turma {{ filho.turma }}</div>
+            </div>
+            <a href="/pais/solicitar/{{ filho.id }}" class="btn btn-primary" style="font-size:13px; padding:8px 18px;">
+              Solicitar saída
+            </a>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <div style="font-size:40px; margin-bottom:12px;">🔍</div>
+        <p style="font-size:16px; font-weight:600; color:#374151; margin-bottom:8px;">Nenhum aluno vinculado</p>
+        <p style="font-size:13px;">Seu email não está associado a nenhum aluno cadastrado.<br>Entre em contato com a secretaria da escola.</p>
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>

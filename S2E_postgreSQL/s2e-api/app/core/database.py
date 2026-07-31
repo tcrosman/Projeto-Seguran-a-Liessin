@@ -109,3 +109,43 @@ def migrate_database():
                 data_hora TEXT NOT NULL
             )
         """)
+
+        # Portal dos responsáveis: contas (só email + nome ficam localmente — LGPD)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS responsaveis (
+                id          SERIAL PRIMARY KEY,
+                email       TEXT UNIQUE NOT NULL,
+                nome        TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                status      TEXT NOT NULL DEFAULT 'pendente',
+                criado_em   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Tokens de 2FA enviados por email (6 dígitos, expiram em 10 min)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS tokens_2fa (
+                id             SERIAL PRIMARY KEY,
+                responsavel_id INTEGER NOT NULL,
+                token          TEXT NOT NULL,
+                expires_at     TIMESTAMP NOT NULL,
+                usado          BOOLEAN DEFAULT FALSE,
+                criado_em      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Solicitações de saída criadas pelos responsáveis (revisadas pelo admin antes de virar saida)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS solicitacoes_saida (
+                id                 SERIAL PRIMARY KEY,
+                responsavel_id     INTEGER NOT NULL,
+                aluno_id           INTEGER NOT NULL,
+                data_solicitada    TEXT NOT NULL,
+                horario_solicitado TEXT,
+                motivo             TEXT,
+                status             TEXT NOT NULL DEFAULT 'aguardando',
+                revisado_por       INTEGER,
+                revisado_em        TIMESTAMP,
+                criado_em          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)

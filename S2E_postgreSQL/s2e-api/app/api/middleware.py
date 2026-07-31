@@ -33,6 +33,15 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def pai_required(f):
+    """Decorator para rotas do portal dos responsáveis (sessão pai_id separada da sessão de staff)."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'pai_id' not in session:
+            return redirect('/pais/login')
+        return f(*args, **kwargs)
+    return decorated_function
+
 def log_access(f):
     """Decorator para registrar acesso a rotas"""
     @wraps(f)

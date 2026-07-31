@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Responsáveis — SecureEdu</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .badge-pendente  { background:#fef9c3; color:#92400e; border:1px solid #fde68a; }
+    .badge-aprovado  { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
+    .badge-bloqueado { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+    .status-badge { display:inline-block; padding:2px 10px; border-radius:20px; font-size:12px; font-weight:600; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  {% include 'sidebar.html' %}
+  <main class="main">
+    <div class="topbar">
+      <a href="/configuracoes" class="back-link">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar às Configurações
+      </a>
+    </div>
+    <div class="page-wrap">
+      <div class="list-topbar" style="margin-bottom:24px;">
+        <div class="list-topbar-left">
+          <h1>Responsáveis</h1>
+          <p>Gerencie as contas dos pais e responsáveis</p>
+        </div>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}" style="margin-bottom:16px;">{{ message }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      {% if pendentes %}
+        <h2 style="font-size:14px; font-weight:700; color:#92400e; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">
+          ⏳ Aguardando aprovação ({{ pendentes|length }})
+        </h2>
+        <div class="card" style="padding:0; overflow:hidden; margin-bottom:28px;">
+          <table style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr style="background:#fffbeb;">
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #fde68a;">Nome</th>
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #fde68a;">Email</th>
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #fde68a;">Cadastro</th>
+                <th style="padding:10px 16px; border-bottom:1px solid #fde68a;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in pendentes %}
+                <tr style="border-bottom:1px solid #f9fafb;">
+                  <td style="padding:12px 16px; font-size:14px; font-weight:600; color:#111827;">{{ r.nome }}</td>
+                  <td style="padding:12px 16px; font-size:13px; color:#374151;">{{ r.email }}</td>
+                  <td style="padding:12px 16px; font-size:12px; color:#9ca3af;">{{ r.criado_em }}</td>
+                  <td style="padding:12px 16px; display:flex; gap:8px;">
+                    <form method="POST" action="/admin/responsaveis/{{ r.id }}/aprovar" style="display:inline;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-primary" style="font-size:12px; padding:5px 14px;" type="submit">Aprovar</button>
+                    </form>
+                    <form method="POST" action="/admin/responsaveis/{{ r.id }}/bloquear" style="display:inline;">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button class="btn btn-secondary" style="font-size:12px; padding:5px 14px; color:#dc2626;" type="submit">Rejeitar</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+
+      <h2 style="font-size:14px; font-weight:700; color:#6b7280; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">
+        Todos os responsáveis
+      </h2>
+      {% if todos %}
+        <div class="card" style="padding:0; overflow:hidden;">
+          <table style="width:100%; border-collapse:collapse;">
+            <thead>
+              <tr style="background:#f9fafb;">
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Nome</th>
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Email</th>
+                <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Status</th>
+                <th style="padding:10px 16px; border-bottom:1px solid #e5e7eb;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in todos %}
+                <tr style="border-bottom:1px solid #f9fafb;">
+                  <td style="padding:12px 16px; font-size:14px; font-weight:600; color:#111827;">{{ r.nome }}</td>
+                  <td style="padding:12px 16px; font-size:13px; color:#374151;">{{ r.email }}</td>
+                  <td style="padding:12px 16px;">
+                    {% if r.status == 'pendente' %}
+                      <span class="status-badge badge-pendente">Pendente</span>
+                    {% elif r.status == 'aprovado' %}
+                      <span class="status-badge badge-aprovado">Aprovado</span>
+                    {% else %}
+                      <span class="status-badge badge-bloqueado">Bloqueado</span>
+                    {% endif %}
+                  </td>
+                  <td style="padding:12px 16px;">
+                    {% if r.status == 'aprovado' %}
+                      <form method="POST" action="/admin/responsaveis/{{ r.id }}/bloquear" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-secondary" style="font-size:12px; padding:4px 12px; color:#dc2626;" type="submit">Bloquear</button>
+                      </form>
+                    {% elif r.status == 'bloqueado' %}
+                      <form method="POST" action="/admin/responsaveis/{{ r.id }}/aprovar" style="display:inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-secondary" style="font-size:12px; padding:4px 12px;" type="submit">Reativar</button>
+                      </form>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div style="text-align:center; padding:40px; color:#9ca3af;">Nenhum responsável cadastrado ainda.</div>
+      {% endif %}
+    </div>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verificação — SecureEdu</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card" style="max-width:380px;">
+    <div style="text-align:center; margin-bottom:28px;">
+      <div style="width:56px; height:56px; background:#eff6ff; border-radius:50%;
+                  display:flex; align-items:center; justify-content:center;
+                  margin:0 auto 16px; font-size:24px;">📧</div>
+      <h1 style="font-size:20px; font-weight:700; color:#111827; margin-bottom:6px;">Verifique seu email</h1>
+      <p style="font-size:13px; color:#6b7280; line-height:1.5;">
+        Enviamos um código de 6 dígitos para seu email.<br>Ele expira em <strong>10 minutos</strong>.
+      </p>
+    </div>
+
+    {% if erro %}
+      <div class="alert alert-{{ 'error' }}" style="margin-bottom:16px;">
+        {{ erro }}
+        {% if expirado %}
+          <br><a href="/pais/login" style="color:#991b1b; font-weight:600;">Fazer login novamente</a>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if not expirado %}
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label class="form-label" style="text-align:center; display:block;">Código de verificação</label>
+          <input class="form-input" type="text" name="codigo" required autofocus
+                 maxlength="6" placeholder="000000"
+                 style="text-align:center; font-size:28px; font-weight:700; letter-spacing:8px;"
+                 autocomplete="one-time-code" inputmode="numeric">
+        </div>
+        <button class="btn btn-primary btn-full" type="submit" style="margin-top:8px;">Verificar</button>
+      </form>
+    {% endif %}
+
+    <p style="text-align:center; margin-top:20px; font-size:13px; color:#9ca3af;">
+      <a href="/pais/login" style="color:#6b7280;">Voltar ao login</a>
+    </p>
+  </div>
+</div>
+</body>
+</html>

@@ -87,10 +87,19 @@ def register_routes(app):
     @app.route("/inicio")
     @login_required
     def inicio():
-        # LGPD Art. 46 (💻 App obligation) — vigia has no dashboard, redirect to their only page
         if session.get('role') == 'vigia':
             return redirect("/saidas")
-        return render_template("dashboard/home.html")
+        solicitacoes_pendentes = 0
+        responsaveis_pendentes = 0
+        if session.get('role') == 'admin':
+            with get_db() as conn:
+                r = conn.execute("SELECT COUNT(*) AS c FROM solicitacoes_saida WHERE status = 'aguardando'").fetchone()
+                solicitacoes_pendentes = r['c'] if r else 0
+                r2 = conn.execute("SELECT COUNT(*) AS c FROM responsaveis WHERE status = 'pendente'").fetchone()
+                responsaveis_pendentes = r2['c'] if r2 else 0
+        return render_template("dashboard/home.html",
+                               solicitacoes_pendentes=solicitacoes_pendentes,
+                               responsaveis_pendentes=responsaveis_pendentes)
     
     @app.route("/logout")
     def logout():
@@ -572,6 +581,7 @@ def register_routes(app):
                 turma = request.form.get("turma", "").strip()
                 serie = request.form.get("serie", "").strip()
                 responsaveis = request.form.get("responsaveis", "").strip()
+                email_responsavel = request.form.get("email_responsavel", "").strip().lower() or None
                 
                 if not nome or not turma or not serie:
                     mensagem_erro = "Preencher nome, turma e série é obrigatório!"
@@ -597,8 +607,8 @@ def register_routes(app):
 
                     with get_db() as conn:
                         conn.execute("""
-                            INSERT INTO alunos (nome, turma, serie, saida_seg, saida_ter, saida_qua, saida_qui, saida_sex, responsaveis, foto_path)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            INSERT INTO alunos (nome, turma, serie, saida_seg, saida_ter, saida_qua, saida_qui, saida_sex, responsaveis, foto_path, email_responsavel)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """, (
                             nome, turma, serie,
                             request.form.get("saida_seg") or (padrao['saida_seg'] if padrao else ''),
@@ -606,7 +616,7 @@ def register_routes(app):
                             request.form.get("saida_qua") or (padrao['saida_qua'] if padrao else ''),
                             request.form.get("saida_qui") or (padrao['saida_qui'] if padrao else ''),
                             request.form.get("saida_sex") or (padrao['saida_sex'] if padrao else ''),
-                            responsaveis, foto_path
+                            responsaveis, foto_path, email_responsavel
                         ))
                     log_operacao(session.get('username'), "CADASTROU ALUNO", f"Nome: {nome}")
                     flash(f"Aluno {nome} cadastrado com sucesso!", "success")
@@ -729,11 +739,142 @@ def register_routes(app):
     
     # ==================== ARQUIVOS ESTÁTICOS E UPLOADS ====================
     @app.route("/uploads/<path:filename>")
-    @login_required
     def uploaded_file(filename):
+        # Aceita tanto sessão de funcionário quanto de responsável
+        if 'user_id' not in session and 'pai_id' not in session:
+            return redirect('/')
         upload_folder = app.config.get('UPLOAD_FOLDER', 'storage')
         return send_from_directory(upload_folder, filename)
     
+    # ==================== ADMIN: RESPONSÁVEIS ====================
+
+    @app.route("/admin/responsaveis")
+    @admin_required
+    def admin_responsaveis():
+        with get_db() as conn:
+            todos = conn.execute(
+                "SELECT id, nome, email, status, criado_em FROM responsaveis ORDER BY criado_em DESC"
+            ).fetchall()
+        pendentes = [r for r in todos if r['status'] == 'pendente']
+        return render_template("admin/responsaveis.html", todos=todos, pendentes=pendentes)
+
+    @app.route("/admin/responsaveis/<int:resp_id>/aprovar", methods=["POST"])
+    @admin_required
+    def admin_aprovar_responsavel(resp_id):
+        with get_db() as conn:
+            resp = conn.execute("SELECT nome, email FROM responsaveis WHERE id = %s", (resp_id,)).fetchone()
+            if resp:
+                conn.execute("UPDATE responsaveis SET status = 'aprovado' WHERE id = %s", (resp_id,))
+                flash(f"Conta de {resp['nome']} aprovada.", "success")
+        return redirect("/admin/responsaveis")
+
+    @app.route("/admin/responsaveis/<int:resp_id>/bloquear", methods=["POST"])
+    @admin_required
+    def admin_bloquear_responsavel(resp_id):
+        with get_db() as conn:
+            resp = conn.execute("SELECT nome FROM responsaveis WHERE id = %s", (resp_id,)).fetchone()
+            if resp:
+                conn.execute("UPDATE responsaveis SET status = 'bloqueado' WHERE id = %s", (resp_id,))
+                flash(f"Conta de {resp['nome']} bloqueada.", "success")
+        return redirect("/admin/responsaveis")
+
+    # ==================== ADMIN: SOLICITAÇÕES DE SAÍDA ====================
+
+    @app.route("/admin/solicitacoes")
+    @admin_required
+    def admin_solicitacoes():
+        with get_db() as conn:
+            rows = conn.execute("""
+                SELECT ss.id, ss.data_solicitada, ss.horario_solicitado, ss.motivo, ss.status,
+                       a.nome AS aluno_nome, a.turma, a.serie,
+                       r.nome AS responsavel_nome, r.email AS responsavel_email
+                FROM solicitacoes_saida ss
+                JOIN alunos a ON a.id = ss.aluno_id
+                JOIN responsaveis r ON r.id = ss.responsavel_id
+                ORDER BY ss.criado_em DESC
+                LIMIT 100
+            """).fetchall()
+        aguardando = [r for r in rows if r['status'] == 'aguardando']
+        historico  = [r for r in rows if r['status'] != 'aguardando']
+        return render_template("admin/solicitacoes.html", aguardando=aguardando, historico=historico)
+
+    @app.route("/admin/solicitacoes/<int:sol_id>/aprovar", methods=["POST"])
+    @admin_required
+    def admin_aprovar_solicitacao(sol_id):
+        with get_db() as conn:
+            sol = conn.execute("""
+                SELECT ss.aluno_id, ss.data_solicitada, ss.horario_solicitado, ss.motivo,
+                       r.nome AS responsavel_nome, r.email AS responsavel_email, a.nome AS aluno_nome
+                FROM solicitacoes_saida ss
+                JOIN responsaveis r ON r.id = ss.responsavel_id
+                JOIN alunos a ON a.id = ss.aluno_id
+                WHERE ss.id = %s AND ss.status = 'aguardando'
+            """, (sol_id,)).fetchone()
+
+            if not sol:
+                flash("Solicitação não encontrada ou já revisada.", "error")
+                return redirect("/admin/solicitacoes")
+
+            # Aprova a solicitação
+            conn.execute(
+                "UPDATE solicitacoes_saida SET status = 'aprovado', revisado_por = %s, revisado_em = NOW() WHERE id = %s",
+                (session['user_id'], sol_id)
+            )
+            # Cria a saída real na tabela saidas para a portaria ver
+            conn.execute("""
+                INSERT INTO saidas (aluno, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status)
+                VALUES (%s, %s, %s, %s, %s, 'acompanhado', %s, 'pendente')
+            """, (
+                sol['aluno_id'],
+                sol['data_solicitada'],
+                sol['horario_solicitado'] or '',
+                sol['motivo'] or 'Solicitado pelo responsável',
+                session.get('username', 'admin'),
+                sol['responsavel_nome'],
+            ))
+
+        from app.core.mailer import enviar_email
+        enviar_email(
+            sol['responsavel_email'],
+            "Saída aprovada — SecureEdu",
+            f"""<p>Olá! A saída de <strong>{sol['aluno_nome']}</strong> para o dia <strong>{sol['data_solicitada']}</strong>
+            foi <strong style="color:#16a34a;">aprovada</strong> pela escola.</p>"""
+        )
+        flash(f"Saída de {sol['aluno_nome']} aprovada e registrada.", "success")
+        return redirect("/admin/solicitacoes")
+
+    @app.route("/admin/solicitacoes/<int:sol_id>/rejeitar", methods=["POST"])
+    @admin_required
+    def admin_rejeitar_solicitacao(sol_id):
+        with get_db() as conn:
+            sol = conn.execute("""
+                SELECT ss.id, r.email AS responsavel_email, a.nome AS aluno_nome
+                FROM solicitacoes_saida ss
+                JOIN responsaveis r ON r.id = ss.responsavel_id
+                JOIN alunos a ON a.id = ss.aluno_id
+                WHERE ss.id = %s AND ss.status = 'aguardando'
+            """, (sol_id,)).fetchone()
+
+            if not sol:
+                flash("Solicitação não encontrada ou já revisada.", "error")
+                return redirect("/admin/solicitacoes")
+
+            conn.execute(
+                "UPDATE solicitacoes_saida SET status = 'rejeitado', revisado_por = %s, revisado_em = NOW() WHERE id = %s",
+                (session['user_id'], sol_id)
+            )
+
+        from app.core.mailer import enviar_email
+        enviar_email(
+            sol['responsavel_email'],
+            "Solicitação de saída — SecureEdu",
+            f"""<p>A solicitação de saída de <strong>{sol['aluno_nome']}</strong>
+            foi <strong style="color:#dc2626;">rejeitada</strong> pela escola.
+            Entre em contato com a secretaria para mais informações.</p>"""
+        )
+        flash(f"Solicitação rejeitada.", "success")
+        return redirect("/admin/solicitacoes")
+
     # ==================== MANUAL ====================
     @app.route("/manual")
     @login_required

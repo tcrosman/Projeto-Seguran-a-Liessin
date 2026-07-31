@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastro de Responsável — SecureEdu</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card" style="max-width:420px;">
+    <div style="text-align:center; margin-bottom:28px;">
+      <div style="overflow:hidden; width:180px; height:52px; margin:0 auto 16px;">
+        <img src="/static/images/logo-dark.png" style="width:280px; margin-left:-50px; margin-top:-8px;" alt="SecureEdu">
+      </div>
+      <h1 style="font-size:20px; font-weight:700; color:#111827; margin-bottom:4px;">Cadastro de Responsável</h1>
+      <p style="font-size:13px; color:#6b7280;">Crie sua conta para solicitar saídas antecipadas</p>
+    </div>
+
+    {% if sucesso %}
+      <div class="alert alert-success" style="margin-bottom:20px;">
+        Cadastro realizado! Aguarde a aprovação da escola antes de fazer login.
+      </div>
+      <a href="/pais/login" class="btn btn-primary btn-full">Ir para o login</a>
+    {% else %}
+      {% if erro %}
+        <div class="alert alert-error" style="margin-bottom:16px;">{{ erro }}</div>
+      {% endif %}
+
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <div class="form-group">
+          <label class="form-label">Nome completo</label>
+          <input class="form-input" type="text" name="nome" required autofocus
+                 placeholder="Seu nome completo" autocomplete="name">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input class="form-input" type="email" name="email" required
+                 placeholder="seu@email.com" autocomplete="email">
+          <span style="font-size:11px; color:#9ca3af;">Use o mesmo email cadastrado na escola.</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Senha</label>
+          <input class="form-input" type="password" name="senha" required
+                 placeholder="Mínimo 8 caracteres" autocomplete="new-password">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Confirmar senha</label>
+          <input class="form-input" type="password" name="confirmar" required
+                 placeholder="Repita a senha" autocomplete="new-password">
+        </div>
+
+        <button class="btn btn-primary btn-full" type="submit" style="margin-top:8px;">Cadastrar</button>
+      </form>
+
+      <p style="text-align:center; margin-top:20px; font-size:13px; color:#6b7280;">
+        Já tem conta? <a href="/pais/login" style="color:#2563eb; font-weight:600;">Entrar</a>
+      </p>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

@@ -40,6 +40,31 @@
         </a>
       </div>
 
+      {% if session.role == 'admin' and (solicitacoes_pendentes > 0 or responsaveis_pendentes > 0) %}
+      <div style="margin-top:24px; display:flex; flex-direction:column; gap:10px;">
+        {% if solicitacoes_pendentes > 0 %}
+          <a href="/admin/solicitacoes" style="display:flex; align-items:center; gap:12px; background:#fffbeb;
+             border:1.5px solid #fde68a; border-radius:12px; padding:14px 18px; text-decoration:none; color:inherit;">
+            <span style="font-size:20px;">⏳</span>
+            <div>
+              <div style="font-size:14px; font-weight:700; color:#92400e;">{{ solicitacoes_pendentes }} solicitação{% if solicitacoes_pendentes != 1 %}ões{% endif %} de saída aguardando revisão</div>
+              <div style="font-size:12px; color:#b45309;">Clique para revisar →</div>
+            </div>
+          </a>
+        {% endif %}
+        {% if responsaveis_pendentes > 0 %}
+          <a href="/admin/responsaveis" style="display:flex; align-items:center; gap:12px; background:#eff6ff;
+             border:1.5px solid #bfdbfe; border-radius:12px; padding:14px 18px; text-decoration:none; color:inherit;">
+            <span style="font-size:20px;">👤</span>
+            <div>
+              <div style="font-size:14px; font-weight:700; color:#1d4ed8;">{{ responsaveis_pendentes }} responsável{% if responsaveis_pendentes != 1 %}is{% endif %} aguardando aprovação</div>
+              <div style="font-size:12px; color:#3b82f6;">Clique para revisar →</div>
+            </div>
+          </a>
+        {% endif %}
+      </div>
+      {% endif %}
+
       <div class="home-status">Sistema Ativo &bull; Database Connected</div>
     </div>
   </main>

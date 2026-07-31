@@ -1,9 +1,10 @@
-from flask import Flask, session
+from flask import Flask, session, render_template
 from flask_wtf.csrf import CSRFProtect
 from flask_talisman import Talisman
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import os
+import psycopg2
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -74,8 +75,27 @@ def create_app():
                 return
         session['last_seen'] = now.isoformat()
 
-    # Importar e registrar rotas (serão adicionadas aos poucos)
+    # Migração automática — idempotente (usa CREATE TABLE IF NOT EXISTS)
+    try:
+        from app.core.database import migrate_database
+        migrate_database()
+    except Exception as _mig_err:
+        print(f"[WARN] Migrações não puderam ser aplicadas automaticamente: {_mig_err}")
+
+    # Importar e registrar rotas
     from app.api import web
     web.register_routes(app)
+
+    from app.api import pais
+    pais.register_parent_routes(app)
+
+    # Tratamento global de falha de conexão com o banco de dados
+    @app.errorhandler(psycopg2.OperationalError)
+    def handle_db_error(e):
+        return render_template("errors/db_unavailable.html"), 503
+
+    @app.errorhandler(psycopg2.InterfaceError)
+    def handle_db_interface_error(e):
+        return render_template("errors/db_unavailable.html"), 503
 
     return app
