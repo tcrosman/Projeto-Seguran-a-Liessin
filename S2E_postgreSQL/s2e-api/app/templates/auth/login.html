@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — SecureEdu</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="login-wrap">
+  <div class="login-card">
+    <div style="margin-bottom:28px; display:flex; justify-content:center;">
+      <div style="overflow:hidden; width:240px; height:69px;">
+        <img src="/static/images/logo-dark.png" alt="SecureEdu" style="width:374px; height:auto; margin-top:-140px; margin-left:-69px;">
+      </div>
+    </div>
+
+    <h1 class="login-title">Bem-vindo</h1>
+    <p class="login-sub">Sistema de Controle de Saídas</p>
+
+    {% if request.args.get('resetado') %}
+      <div class="alert alert-success">Senha redefinida com sucesso!</div>
+    {% endif %}
+    {% if erro %}
+      <div class="alert alert-error">{{ erro }}</div>
+    {% endif %}
+
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label class="form-label">Usuário</label>
+        <input class="form-input" name="u" placeholder="Digite seu usuário" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Senha</label>
+        <input class="form-input" name="s" type="password" placeholder="Digite sua senha" required autocomplete="current-password">
+        <a href="/esqueci_senha" class="login-forgot">Esqueci minha senha</a>
+      </div>
+      <button class="btn btn-primary btn-full" type="submit">Entrar</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurações — SecureEdu</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .cfg-stats {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .cfg-stat {
+      background: #fff;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .cfg-stat-value {
+      font-size: 26px;
+      font-weight: 800;
+      color: #111827;
+      line-height: 1;
+    }
+    .cfg-stat-label {
+      font-size: 12px;
+      color: #6b7280;
+      font-weight: 500;
+    }
+    .cfg-stat-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+    }
+    .cfg-section-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #9ca3af;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      margin: 28px 0 10px;
+    }
+    .cfg-action-btn {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      background: #fff;
+      border: 1.5px solid #e5e7eb;
+      border-radius: 14px;
+      padding: 20px;
+      text-decoration: none;
+      color: inherit;
+      cursor: pointer;
+      font-family: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    .cfg-action-btn:hover {
+      border-color: #2563eb;
+      box-shadow: 0 4px 16px rgba(37,99,235,0.10);
+      transform: translateY(-1px);
+    }
+    .cfg-action-btn:hover .cfg-action-cta {
+      background: #2563eb;
+      color: #fff;
+    }
+    .cfg-action-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 4px;
+    }
+    .cfg-action-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #111827;
+    }
+    .cfg-action-sub {
+      font-size: 12px;
+      color: #9ca3af;
+    }
+    .cfg-action-cta {
+      margin-top: 10px;
+      align-self: flex-start;
+      font-size: 12px;
+      font-weight: 600;
+      color: #2563eb;
+      background: #eff6ff;
+      padding: 5px 14px;
+      border-radius: 20px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .cfg-alert {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 10px;
+      margin-bottom: 24px;
+      font-size: 14px;
+    }
+    .cfg-alert.success { background:#f0fdf4; border:1px solid #bbf7d0; color:#15803d; }
+    .cfg-alert.error   { background:#fef2f2; border:1px solid #fecaca; color:#dc2626; }
+    @media (max-width: 700px) {
+      .cfg-stats { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  {% include 'sidebar.html' %}
+  <main class="main">
+    <div class="topbar">
+      <a href="/inicio" class="back-link">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar ao Menu
+      </a>
+    </div>
+    <div class="page-wrap">
+
+      <div class="list-topbar" style="margin-bottom: 24px;">
+        <div class="list-topbar-left">
+          <h1>Configurações</h1>
+          <p>Ferramentas e ajustes administrativos do sistema</p>
+        </div>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% for category, message in messages %}
+          <div class="cfg-alert {{ 'success' if category == 'success' else 'error' }}">
+            <div>{{ message }}</div>
+          </div>
+        {% endfor %}
+      {% endwith %}
+
+      <div class="cfg-stats">
+        <div class="cfg-stat">
+          <div class="cfg-stat-icon" style="background:#eff6ff; color:#2563eb;">👥</div>
+          <div class="cfg-stat-value">{{ total_alunos }}</div>
+          <div class="cfg-stat-label">Alunos cadastrados</div>
+        </div>
+        <div class="cfg-stat">
+          <div class="cfg-stat-icon" style="background:#f0fdf4; color:#16a34a;">✓</div>
+          <div class="cfg-stat-value">{{ saidas_hoje }}</div>
+          <div class="cfg-stat-label">Saídas hoje</div>
+        </div>
+        <div class="cfg-stat">
+          <div class="cfg-stat-icon" style="background:#faf5ff; color:#7c3aed;">👤</div>
+          <div class="cfg-stat-value">{{ total_usuarios }}</div>
+          <div class="cfg-stat-label">Usuários do sistema</div>
+        </div>
+        <div class="cfg-stat">
+          <div class="cfg-stat-icon" style="background:#fefce8; color:#ca8a04;">💾</div>
+          <div class="cfg-stat-value" style="font-size:18px;">Supabase</div>
+          <div class="cfg-stat-label">Backups gerenciados</div>
+        </div>
+      </div>
+
+      <div class="cfg-section-label">Ferramentas</div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;">
+
+        <a href="/novo" class="cfg-action-btn">
+          <div class="cfg-action-icon" style="background:#eff6ff; color:#2563eb;">👥</div>
+          <div class="cfg-action-title">Usuários</div>
+          <div class="cfg-action-sub">{{ total_usuarios }} usuário(s) cadastrado(s)</div>
+          <div class="cfg-action-cta">Gerenciar →</div>
+        </a>
+
+        <a href="/configurar_horarios" class="cfg-action-btn">
+          <div class="cfg-action-icon" style="background:#f0fdf4; color:#16a34a;">🕐</div>
+          <div class="cfg-action-title">Horários Padrão</div>
+          <div class="cfg-action-sub">Horários de saída por série</div>
+          <div class="cfg-action-cta">Configurar →</div>
+        </a>
+
+        <a href="/cadastro_massa" class="cfg-action-btn">
+          <div class="cfg-action-icon" style="background:#fdf4ff; color:#9333ea;">➕</div>
+          <div class="cfg-action-title">Cadastrar Aluno</div>
+          <div class="cfg-action-sub">{{ total_alunos }} aluno(s) cadastrado(s)</div>
+          <div class="cfg-action-cta">Cadastrar →</div>
+        </a>
+
+        <a href="https://supabase.com/dashboard" target="_blank" rel="noopener" class="cfg-action-btn">
+          <div class="cfg-action-icon" style="background:#fefce8; color:#ca8a04;">💾</div>
+          <div class="cfg-action-title">Backup</div>
+          <div class="cfg-action-sub">Gerenciado automaticamente pelo Supabase</div>
+          <div class="cfg-action-cta">Abrir Supabase →</div>
+        </a>
+
+      </div>
+
+    </div>
+  </main>
+</div>
+</body>
+</html>

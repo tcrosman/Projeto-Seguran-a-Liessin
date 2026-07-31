@@ -1,0 +1,111 @@
+import psycopg2
+import psycopg2.extras
+from contextlib import contextmanager
+from urllib.parse import urlparse
+import os
+from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / '.env')
+
+
+def _get_connection():
+    url = os.getenv('DATABASE_URL', '')
+    if not url:
+        raise RuntimeError("DATABASE_URL não configurada no .env")
+    p = urlparse(url)
+    return psycopg2.connect(
+        host=p.hostname,
+        port=p.port or 5432,
+        dbname=p.path.lstrip('/'),
+        user=p.username,
+        password=p.password,
+        sslmode='require'
+    )
+
+
+class _PgConn:
+    """Wrap psycopg2 para manter a mesma interface conn.execute() do sqlite3."""
+
+    def __init__(self, raw):
+        self._raw = raw
+
+    def execute(self, sql, params=None):
+        cur = self._raw.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(sql, params or ())
+        return cur
+
+    def commit(self):
+        self._raw.commit()
+
+    def rollback(self):
+        self._raw.rollback()
+
+    def close(self):
+        self._raw.close()
+
+
+@contextmanager
+def get_db():
+    """Context manager para conexão com banco de dados PostgreSQL."""
+    raw = _get_connection()
+    conn = _PgConn(raw)
+    try:
+        yield conn
+        raw.commit()
+    except Exception:
+        raw.rollback()
+        raise
+    finally:
+        raw.close()
+
+
+def _col_exists(conn, table, column):
+    row = conn.execute(
+        "SELECT 1 FROM information_schema.columns WHERE table_name=%s AND column_name=%s",
+        (table, column)
+    ).fetchone()
+    return row is not None
+
+
+def init_db(app):
+    """Inicializa o banco de dados e aplica migrações"""
+    with app.app_context():
+        migrate_database()
+
+
+def migrate_database():
+    """Migrações automáticas — verifica information_schema antes de ALTER TABLE."""
+    with get_db() as conn:
+        # Colunas extras na tabela alunos
+        for col in ['telefone', 'email_responsavel', 'data_nascimento', 'alergias', 'observacoes']:
+            if not _col_exists(conn, 'alunos', col):
+                conn.execute(f"ALTER TABLE alunos ADD COLUMN {col} TEXT")
+
+        # Coluna usuario_autorizou na tabela saidas
+        if not _col_exists(conn, 'saidas', 'usuario_autorizou'):
+            conn.execute("ALTER TABLE saidas ADD COLUMN usuario_autorizou INTEGER")
+
+        # Tabela de logs de alunos (auditoria)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS logs_alunos (
+                id SERIAL PRIMARY KEY,
+                aluno_id INTEGER NOT NULL,
+                usuario_id INTEGER NOT NULL,
+                acao TEXT NOT NULL,
+                dados_antigos TEXT,
+                dados_novos TEXT,
+                data_hora TEXT NOT NULL
+            )
+        """)
+
+        # Tabela de consentimentos LGPD
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS consentimentos (
+                id SERIAL PRIMARY KEY,
+                aluno_id INTEGER NOT NULL,
+                aceitou BOOLEAN NOT NULL,
+                ip TEXT NOT NULL,
+                data_hora TEXT NOT NULL
+            )
+        """)
