@@ -10,7 +10,7 @@ class TotusClient:
         self._token = os.getenv('TOTUS_API_TOKEN', '')
 
     def validar_responsavel(self, email: str) -> bool:
-        """Envia email para o TOTVS; retorna True se o responsável está autorizado."""
+        """Retorna True se o email pertence a um responsável reconhecido pelo TOTVS."""
         if not self._url or not self._token:
             raise RuntimeError("TOTUS_API_URL e TOTUS_API_TOKEN devem estar configurados no .env")
         try:
@@ -26,6 +26,23 @@ class TotusClient:
             print(f"[TOTUS] Erro ao validar responsável: {e}")
             return False
 
+    def validar_vinculo(self, email: str, aluno_id: int) -> bool:
+        """Retorna True se o TOTVS confirma que o responsável é vinculado ao aluno."""
+        if not self._url or not self._token:
+            raise RuntimeError("TOTUS_API_URL e TOTUS_API_TOKEN devem estar configurados no .env")
+        try:
+            resp = requests.post(
+                f"{self._url}/api/v1/validacao/vinculo",
+                json={"email": email, "aluno_id": aluno_id},
+                headers={"Authorization": f"Bearer {self._token}", "Content-Type": "application/json"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            return bool(resp.json().get("autorizado", False))
+        except Exception as e:
+            print(f"[TOTUS] Erro ao validar vínculo: {e}")
+            return False
+
 
 class TotusClientMock(TotusClient):
     """Mock para desenvolvimento/testes sem acesso ao TOTVS real (TOTUS_MOCK=true)."""
@@ -35,9 +52,15 @@ class TotusClientMock(TotusClient):
         "pai@teste.com",
         "mae@teste.com",
         "responsavel@teste.com",
+        "theocrosman@gmail.com",
     }
 
     def validar_responsavel(self, email: str) -> bool:
+        return email.strip().lower() in self.EMAILS_VALIDOS
+
+    def validar_vinculo(self, email: str, aluno_id: int) -> bool:
+        # No mock, qualquer responsável válido pode vincular qualquer aluno.
+        # Na API real, o TOTVS valida a relação específica pai-aluno.
         return email.strip().lower() in self.EMAILS_VALIDOS
 
 

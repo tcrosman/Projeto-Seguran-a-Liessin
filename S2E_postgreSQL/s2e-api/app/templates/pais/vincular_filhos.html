@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vincular Filho — SecureEdu</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body style="background:#f9fafb; min-height:100vh;">
+
+  <div style="background:#fff; border-bottom:1px solid #e5e7eb; padding:14px 24px; display:flex; align-items:center; justify-content:space-between;">
+    <div style="overflow:hidden; width:120px; height:34px;">
+      <img src="/static/images/logo-dark.png" style="width:190px; margin-left:-34px; margin-top:-5px;" alt="SecureEdu">
+    </div>
+    <a href="/pais/dashboard" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">← Voltar</a>
+  </div>
+
+  <div style="max-width:480px; margin:0 auto; padding:32px 20px;">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-icon">🔗</div>
+        <div>
+          <div class="card-title">Vincular Filho</div>
+          <div class="card-subtitle">Digite o nome completo do aluno para confirmar o vínculo</div>
+        </div>
+      </div>
+
+      {% if erro %}
+        <div class="alert alert-error" style="margin-bottom:16px;">{{ erro }}</div>
+      {% endif %}
+
+      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 16px; margin-bottom:20px; font-size:13px; color:#1e40af;">
+        ℹ️ O sistema consulta o TOTVS para confirmar automaticamente que você é responsável pelo aluno. Nenhuma lista de alunos é exibida.
+      </div>
+
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label class="form-label">Nome completo do aluno <span>*</span></label>
+          <input class="form-input" type="text" name="nome_filho"
+                 placeholder="Ex: João da Silva" required autofocus>
+          <div style="font-size:12px; color:#9ca3af; margin-top:4px;">
+            Digite o nome exatamente como cadastrado na escola.
+          </div>
+        </div>
+        <div class="btn-actions">
+          <button class="btn btn-primary" type="submit">Confirmar vínculo</button>
+          <a href="/pais/dashboard" class="btn btn-secondary">Cancelar</a>
+        </div>
+      </form>
+    </div>
+
+    <div style="text-align:center; margin-top:16px; font-size:12px; color:#9ca3af;">
+      Nome incorreto ou vínculo não confirmado? Entre em contato com a secretaria da escola.
+    </div>
+  </div>
+</body>
+</html>

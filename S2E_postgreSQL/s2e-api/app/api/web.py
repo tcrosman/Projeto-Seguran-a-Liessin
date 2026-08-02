@@ -252,7 +252,7 @@ def register_routes(app):
                     conn.execute("""
                         UPDATE alunos SET
                             nome=%s, turma=%s, serie=%s, saida_seg=%s, saida_ter=%s, saida_qua=%s, saida_qui=%s, saida_sex=%s,
-                            responsaveis=%s, telefone=%s, email_responsavel=%s, data_nascimento=%s, alergias=%s, observacoes=%s
+                            responsaveis=%s, telefone=%s, data_nascimento=%s, alergias=%s, observacoes=%s
                         WHERE id=%s
                     """, (
                         nome, turma, serie_norm,
@@ -263,7 +263,6 @@ def register_routes(app):
                         request.form.get("saida_sex", ""),
                         request.form.get("responsaveis", ""),
                         request.form.get("telefone", ""),
-                        request.form.get("email_responsavel", ""),
                         request.form.get("data_nascimento", ""),
                         request.form.get("alergias", ""),
                         request.form.get("observacoes", ""),
@@ -581,7 +580,6 @@ def register_routes(app):
                 turma = request.form.get("turma", "").strip()
                 serie = request.form.get("serie", "").strip()
                 responsaveis = request.form.get("responsaveis", "").strip()
-                email_responsavel = request.form.get("email_responsavel", "").strip().lower() or None
                 
                 if not nome or not turma or not serie:
                     mensagem_erro = "Preencher nome, turma e série é obrigatório!"
@@ -607,8 +605,8 @@ def register_routes(app):
 
                     with get_db() as conn:
                         conn.execute("""
-                            INSERT INTO alunos (nome, turma, serie, saida_seg, saida_ter, saida_qua, saida_qui, saida_sex, responsaveis, foto_path, email_responsavel)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            INSERT INTO alunos (nome, turma, serie, saida_seg, saida_ter, saida_qua, saida_qui, saida_sex, responsaveis, foto_path)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """, (
                             nome, turma, serie,
                             request.form.get("saida_seg") or (padrao['saida_seg'] if padrao else ''),
@@ -616,7 +614,7 @@ def register_routes(app):
                             request.form.get("saida_qua") or (padrao['saida_qua'] if padrao else ''),
                             request.form.get("saida_qui") or (padrao['saida_qui'] if padrao else ''),
                             request.form.get("saida_sex") or (padrao['saida_sex'] if padrao else ''),
-                            responsaveis, foto_path, email_responsavel
+                            responsaveis, foto_path
                         ))
                     log_operacao(session.get('username'), "CADASTROU ALUNO", f"Nome: {nome}")
                     flash(f"Aluno {nome} cadastrado com sucesso!", "success")
@@ -786,6 +784,7 @@ def register_routes(app):
         with get_db() as conn:
             rows = conn.execute("""
                 SELECT ss.id, ss.data_solicitada, ss.horario_solicitado, ss.motivo, ss.status,
+                       ss.tipo_saida, ss.acompanhante,
                        a.nome AS aluno_nome, a.turma, a.serie,
                        r.nome AS responsavel_nome, r.email AS responsavel_email
                 FROM solicitacoes_saida ss
@@ -804,6 +803,7 @@ def register_routes(app):
         with get_db() as conn:
             sol = conn.execute("""
                 SELECT ss.aluno_id, ss.data_solicitada, ss.horario_solicitado, ss.motivo,
+                       ss.tipo_saida, ss.acompanhante,
                        r.nome AS responsavel_nome, r.email AS responsavel_email, a.nome AS aluno_nome
                 FROM solicitacoes_saida ss
                 JOIN responsaveis r ON r.id = ss.responsavel_id
@@ -823,14 +823,15 @@ def register_routes(app):
             # Cria a saída real na tabela saidas para a portaria ver
             conn.execute("""
                 INSERT INTO saidas (aluno, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status)
-                VALUES (%s, %s, %s, %s, %s, 'acompanhado', %s, 'pendente')
+                VALUES (%s, %s, %s, %s, %s, %s, %s, 'pendente')
             """, (
                 sol['aluno_id'],
                 sol['data_solicitada'],
                 sol['horario_solicitado'] or '',
                 sol['motivo'] or 'Solicitado pelo responsável',
                 session.get('username', 'admin'),
-                sol['responsavel_nome'],
+                sol['tipo_saida'] or 'acompanhado',
+                sol['acompanhante'] or sol['responsavel_nome'],
             ))
 
         from app.core.mailer import enviar_email

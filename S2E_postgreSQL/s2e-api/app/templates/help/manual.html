@@ -352,6 +352,8 @@
           {% if session.role == 'admin' %}
           <li><a href="#cadastrar">Cadastrar Aluno</a></li>
           <li><a href="#configuracoes">Configurações</a></li>
+          <li><a href="#responsaveis">Aprovar Responsáveis</a></li>
+          <li><a href="#solicitacoes">Solicitações dos Pais</a></li>
           {% endif %}
         </ul>
       </div>
@@ -527,6 +529,10 @@
             <li><span><strong>Foto do aluno:</strong> clique na área de foto e selecione uma imagem JPG ou PNG.</span></li>
             <li><span>Clique em <strong>Cadastrar Aluno</strong>.</span></li>
           </ol>
+          <div class="tip-box">
+            <strong>Vínculo com responsáveis</strong>
+            Não é necessário inserir o e-mail do responsável no cadastro do aluno. O vínculo é feito pelo próprio responsável no portal deles, com validação automática pelo TOTVS.
+          </div>
         </div>
       </div>
 
@@ -540,12 +546,76 @@
         </div>
         <div class="admin-section">
           <span class="admin-badge">Apenas administradores</span>
-          <p style="margin-bottom: 12px;"><strong>👤 Usuários:</strong> Cria e gerencia os acessos ao sistema.</p>
+          <p style="margin-bottom: 12px;"><strong>👤 Usuários:</strong> Cria e gerencia os acessos dos funcionários ao sistema.</p>
           <p style="margin-bottom: 12px;"><strong>🕐 Horários Padrão:</strong> Define automaticamente o horário de saída ao cadastrar um novo aluno.</p>
+          <p style="margin-bottom: 12px;"><strong>👨‍👩‍👧 Responsáveis:</strong> Gerencia as contas dos pais e responsáveis. Permite aprovar, bloquear e buscar por nome ou e-mail.</p>
           <p style="margin-bottom: 12px;"><strong>💾 Backup:</strong> Salva uma cópia completa do banco de dados.</p>
           <div class="warn-box">
             <strong>Atenção</strong>
             Você não pode excluir a própria conta. O sistema impede que o último administrador seja removido.
+          </div>
+        </div>
+      </div>
+
+
+      {% if session.role == 'admin' %}
+      <div class="manual-section" id="responsaveis">
+        <div class="section-header">
+          <div class="section-number">8</div>
+          <div>
+            <div class="section-title">Aprovar Responsáveis</div>
+            <div class="section-sub">Gerenciar contas dos pais e responsáveis no portal</div>
+          </div>
+        </div>
+        <div class="admin-section">
+          <span class="admin-badge">Apenas administradores</span>
+          <p style="font-size:14px; color:#374151; margin-bottom:14px; line-height:1.7;">
+            Quando um pai ou responsável se cadastra no portal, a conta fica como <strong>Pendente</strong> até que um administrador aprove. O menu principal exibe um aviso enquanto houver contas pendentes.
+          </p>
+          <ol class="steps">
+            <li><span>No menu lateral, clique em <strong>Configurações</strong> → <strong>Responsáveis</strong>.</span></li>
+            <li><span>A seção <strong>"Aguardando aprovação"</strong> lista os cadastros novos com nome, e-mail e data do pedido.</span></li>
+            <li><span>Clique em <strong>Aprovar</strong> para liberar o acesso do responsável ao portal. Clique em <strong>Rejeitar</strong> para negar.</span></li>
+            <li><span>Na seção <strong>"Todos os responsáveis"</strong>, use o campo de busca para filtrar por nome ou e-mail.</span></li>
+            <li><span>Contas aprovadas podem ser <strong>bloqueadas</strong> a qualquer momento. Contas bloqueadas podem ser <strong>reativadas</strong>.</span></li>
+          </ol>
+          <div class="tip-box">
+            <strong>Como o responsável é validado?</strong>
+            Após aprovação manual, o TOTVS valida automaticamente o vínculo entre o responsável e o aluno toda vez que o responsável faz login. Se o TOTVS negar, o acesso é bloqueado mesmo com conta aprovada.
+          </div>
+          <div class="warn-box">
+            <strong>Conta bloqueada vs. rejeitada</strong>
+            <strong>Rejeitar</strong> durante o cadastro bloqueia a conta imediatamente. Contas bloqueadas podem ser reativadas depois em "Todos os responsáveis".
+          </div>
+        </div>
+      </div>
+
+      <div class="manual-section" id="solicitacoes">
+        <div class="section-header">
+          <div class="section-number">9</div>
+          <div>
+            <div class="section-title">Solicitações dos Pais</div>
+            <div class="section-sub">Revisar e aprovar pedidos de saída antecipada enviados pelo portal</div>
+          </div>
+        </div>
+        <div class="admin-section">
+          <span class="admin-badge">Apenas administradores</span>
+          <p style="font-size:14px; color:#374151; margin-bottom:14px; line-height:1.7;">
+            Pais e responsáveis podem solicitar saída antecipada pelo portal. O pedido <strong>não vai direto para a portaria</strong> — primeiro passa pela revisão do administrador.
+          </p>
+          <ol class="steps">
+            <li><span>No menu lateral, clique em <strong>Solicitações dos Pais</strong>. O menu principal também exibe um aviso se houver pedidos aguardando.</span></li>
+            <li><span>A seção <strong>"Aguardando revisão"</strong> mostra: aluno, responsável, data, horário, motivo, e se o aluno vai sozinho ou acompanhado (e com quem).</span></li>
+            <li><span>Clique em <strong>Aprovar</strong> para confirmar a saída. O sistema cria automaticamente o registro na tela de Saídas para a portaria ver e autorizar na hora.</span></li>
+            <li><span>Clique em <strong>Rejeitar</strong> para recusar o pedido. Ele vai para o histórico como "Rejeitado".</span></li>
+          </ol>
+          <div class="tip-box">
+            <strong>O que acontece ao aprovar?</strong>
+            A saída é criada automaticamente na tela de <strong>Saídas</strong> com status "Pendente". A portaria verá normalmente e autorizará quando o aluno for embora — sem precisar digitar nada.
+          </div>
+          <div class="warn-box">
+            <strong>A portaria não vê pedidos não aprovados</strong>
+            Enquanto o administrador não aprovar, a saída não aparece para a portaria. Solicitações rejeitadas também não aparecem.
           </div>
         </div>
       </div>

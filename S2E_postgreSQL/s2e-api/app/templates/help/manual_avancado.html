@@ -351,6 +351,8 @@
           <li><a href="#historico">Histórico do Aluno</a></li>
           <li><a href="#cadastrar">Cadastrar Aluno</a></li>
           <li><a href="#configuracoes">Configurações</a></li>
+          <li><a href="#responsaveis">Aprovar Responsáveis</a></li>
+          <li><a href="#solicitacoes">Solicitações dos Pais</a></li>
         </ul>
       </div>
 
@@ -528,7 +530,7 @@
           <ol class="steps">
             <li><span>Preencha o <strong>Nome Completo</strong>, <strong>Série</strong> e <strong>Turma</strong> (obrigatórios).</span></li>
             <li><span>Ao selecionar a <strong>Série</strong>, os horários de saída são preenchidos automaticamente com os padrões configurados.</span></li>
-            <li><span><strong>Responsáveis (opcional):</strong> liste as pessoas autorizadas a retirar o aluno.</span></li>
+            <li><span><strong>Responsáveis (opcional):</strong> liste os nomes das pessoas autorizadas a retirar o aluno.</span></li>
             <li><span><strong>Foto (opcional):</strong> clique na área de foto e selecione uma imagem JPG ou PNG.</span></li>
             <li><span>Clique em <strong>Cadastrar Aluno</strong>.</span></li>
           </ol>
@@ -540,6 +542,11 @@
             <li><span><strong>Fotos (opcional):</strong> coloque as fotos dos alunos em uma pasta, nomeando cada arquivo com o nome exato do aluno como está na planilha. Clique em "Selecionar pasta" e escolha essa pasta.</span></li>
             <li><span>Clique em <strong>Importar Planilha</strong>. O sistema confirmará quantos alunos foram cadastrados.</span></li>
           </ol>
+
+          <div class="tip-box">
+            <strong>Não é necessário inserir e-mail do responsável</strong>
+            O vínculo entre pai e aluno é feito pelo próprio responsável no Portal dos Responsáveis, com confirmação automática pelo TOTVS. A escola não precisa cadastrar esse dado.
+          </div>
         </div>
       </div>
 
@@ -553,12 +560,74 @@
         </div>
         <div class="admin-section">
           <span class="admin-badge">Apenas administradores</span>
-          <p style="margin-bottom: 12px;"><strong>👤 Usuários:</strong> Cria e gerencia os acessos ao sistema.</p>
+          <p style="margin-bottom: 12px;"><strong>👤 Usuários:</strong> Cria e gerencia os acessos dos funcionários ao sistema.</p>
           <p style="margin-bottom: 12px;"><strong>🕐 Horários Padrão:</strong> Define automaticamente o horário de saída ao cadastrar um novo aluno.</p>
+          <p style="margin-bottom: 12px;"><strong>👨‍👩‍👧 Responsáveis:</strong> Aprova, bloqueia e busca contas de pais e responsáveis. Veja a seção 8 para detalhes.</p>
           <p style="margin-bottom: 12px;"><strong>💾 Backup:</strong> Salva uma cópia completa do banco de dados.</p>
           <div class="warn-box">
             <strong>Atenção</strong>
             Você não pode excluir a própria conta. O sistema impede que o último administrador seja removido.
+          </div>
+        </div>
+      </div>
+
+      <div class="manual-section" id="responsaveis">
+        <div class="section-header">
+          <div class="section-number">8</div>
+          <div>
+            <div class="section-title">Aprovar Responsáveis</div>
+            <div class="section-sub">Gerenciar contas dos pais no portal</div>
+          </div>
+        </div>
+        <div class="admin-section">
+          <span class="admin-badge">Apenas administradores</span>
+          <p style="font-size:14px; color:#374151; margin-bottom:14px; line-height:1.7;">
+            Pais e responsáveis se cadastram pelo Portal dos Responsáveis. A conta fica como <strong>Pendente</strong> até que um administrador aprove. O menu principal exibe um aviso enquanto houver contas pendentes.
+          </p>
+          <ol class="steps">
+            <li><span>No menu lateral, clique em <strong>Configurações</strong> → <strong>Responsáveis</strong>.</span></li>
+            <li><span>A seção <strong>"Aguardando aprovação"</strong> lista os novos cadastros com nome, e-mail e data do pedido.</span></li>
+            <li><span>Clique em <strong>Aprovar</strong> para liberar o acesso, ou <strong>Rejeitar</strong> para negar.</span></li>
+            <li><span>Na seção <strong>"Todos os responsáveis"</strong>, use o campo de <strong>busca</strong> para filtrar por nome ou e-mail em tempo real.</span></li>
+            <li><span>Contas aprovadas podem ser <strong>bloqueadas</strong> a qualquer momento. Contas bloqueadas podem ser <strong>reativadas</strong>.</span></li>
+          </ol>
+          <div class="tip-box">
+            <strong>Como funciona o vínculo com o aluno?</strong>
+            Após a aprovação, o próprio responsável busca o filho pelo nome no portal e clica em "Sou responsável". O TOTVS valida a relação e o vínculo é salvo. A escola não precisa fazer isso manualmente.
+          </div>
+          <div class="warn-box">
+            <strong>Conta bloqueada vs. rejeitada</strong>
+            Rejeitar no momento do cadastro bloqueia a conta. Contas bloqueadas podem ser reativadas depois em "Todos os responsáveis" — não são excluídas.
+          </div>
+        </div>
+      </div>
+
+      <div class="manual-section" id="solicitacoes">
+        <div class="section-header">
+          <div class="section-number">9</div>
+          <div>
+            <div class="section-title">Solicitações dos Pais</div>
+            <div class="section-sub">Revisar pedidos de saída antecipada enviados pelo portal</div>
+          </div>
+        </div>
+        <div class="admin-section">
+          <span class="admin-badge">Apenas administradores</span>
+          <p style="font-size:14px; color:#374151; margin-bottom:14px; line-height:1.7;">
+            Quando um pai solicita saída antecipada pelo portal, o pedido <strong>não vai direto para a portaria</strong>. Ele fica aguardando revisão do administrador. O menu principal exibe um aviso enquanto houver pedidos pendentes.
+          </p>
+          <ol class="steps">
+            <li><span>No menu lateral, clique em <strong>Solicitações dos Pais</strong>.</span></li>
+            <li><span>A seção <strong>"Aguardando revisão"</strong> exibe: aluno, responsável, data, horário, motivo, e se o aluno vai <strong>sozinho</strong> ou <strong>acompanhado</strong> (e com quem).</span></li>
+            <li><span>Clique em <strong>Aprovar</strong> para confirmar. O sistema cria automaticamente o registro na tela de Saídas para a portaria ver.</span></li>
+            <li><span>Clique em <strong>Rejeitar</strong> para recusar. O pedido vai para o histórico como "Rejeitado".</span></li>
+          </ol>
+          <div class="tip-box">
+            <strong>O que acontece ao aprovar?</strong>
+            A saída é criada automaticamente como <strong>Pendente</strong> na tela de Saídas. A portaria vê e autoriza normalmente na hora da saída — sem precisar digitar nada.
+          </div>
+          <div class="warn-box">
+            <strong>A portaria não vê pedidos não aprovados</strong>
+            Enquanto o administrador não aprovar, a saída não aparece para a portaria. Solicitações rejeitadas também não aparecem.
           </div>
         </div>
       </div>

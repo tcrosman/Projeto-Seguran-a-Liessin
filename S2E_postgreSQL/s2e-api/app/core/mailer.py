@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 _env_path = Path(__file__).resolve().parents[2] / '.env'
 load_dotenv(dotenv_path=_env_path, override=True)
 
-_PLACEHOLDERS = {'seu_email@gmail.com', 'sua_senha_de_app', '', 'seu_email', 'sua_senha'}
+_PLACEHOLDERS = {'seu_email@gmail.com', 'sua_senha_de_app', '', 'seu_email', 'sua_senha', 'cole-aqui-sua-senha-de-app'}
 
 def enviar_email(destinatario, assunto, corpo_html):
     """Envia email via SMTP usando as configurações do arquivo .env"""

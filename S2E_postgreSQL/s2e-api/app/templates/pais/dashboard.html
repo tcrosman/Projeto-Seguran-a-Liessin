@@ -65,9 +65,12 @@
       {% endfor %}
     {% endwith %}
 
-    <div style="margin-bottom:24px;">
-      <h1 style="font-size:22px; font-weight:800; color:#111827;">Meus filhos</h1>
-      <p style="font-size:14px; color:#6b7280; margin-top:4px;">Selecione o aluno para solicitar uma saída antecipada.</p>
+    <div style="margin-bottom:24px; display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <h1 style="font-size:22px; font-weight:800; color:#111827;">Meus filhos</h1>
+        <p style="font-size:14px; color:#6b7280; margin-top:4px;">Selecione o aluno para solicitar uma saída antecipada.</p>
+      </div>
+      <a href="/pais/vincular" class="btn btn-secondary" style="font-size:13px; padding:8px 16px; white-space:nowrap;">+ Adicionar filho</a>
     </div>
 
     {% if filhos %}
@@ -91,9 +94,10 @@
       </div>
     {% else %}
       <div class="empty-state">
-        <div style="font-size:40px; margin-bottom:12px;">🔍</div>
-        <p style="font-size:16px; font-weight:600; color:#374151; margin-bottom:8px;">Nenhum aluno vinculado</p>
-        <p style="font-size:13px;">Seu email não está associado a nenhum aluno cadastrado.<br>Entre em contato com a secretaria da escola.</p>
+        <div style="font-size:40px; margin-bottom:12px;">🔗</div>
+        <p style="font-size:16px; font-weight:600; color:#374151; margin-bottom:8px;">Nenhum filho vinculado ainda</p>
+        <p style="font-size:13px; margin-bottom:20px;">Clique em "Adicionar filho" para buscar e vincular seu(s) filho(s) ao seu cadastro.</p>
+        <a href="/pais/vincular" class="btn btn-primary" style="display:inline-block;">+ Adicionar filho</a>
       </div>
     {% endif %}
   </div>

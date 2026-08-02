@@ -5,6 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Solicitar Saída — SecureEdu</title>
   <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .tipo-saida-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 6px;
+    }
+    .tipo-saida-option {
+      flex: 1;
+      border: 2px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 12px 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+      transition: border-color 0.15s, background 0.15s;
+      user-select: none;
+    }
+    .tipo-saida-option:hover { border-color: #2563eb; background: #eff6ff; }
+    .tipo-saida-option input[type="radio"] { accent-color: #2563eb; width: 16px; height: 16px; }
+    .tipo-saida-option.selected { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+    #acompanhante-wrap { display: none; }
+  </style>
 </head>
 <body style="background:#f9fafb; min-height:100vh;">
 
@@ -42,7 +68,7 @@
             <input class="form-input" type="date" name="data_solicitada" required value="{{ today }}" min="{{ today }}">
           </div>
           <div class="form-group">
-            <label class="form-label">Horário previsto</label>
+            <label class="form-label">Horário</label>
             <input class="form-input" type="time" name="horario">
           </div>
         </div>
@@ -53,6 +79,26 @@
                  placeholder="ex: Consulta médica, compromisso familiar...">
         </div>
 
+        <div class="form-group">
+          <label class="form-label">Tipo de saída <span>*</span></label>
+          <div class="tipo-saida-group">
+            <label class="tipo-saida-option" id="opt-sozinho">
+              <input type="radio" name="tipo_saida" value="sozinho" required onchange="toggleAcompanhante(this)">
+              🚶 Sozinho
+            </label>
+            <label class="tipo-saida-option" id="opt-acompanhado">
+              <input type="radio" name="tipo_saida" value="acompanhado" onchange="toggleAcompanhante(this)">
+              👥 Acompanhado
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" id="acompanhante-wrap">
+          <label class="form-label">Com quem? <span>*</span></label>
+          <input class="form-input" type="text" name="acompanhante" id="acompanhante-input"
+                 placeholder="Nome e grau de parentesco ou relação">
+        </div>
+
         <div class="btn-actions">
           <button class="btn btn-primary" type="submit">Enviar solicitação</button>
           <a href="/pais/dashboard" class="btn btn-secondary">Cancelar</a>
@@ -60,5 +106,27 @@
       </form>
     </div>
   </div>
+
+  <script>
+    function toggleAcompanhante(radio) {
+      const wrap = document.getElementById('acompanhante-wrap');
+      const input = document.getElementById('acompanhante-input');
+      const optSozinho = document.getElementById('opt-sozinho');
+      const optAcomp = document.getElementById('opt-acompanhado');
+
+      if (radio.value === 'acompanhado') {
+        wrap.style.display = 'block';
+        input.required = true;
+        optSozinho.classList.remove('selected');
+        optAcomp.classList.add('selected');
+      } else {
+        wrap.style.display = 'none';
+        input.required = false;
+        input.value = '';
+        optAcomp.classList.remove('selected');
+        optSozinho.classList.add('selected');
+      }
+    }
+  </script>
 </body>
 </html>

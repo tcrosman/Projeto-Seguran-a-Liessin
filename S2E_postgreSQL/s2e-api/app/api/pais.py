@@ -202,13 +202,63 @@ def register_parent_routes(app):
     @app.route("/pais/dashboard")
     @pai_required
     def pais_dashboard():
-        email = session['pai_email']
         with get_db() as conn:
             filhos = conn.execute(
-                "SELECT id, nome, turma, serie, foto_path FROM alunos WHERE LOWER(email_responsavel) = %s ORDER BY nome",
-                (email,)
+                """SELECT a.id, a.nome, a.turma, a.serie, a.foto_path
+                   FROM vinculos_pais_alunos v
+                   JOIN alunos a ON a.id = v.aluno_id
+                   WHERE v.responsavel_id = %s
+                   ORDER BY a.nome""",
+                (session['pai_id'],)
             ).fetchall()
         return render_template("pais/dashboard.html", filhos=filhos, nome=session['pai_nome'])
+
+    # ==================== VINCULAR FILHO ====================
+
+    @app.route("/pais/vincular", methods=["GET", "POST"])
+    @pai_required
+    def pais_vincular():
+        email = session['pai_email']
+        erro = None
+
+        if request.method == "POST":
+            nome_filho = request.form.get("nome_filho", "").strip()
+            if not nome_filho:
+                erro = "Digite o nome completo do seu filho."
+            else:
+                with get_db() as conn:
+                    candidatos = conn.execute(
+                        """SELECT id, nome FROM alunos
+                           WHERE LOWER(nome) = LOWER(%s)
+                           AND id NOT IN (
+                               SELECT aluno_id FROM vinculos_pais_alunos WHERE responsavel_id = %s
+                           )""",
+                        (nome_filho, session['pai_id'])
+                    ).fetchall()
+
+                if not candidatos:
+                    erro = "Nenhum aluno com esse nome encontrado. Verifique o nome exato como cadastrado na escola."
+                else:
+                    totus = get_totus_client()
+                    vinculados = []
+                    for c in candidatos:
+                        if totus.validar_vinculo(email, c['id']):
+                            vinculados.append(c)
+
+                    if not vinculados:
+                        erro = "O TOTVS não confirmou vínculo entre você e este aluno. Se acredita que é um erro, entre em contato com a secretaria."
+                    else:
+                        with get_db() as conn:
+                            for v in vinculados:
+                                conn.execute(
+                                    "INSERT INTO vinculos_pais_alunos (responsavel_id, aluno_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                                    (session['pai_id'], v['id'])
+                                )
+                        nomes = ", ".join(v['nome'] for v in vinculados)
+                        flash(f"Vínculo confirmado com sucesso: {nomes}!", "success")
+                        return redirect("/pais/dashboard")
+
+        return render_template("pais/vincular_filhos.html", erro=erro, nome=session['pai_nome'])
 
     # ==================== SOLICITAR SAÍDA ====================
 
@@ -220,8 +270,10 @@ def register_parent_routes(app):
         # Garante que este aluno pertence ao responsável logado
         with get_db() as conn:
             aluno = conn.execute(
-                "SELECT id, nome, turma, serie FROM alunos WHERE id = %s AND LOWER(email_responsavel) = %s",
-                (aluno_id, email)
+                """SELECT a.id, a.nome, a.turma, a.serie FROM alunos a
+                   JOIN vinculos_pais_alunos v ON v.aluno_id = a.id
+                   WHERE a.id = %s AND v.responsavel_id = %s""",
+                (aluno_id, session['pai_id'])
             ).fetchone()
 
         if not aluno:
@@ -232,10 +284,18 @@ def register_parent_routes(app):
             data_solicitada = request.form.get("data_solicitada", "")
             horario = request.form.get("horario", "")
             motivo = request.form.get("motivo", "").strip()
+            tipo_saida = request.form.get("tipo_saida", "").strip()
+            acompanhante = request.form.get("acompanhante", "").strip()
 
             if not data_solicitada or not motivo:
                 return render_template("pais/solicitar_saida.html", aluno=aluno,
                                        erro="Preencha a data e o motivo.")
+            if not tipo_saida:
+                return render_template("pais/solicitar_saida.html", aluno=aluno,
+                                       erro="Selecione o tipo de saída (Sozinho ou Acompanhado).")
+            if tipo_saida == "acompanhado" and not acompanhante:
+                return render_template("pais/solicitar_saida.html", aluno=aluno,
+                                       erro="Informe com quem o aluno vai sair.")
 
             with get_db() as conn:
                 # Verifica se já existe solicitação aguardando para este aluno nesta data
@@ -249,9 +309,11 @@ def register_parent_routes(app):
 
                 conn.execute(
                     """INSERT INTO solicitacoes_saida
-                       (responsavel_id, aluno_id, data_solicitada, horario_solicitado, motivo, status)
-                       VALUES (%s, %s, %s, %s, %s, 'aguardando')""",
-                    (session['pai_id'], aluno_id, data_solicitada, horario, motivo)
+                       (responsavel_id, aluno_id, data_solicitada, horario_solicitado, motivo,
+                        tipo_saida, acompanhante, status)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, 'aguardando')""",
+                    (session['pai_id'], aluno_id, data_solicitada, horario, motivo,
+                     tipo_saida, acompanhante or None)
                 )
 
             flash(f"Solicitação de saída para {aluno['nome']} enviada com sucesso! Aguarde aprovação da escola.", "success")

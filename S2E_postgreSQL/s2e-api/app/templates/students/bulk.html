@@ -72,11 +72,6 @@
                 <textarea class="form-input" name="responsaveis" placeholder="ex: Maria Silva (mãe), João Silva (pai), Ana Costa (avó)..." style="resize:vertical; min-height:80px; font-family:inherit;"></textarea>
                 <div style="font-size:12px; color:#9ca3af; margin-top:4px;">Liste os responsáveis autorizados a retirar o aluno.</div>
               </div>
-              <div class="form-group" style="margin-bottom:0;">
-                <label class="form-label">E-mail do Responsável</label>
-                <input class="form-input" type="email" name="email_responsavel" placeholder="email@exemplo.com">
-                <div style="font-size:12px; color:#9ca3af; margin-top:4px;">Usado para acesso ao portal dos responsáveis e notificações.</div>
-              </div>
             </div>
 
             <div class="foto-section">
@@ -114,7 +109,7 @@
         <div class="tab-panel" id="tab-excel">
           <div class="info-box">
             <strong>Colunas obrigatórias: <code>nome</code>, <code>turma</code>, <code>serie</code></strong><br>
-            Colunas opcionais: <code>saida_seg</code>, <code>saida_ter</code>, <code>saida_qua</code>, <code>saida_qui</code>, <code>saida_sex</code>, <code>responsaveis</code>, <code>email_responsavel</code>
+            Colunas opcionais: <code>saida_seg</code>, <code>saida_ter</code>, <code>saida_qua</code>, <code>saida_qui</code>, <code>saida_sex</code>, <code>responsaveis</code>
           </div>
 
           <form method="POST" enctype="multipart/form-data">
@@ -221,6 +216,16 @@ function atualizarFotos(input) {
     wrap.style.borderColor = '';
     wrap.style.background = '';
   }
+}
+
+function adicionarEmail() {
+  const container = document.getElementById('emails-container');
+  const row = document.createElement('div');
+  row.className = 'email-row';
+  row.style.cssText = 'display:flex; gap:8px; margin-bottom:8px;';
+  row.innerHTML = '<input class="form-input" type="email" name="email_responsavel" placeholder="email@exemplo.com" style="flex:1;">'
+    + '<button type="button" onclick="this.parentElement.remove()" style="background:none; border:1px solid #fecaca; border-radius:8px; color:#dc2626; cursor:pointer; padding:0 10px; font-size:16px; line-height:1;">×</button>';
+  container.appendChild(row);
 }
 </script>
 </body>

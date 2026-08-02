@@ -149,3 +149,19 @@ def migrate_database():
                 criado_em          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # Colunas adicionadas após criação inicial da tabela solicitacoes_saida
+        for col in ['tipo_saida', 'acompanhante', 'responsavel_escola']:
+            if not _col_exists(conn, 'solicitacoes_saida', col):
+                conn.execute(f"ALTER TABLE solicitacoes_saida ADD COLUMN {col} TEXT")
+
+        # Vínculos pai→aluno validados pelo TOTVS (substituiu email_responsavel em alunos)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS vinculos_pais_alunos (
+                id             SERIAL PRIMARY KEY,
+                responsavel_id INTEGER NOT NULL,
+                aluno_id       INTEGER NOT NULL,
+                criado_em      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(responsavel_id, aluno_id)
+            )
+        """)
