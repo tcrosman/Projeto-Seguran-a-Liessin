@@ -41,6 +41,13 @@ class SchoolDirectoryClient:
             "Use SCHOOL_DIRECTORY_MOCK=true durante o desenvolvimento."
         )
 
+    def get_guardian_emails_for_ra(self, ra: str) -> list:
+        """Retorna os e-mails dos responsáveis vinculados a um RA — usada para notificar após liberar a saída."""
+        raise NotImplementedError(
+            "Fonte real da consulta ainda não definida pela instituição. "
+            "Use SCHOOL_DIRECTORY_MOCK=true durante o desenvolvimento."
+        )
+
 
 class SchoolDirectoryMock(SchoolDirectoryClient):
     """Dados de teste locais, sem acessar a consulta real (SCHOOL_DIRECTORY_MOCK=true, padrão em dev).
@@ -80,6 +87,10 @@ class SchoolDirectoryMock(SchoolDirectoryClient):
         if not q:
             return []
         return [dict(a) for a in self._ALUNOS.values() if q in a['nome'].lower() or q in a['ra']]
+
+    def get_guardian_emails_for_ra(self, ra: str) -> list:
+        aluno = self._ALUNOS.get(ra)
+        return list(aluno['responsaveis_email']) if aluno else []
 
 
 def get_school_directory() -> SchoolDirectoryClient:

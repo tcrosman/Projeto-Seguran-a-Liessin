@@ -56,8 +56,8 @@
         <div class="saida-card">
           <div class="saida-card-top">
             <div class="saida-student">
-              {% if saida.foto_path %}
-                <img src="/uploads/{{ saida.foto_path }}" class="saida-student-photo" alt="Foto de {{ saida.aluno }}">
+              {% if saida.foto_src %}
+                <img src="{{ saida.foto_src }}" class="saida-student-photo" alt="Foto de {{ saida.aluno }}">
               {% else %}
                 <div class="student-avatar" style="background: #dc2626; width:32px; height:32px; font-size:12px; flex-shrink:0;">{{ saida.aluno[0] if saida.aluno else '?' }}</div>
               {% endif %}
@@ -161,8 +161,8 @@
               <tr>
                 <td>
                   <div class="student-name-cell">
-                    {% if saida.foto_path %}
-                      <img src="/uploads/{{ saida.foto_path }}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; margin-right:8px; flex-shrink:0;" alt="">
+                    {% if saida.foto_src %}
+                      <img src="{{ saida.foto_src }}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; margin-right:8px; flex-shrink:0;" alt="">
                     {% else %}
                       <div class="student-avatar" style="background:#6b7280; width:28px; height:28px; font-size:11px;">{{ saida.aluno[0] if saida.aluno else '?' }}</div>
                     {% endif %}

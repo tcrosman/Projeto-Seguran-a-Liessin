@@ -86,11 +86,16 @@ def migrate_database():
         if not _col_exists(conn, 'saidas', 'usuario_autorizou'):
             conn.execute("ALTER TABLE saidas ADD COLUMN usuario_autorizou INTEGER")
 
-        # RA do aluno (identidade passa a vir do RA, não mais de alunos.id) e hora real da liberação
+        # RA do aluno (identidade passa a vir do RA, não mais de alunos.id), snapshot da turma
+        # no momento do registro (turma antes só existia via JOIN com alunos) e hora real da liberação
         if not _col_exists(conn, 'saidas', 'ra'):
             conn.execute("ALTER TABLE saidas ADD COLUMN ra TEXT")
+        if not _col_exists(conn, 'saidas', 'turma'):
+            conn.execute("ALTER TABLE saidas ADD COLUMN turma TEXT")
         if not _col_exists(conn, 'saidas', 'liberado_em'):
             conn.execute("ALTER TABLE saidas ADD COLUMN liberado_em TIMESTAMP")
+        # Saídas novas são identificadas por ra, não por aluno (FK local) — DROP NOT NULL é idempotente
+        conn.execute("ALTER TABLE saidas ALTER COLUMN aluno DROP NOT NULL")
 
         # Tabela de logs de alunos (auditoria)
         conn.execute("""

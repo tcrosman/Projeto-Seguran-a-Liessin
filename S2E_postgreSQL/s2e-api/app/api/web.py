@@ -1,13 +1,68 @@
-from flask import Flask, render_template, request, redirect, session, flash, send_from_directory
+from flask import Flask, render_template, request, redirect, session, flash, send_from_directory, jsonify
 from app.api.middleware import login_required, admin_required
 from app.core.database import get_db, expirar_saidas_nao_liberadas
 from app.core.audit_logger import log_operacao
+from app.core.cache import TTLCache
+from app.services.school_directory import get_school_directory
 from app.config import Config
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
 from collections import defaultdict
 import os
 import re
+
+
+_cache_diretorio = TTLCache(ttl_seconds=300)
+
+
+def _buscar_alunos_com_cache(ras):
+    """Resolve ra -> dados do aluno via school_directory, com cache curto (5 min) e fallback
+    para o último dado conhecido se a consulta externa estiver indisponível no momento."""
+    if not ras:
+        return {}
+    faltando = [ra for ra in set(ras) if _cache_diretorio.get(ra) is None]
+    if faltando:
+        try:
+            frescos = get_school_directory().get_students_by_ras(faltando)
+            for ra, info in frescos.items():
+                _cache_diretorio.set(ra, info)
+        except Exception as e:
+            print(f"[SCHOOL_DIRECTORY] Consulta indisponível, usando cache: {e}")
+    resultado = {}
+    for ra in set(ras):
+        info = _cache_diretorio.get(ra) or _cache_diretorio.get_stale(ra)
+        if info:
+            resultado[ra] = info
+    return resultado
+
+
+def _resolver_dados_saidas(rows):
+    """Enriquece linhas de `saidas` com nome/foto/turma/série do aluno, prontas para o template.
+
+    Linhas novas (com ra): resolvidas ao vivo via school_directory — nada disso é persistido,
+    só usado para renderizar a página atual.
+    Linhas antigas (pré-migração RA, sem ra): usam os campos já trazidos pelo LEFT JOIN legado
+    com a tabela `alunos`, até serem migradas na Fase 5 do redesenho.
+    """
+    resultado = []
+    rows = [dict(r) for r in rows]
+    ras = [r['ra'] for r in rows if r.get('ra')]
+    diretorio = _buscar_alunos_com_cache(ras)
+
+    for r in rows:
+        if r.get('ra'):
+            info = diretorio.get(r['ra'])
+            r['aluno'] = info['nome'] if info else f"RA {r['ra']}"
+            r['foto_src'] = (info or {}).get('foto_url')
+            r['serie'] = (info or {}).get('serie')
+            r['turma'] = r.get('turma') or (info or {}).get('turma')
+        else:
+            r['aluno'] = r.get('aluno_legado')
+            r['foto_src'] = f"/uploads/{r['foto_path_legado']}" if r.get('foto_path_legado') else None
+            r['serie'] = r.get('serie_legado')
+            r['turma'] = r.get('turma') or r.get('turma_legado')
+        resultado.append(r)
+    return resultado
 
 
 def register_routes(app):
@@ -334,23 +389,38 @@ def register_routes(app):
         return render_template("departures/history_of_departures.html", resultados=resultados, nome=nome)
     
     # ==================== SAÍDAS ====================
+    @app.route("/portaria/buscar_aluno")
+    @login_required
+    def portaria_buscar_aluno():
+        """Busca alunos por nome/RA parcial para o formulário de registrar saída.
+        Dado vem direto da consulta externa — nada aqui é persistido no S2E."""
+        query = request.args.get("q", "")
+        resultados = get_school_directory().search_students(query)
+        return jsonify([
+            {"ra": a["ra"], "nome": a["nome"], "turma": a.get("turma"), "serie": a.get("serie")}
+            for a in resultados
+        ])
+
     @app.route("/registrar_saida", methods=["GET", "POST"])
     @login_required
     def registrar_saida():
-        aluno_pre_selecionado = request.args.get("aluno_id")
-        
+        ra_pre_selecionado = request.args.get("ra")
+
         if request.method == "POST":
-            with get_db() as conn:
-                aluno_id = request.form.get("aluno_id")
-                data_saida = request.form.get("data_saida", datetime.now().strftime("%Y-%m-%d"))
-                horario = request.form.get("horario")
-                motivo = request.form.get("motivo")
-                responsavel_escola = request.form.get("responsavel_escola")
-                tipo_saida = request.form.get("tipo_saida")
-                acompanhante = request.form.get("acompanhante") if tipo_saida == 'acompanhado' else None
-                
-                if not horario or not motivo or not responsavel_escola or not tipo_saida:
-                    flash("Todos os campos são obrigatórios!", "error")
+            ra = request.form.get("ra", "").strip()
+            data_saida = request.form.get("data_saida", datetime.now().strftime("%Y-%m-%d"))
+            horario = request.form.get("horario")
+            motivo = request.form.get("motivo")
+            responsavel_escola = request.form.get("responsavel_escola")
+            tipo_saida = request.form.get("tipo_saida")
+            acompanhante = request.form.get("acompanhante") if tipo_saida == 'acompanhado' else None
+
+            if not ra or not horario or not motivo or not responsavel_escola or not tipo_saida:
+                flash("Todos os campos são obrigatórios, incluindo a seleção do aluno na busca!", "error")
+            else:
+                aluno = get_school_directory().get_student(ra)
+                if not aluno:
+                    flash("Aluno não encontrado para o RA informado. Busque novamente pelo nome ou RA.", "error")
                 else:
                     documento_path = None
                     doc = request.files.get('documento')
@@ -364,28 +434,25 @@ def register_routes(app):
                             doc.save(os.path.join(upload_folder, 'documents', filename))
                             documento_path = os.path.join('documents', filename)
 
-                    pendente = conn.execute(
-                        "SELECT COUNT(*) as total FROM saidas WHERE aluno = %s AND data_saida = %s AND status = 'pendente'",
-                        (aluno_id, data_saida)
-                    ).fetchone()['total']
+                    with get_db() as conn:
+                        pendente = conn.execute(
+                            "SELECT COUNT(*) as total FROM saidas WHERE ra = %s AND data_saida = %s AND status = 'pendente'",
+                            (ra, data_saida)
+                        ).fetchone()['total']
 
-                    if pendente > 0:
-                        flash("Este aluno já tem uma saída pendente para hoje!", "error")
-                    else:
-                        conn.execute("""
-                            INSERT INTO saidas (aluno, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, documento_path, status)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pendente')
-                        """, (aluno_id, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, documento_path))
-                        log_operacao(session.get('username'), "REGISTROU SAÍDA", f"Aluno ID: {aluno_id}")
-                        flash("Saída registrada!", "success")
-                        return redirect("/saidas")
-        
-        with get_db() as conn:
-            alunos = conn.execute("SELECT id, nome, serie, turma FROM alunos ORDER BY nome").fetchall()
-        
-        return render_template("departures/register.html", 
-                               alunos=[dict(a) for a in alunos],
-                               aluno_selecionado=aluno_pre_selecionado,
+                        if pendente > 0:
+                            flash("Este aluno já tem uma saída pendente para hoje!", "error")
+                        else:
+                            conn.execute("""
+                                INSERT INTO saidas (ra, turma, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, documento_path, status)
+                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pendente')
+                            """, (ra, aluno.get('turma'), data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, documento_path))
+                            log_operacao(session.get('username'), "REGISTROU SAÍDA", f"RA: {ra}")
+                            flash("Saída registrada!", "success")
+                            return redirect("/saidas")
+
+        return render_template("departures/register.html",
+                               ra_selecionado=ra_pre_selecionado,
                                today=datetime.now().strftime("%Y-%m-%d"))
     
     @app.route("/saidas")
@@ -393,34 +460,29 @@ def register_routes(app):
     def lista_saidas():
         data_selecionada = request.args.get("data", datetime.now().strftime("%Y-%m-%d"))
         busca = request.args.get("busca", "").strip()
-        
+
         with get_db() as conn:
             # Limpar saídas antigas
             conn.execute("DELETE FROM saidas WHERE status = 'concluida' AND data_saida < TO_CHAR(CURRENT_DATE - INTERVAL '30 days', 'YYYY-MM-DD')")
             # Marca como não realizadas as saídas aprovadas cujo dia já passou sem liberação
             expirar_saidas_nao_liberadas(conn)
 
-            if busca:
-                rows = conn.execute("""
-                    SELECT s.id, a.nome as aluno, s.horario, s.motivo, s.responsavel_escola, s.tipo_saida, s.acompanhante, s.documento_path, s.status,
-                           a.serie, a.turma, a.foto_path
-                    FROM saidas s
-                    JOIN alunos a ON s.aluno = a.id
-                    WHERE s.data_saida = %s AND a.nome ILIKE %s
-                    ORDER BY s.horario ASC
-                """, (data_selecionada, f'%{busca}%')).fetchall()
-            else:
-                rows = conn.execute("""
-                    SELECT s.id, a.nome as aluno, s.horario, s.motivo, s.responsavel_escola, s.tipo_saida, s.acompanhante, s.documento_path, s.status,
-                           a.serie, a.turma, a.foto_path
-                    FROM saidas s
-                    JOIN alunos a ON s.aluno = a.id
-                    WHERE s.data_saida = %s
-                    ORDER BY s.horario ASC
-                """, (data_selecionada,)).fetchall()
-            
-            saidas = [dict(row) for row in rows]
-        
+            rows = conn.execute("""
+                SELECT s.id, s.ra, s.turma, s.horario, s.motivo, s.responsavel_escola, s.tipo_saida,
+                       s.acompanhante, s.documento_path, s.status,
+                       a.nome AS aluno_legado, a.serie AS serie_legado, a.turma AS turma_legado,
+                       a.foto_path AS foto_path_legado
+                FROM saidas s
+                LEFT JOIN alunos a ON s.aluno = a.id
+                WHERE s.data_saida = %s
+                ORDER BY s.horario ASC
+            """, (data_selecionada,)).fetchall()
+
+        saidas = _resolver_dados_saidas(rows)
+        if busca:
+            busca_lower = busca.lower()
+            saidas = [s for s in saidas if busca_lower in (s['aluno'] or '').lower()]
+
         pendentes = [s for s in saidas if s['status'] == 'pendente']
         concluidas = [s for s in saidas if s['status'] == 'concluida']
         nao_realizadas = [s for s in saidas if s['status'] == 'nao_realizada']
@@ -440,16 +502,18 @@ def register_routes(app):
             return redirect("/saidas")
 
         with get_db() as conn:
-            saida = conn.execute("""
-                SELECT s.*, a.nome as aluno
+            saida_row = conn.execute("""
+                SELECT s.*, a.nome AS aluno_legado
                 FROM saidas s
-                JOIN alunos a ON s.aluno = a.id
+                LEFT JOIN alunos a ON s.aluno = a.id
                 WHERE s.id = %s AND s.status = 'pendente'
             """, (id_saida,)).fetchone()
 
-            if not saida:
+            if not saida_row:
                 flash("Saída não encontrada ou já autorizada", "error")
                 return redirect("/saidas")
+
+            saida = _resolver_dados_saidas([saida_row])[0]
 
             if request.method == "POST":
                 horario = request.form.get("horario")
@@ -465,36 +529,47 @@ def register_routes(app):
                 flash("Saída atualizada!", "success")
                 return redirect("/saidas")
             
-            return render_template("departures/edit_exits.html", saida=dict(saida))
-    
+            return render_template("departures/edit_exits.html", saida=saida)
+
     @app.route("/concluir_saida/<int:id_saida>")
     @login_required
     def concluir_saida(id_saida):
         with get_db() as conn:
-            conn.execute("UPDATE saidas SET status = 'concluida', usuario_autorizou = %s WHERE id = %s",
-                        (session['user_id'], id_saida))
+            conn.execute(
+                "UPDATE saidas SET status = 'concluida', usuario_autorizou = %s, liberado_em = NOW() WHERE id = %s",
+                (session['user_id'], id_saida)
+            )
 
             saida = conn.execute("""
-                SELECT s.data_saida, s.horario, a.id AS aluno_id, a.nome AS aluno_nome
+                SELECT s.data_saida, s.horario, s.ra, a.id AS aluno_id_legado, a.nome AS aluno_nome_legado
                 FROM saidas s
-                JOIN alunos a ON a.id = s.aluno
+                LEFT JOIN alunos a ON a.id = s.aluno
                 WHERE s.id = %s
             """, (id_saida,)).fetchone()
 
-            responsaveis = conn.execute("""
-                SELECT r.email
-                FROM vinculos_pais_alunos v
-                JOIN responsaveis r ON r.id = v.responsavel_id
-                WHERE v.aluno_id = %s
-            """, (saida['aluno_id'],)).fetchall() if saida else []
+            if saida and saida['ra']:
+                info = get_school_directory().get_student(saida['ra'])
+                nome_aluno = info['nome'] if info else f"RA {saida['ra']}"
+                emails = get_school_directory().get_guardian_emails_for_ra(saida['ra'])
+            elif saida:
+                nome_aluno = saida['aluno_nome_legado']
+                responsaveis = conn.execute("""
+                    SELECT r.email
+                    FROM vinculos_pais_alunos v
+                    JOIN responsaveis r ON r.id = v.responsavel_id
+                    WHERE v.aluno_id = %s
+                """, (saida['aluno_id_legado'],)).fetchall()
+                emails = [r['email'] for r in responsaveis]
+            else:
+                nome_aluno, emails = None, []
 
         if saida:
             from app.core.mailer import enviar_email
-            for r in responsaveis:
+            for email in emails:
                 enviar_email(
-                    r['email'],
+                    email,
                     "Saída liberada — SecureEdu",
-                    f"""<p>Olá! A saída de <strong>{saida['aluno_nome']}</strong> foi
+                    f"""<p>Olá! A saída de <strong>{nome_aluno}</strong> foi
                     <strong style="color:#16a34a;">liberada pela segurança da escola</strong>
                     hoje às <strong>{saida['horario']}</strong>.</p>"""
                 )
