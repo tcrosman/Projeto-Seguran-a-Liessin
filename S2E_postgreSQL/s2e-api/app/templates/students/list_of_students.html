@@ -68,11 +68,14 @@
                       Ver Histórico
                     </a>
                     {% if session.role == 'admin' %}
-                    <a href="/deletar_aluno/{{ aluno.id }}"
-                       onclick="return confirm('Apagar {{ aluno.nome }}? Esta ação não pode ser desfeita.')"
-                       class="action-btn danger" title="Apagar aluno">
-                      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                    </a>
+                    <form method="POST" action="/deletar_aluno/{{ aluno.id }}" style="display:inline;"
+                          onsubmit="return confirm('Apagar {{ aluno.nome }}? Esta ação não pode ser desfeita.')">
+                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <button type="submit" class="action-btn danger" title="Apagar aluno"
+                              style="background:none; border:none; padding:0; cursor:pointer;">
+                        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                      </button>
+                    </form>
                     {% endif %}
                   </td>
                 </tr>

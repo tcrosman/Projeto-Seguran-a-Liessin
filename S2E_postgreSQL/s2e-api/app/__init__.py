@@ -75,10 +75,12 @@ def create_app():
                 return
         session['last_seen'] = now.isoformat()
 
-    # Migração automática — idempotente (usa CREATE TABLE IF NOT EXISTS)
+    # Migração automática — idempotente (usa CREATE TABLE/COLUMN IF NOT EXISTS)
     try:
         from app.core.database import migrate_database
+        from app.core.migrations import run_migrations
         migrate_database()
+        run_migrations()
     except Exception as _mig_err:
         print(f"[WARN] Migrações não puderam ser aplicadas automaticamente: {_mig_err}")
 

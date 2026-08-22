@@ -328,7 +328,7 @@ def register_routes(app):
             
             return render_template("students/edit_students.html", aluno=dict(aluno), series=Config.SERIES)
     
-    @app.route("/deletar_aluno/<int:id_aluno>")
+    @app.route("/deletar_aluno/<int:id_aluno>", methods=["POST"])
     @admin_required
     def deletar_aluno(id_aluno):
         with get_db() as conn:
@@ -531,7 +531,7 @@ def register_routes(app):
             
             return render_template("departures/edit_exits.html", saida=saida)
 
-    @app.route("/concluir_saida/<int:id_saida>")
+    @app.route("/concluir_saida/<int:id_saida>", methods=["POST"])
     @login_required
     def concluir_saida(id_saida):
         with get_db() as conn:
@@ -781,7 +781,7 @@ def register_routes(app):
         usuarios = repo.get_all_without_passwords()
         return render_template("admin/users.html", usuarios=usuarios)
     
-    @app.route("/deletar_usuario/<int:id_usuario>")
+    @app.route("/deletar_usuario/<int:id_usuario>", methods=["POST"])
     @admin_required
     def deletar_usuario(id_usuario):
         from app.repositories.user_repo import UserRepository
