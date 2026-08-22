@@ -165,6 +165,8 @@ def migrate_database():
         for col in ['tipo_saida', 'acompanhante', 'responsavel_escola', 'ra']:
             if not _col_exists(conn, 'solicitacoes_saida', col):
                 conn.execute(f"ALTER TABLE solicitacoes_saida ADD COLUMN {col} TEXT")
+        # Solicitações novas são identificadas por ra, não por aluno_id (FK local)
+        conn.execute("ALTER TABLE solicitacoes_saida ALTER COLUMN aluno_id DROP NOT NULL")
 
         # Vínculos pai→aluno validados pelo TOTVS (substituiu email_responsavel em alunos)
         conn.execute("""

@@ -3,11 +3,36 @@ from app.api.middleware import pai_required
 from app.core.database import get_db, expirar_saidas_nao_liberadas
 from app.core.mailer import enviar_email
 from app.services.totus_client import get_totus_client
+from app.services.school_directory import get_school_directory
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
 from collections import defaultdict
 import random
 import string
+
+
+def _resolver_dados_solicitacoes(rows):
+    """Enriquece linhas de `solicitacoes_saida` com nome/turma/série do aluno.
+
+    Linhas novas (com ra): resolvidas ao vivo via school_directory.
+    Linhas antigas (pré-migração RA, sem ra): usam os campos já trazidos pelo LEFT JOIN
+    legado com a tabela `alunos`, até serem migradas na Fase 5 do redesenho.
+    """
+    rows = [dict(r) for r in rows]
+    ras = [r['ra'] for r in rows if r.get('ra')]
+    diretorio = get_school_directory().get_students_by_ras(ras) if ras else {}
+
+    for r in rows:
+        if r.get('ra'):
+            info = diretorio.get(r['ra'])
+            r['aluno_nome'] = info['nome'] if info else f"RA {r['ra']}"
+            r['serie'] = (info or {}).get('serie')
+            r['turma'] = (info or {}).get('turma')
+        else:
+            r['aluno_nome'] = r.get('nome_legado')
+            r['serie'] = r.get('serie_legado')
+            r['turma'] = r.get('turma_legado')
+    return rows
 
 
 def register_parent_routes(app):
@@ -207,79 +232,21 @@ def register_parent_routes(app):
     @app.route("/pais/dashboard")
     @pai_required
     def pais_dashboard():
-        with get_db() as conn:
-            filhos = conn.execute(
-                """SELECT a.id, a.nome, a.turma, a.serie, a.foto_path
-                   FROM vinculos_pais_alunos v
-                   JOIN alunos a ON a.id = v.aluno_id
-                   WHERE v.responsavel_id = %s
-                   ORDER BY a.nome""",
-                (session['pai_id'],)
-            ).fetchall()
+        filhos = get_school_directory().get_students_for_guardian_email(session['pai_email'])
+        for f in filhos:
+            f['foto_src'] = f.get('foto_url')
         return render_template("pais/dashboard.html", filhos=filhos, nome=session['pai_nome'])
-
-    # ==================== VINCULAR FILHO ====================
-
-    @app.route("/pais/vincular", methods=["GET", "POST"])
-    @pai_required
-    def pais_vincular():
-        email = session['pai_email']
-        erro = None
-
-        if request.method == "POST":
-            nome_filho = request.form.get("nome_filho", "").strip()
-            if not nome_filho:
-                erro = "Digite o nome completo do seu filho."
-            else:
-                with get_db() as conn:
-                    candidatos = conn.execute(
-                        """SELECT id, nome FROM alunos
-                           WHERE LOWER(nome) = LOWER(%s)
-                           AND id NOT IN (
-                               SELECT aluno_id FROM vinculos_pais_alunos WHERE responsavel_id = %s
-                           )""",
-                        (nome_filho, session['pai_id'])
-                    ).fetchall()
-
-                if not candidatos:
-                    erro = "Nenhum aluno com esse nome encontrado. Verifique o nome exato como cadastrado na escola."
-                else:
-                    totus = get_totus_client()
-                    vinculados = []
-                    for c in candidatos:
-                        if totus.validar_vinculo(email, c['id']):
-                            vinculados.append(c)
-
-                    if not vinculados:
-                        erro = "O TOTVS não confirmou vínculo entre você e este aluno. Se acredita que é um erro, entre em contato com a secretaria."
-                    else:
-                        with get_db() as conn:
-                            for v in vinculados:
-                                conn.execute(
-                                    "INSERT INTO vinculos_pais_alunos (responsavel_id, aluno_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-                                    (session['pai_id'], v['id'])
-                                )
-                        nomes = ", ".join(v['nome'] for v in vinculados)
-                        flash(f"Vínculo confirmado com sucesso: {nomes}!", "success")
-                        return redirect("/pais/dashboard")
-
-        return render_template("pais/vincular_filhos.html", erro=erro, nome=session['pai_nome'])
 
     # ==================== SOLICITAR SAÍDA ====================
 
-    @app.route("/pais/solicitar/<int:aluno_id>", methods=["GET", "POST"])
+    @app.route("/pais/solicitar/<ra>", methods=["GET", "POST"])
     @pai_required
-    def pais_solicitar(aluno_id):
+    def pais_solicitar(ra):
         email = session['pai_email']
 
-        # Garante que este aluno pertence ao responsável logado
-        with get_db() as conn:
-            aluno = conn.execute(
-                """SELECT a.id, a.nome, a.turma, a.serie FROM alunos a
-                   JOIN vinculos_pais_alunos v ON v.aluno_id = a.id
-                   WHERE a.id = %s AND v.responsavel_id = %s""",
-                (aluno_id, session['pai_id'])
-            ).fetchone()
+        # Garante que este aluno pertence ao responsável logado (via consulta ao vivo)
+        filhos = get_school_directory().get_students_for_guardian_email(email)
+        aluno = next((f for f in filhos if f['ra'] == ra), None)
 
         if not aluno:
             flash("Aluno não encontrado ou sem vínculo com sua conta.", "error")
@@ -312,8 +279,8 @@ def register_parent_routes(app):
             with get_db() as conn:
                 # Verifica se já existe solicitação aguardando para este aluno nesta data
                 existente = conn.execute(
-                    "SELECT id FROM solicitacoes_saida WHERE aluno_id = %s AND data_solicitada = %s AND status = 'aguardando'",
-                    (aluno_id, data_solicitada)
+                    "SELECT id FROM solicitacoes_saida WHERE ra = %s AND data_solicitada = %s AND status = 'aguardando'",
+                    (ra, data_solicitada)
                 ).fetchone()
                 if existente:
                     return render_template("pais/solicitar_saida.html", aluno=aluno, today=today,
@@ -321,10 +288,10 @@ def register_parent_routes(app):
 
                 conn.execute(
                     """INSERT INTO solicitacoes_saida
-                       (responsavel_id, aluno_id, data_solicitada, horario_solicitado, motivo,
+                       (responsavel_id, ra, data_solicitada, horario_solicitado, motivo,
                         tipo_saida, acompanhante, status)
                        VALUES (%s, %s, %s, %s, %s, %s, %s, 'aguardando')""",
-                    (session['pai_id'], aluno_id, data_solicitada, horario, motivo,
+                    (session['pai_id'], ra, data_solicitada, horario, motivo,
                      tipo_saida, acompanhante or None)
                 )
 
@@ -341,20 +308,24 @@ def register_parent_routes(app):
     def pais_editar_solicitacao(sol_id):
         with get_db() as conn:
             expirar_saidas_nao_liberadas(conn)
-            sol = conn.execute(
-                """SELECT ss.*, a.nome, a.turma, a.serie,
+            sol_row = conn.execute(
+                """SELECT ss.*, a.nome AS nome_legado, a.turma AS turma_legado, a.serie AS serie_legado,
                           s.status AS saida_status
                    FROM solicitacoes_saida ss
-                   JOIN alunos a ON a.id = ss.aluno_id
-                   LEFT JOIN saidas s ON s.aluno = ss.aluno_id
-                         AND s.data_saida = ss.data_solicitada
+                   LEFT JOIN alunos a ON a.id = ss.aluno_id
+                   LEFT JOIN saidas s ON (
+                       (ss.ra IS NOT NULL AND s.ra = ss.ra AND s.data_saida = ss.data_solicitada)
+                       OR (ss.aluno_id IS NOT NULL AND s.aluno = ss.aluno_id AND s.data_saida = ss.data_solicitada)
+                   )
                    WHERE ss.id = %s AND ss.responsavel_id = %s""",
                 (sol_id, session['pai_id'])
             ).fetchone()
 
-        if not sol:
+        if not sol_row:
             flash("Solicitação não encontrada.", "error")
             return redirect("/pais/minhas_solicitacoes")
+
+        sol = _resolver_dados_solicitacoes([sol_row])[0]
 
         if sol['status'] == 'rejeitado':
             flash("Solicitações rejeitadas não podem ser editadas. Envie uma nova solicitação.", "error")
@@ -364,7 +335,7 @@ def register_parent_routes(app):
             flash("Esta saída já passou da data e não pode mais ser editada.", "error")
             return redirect("/pais/minhas_solicitacoes")
 
-        aluno = {"id": sol['aluno_id'], "nome": sol['nome'], "turma": sol['turma'], "serie": sol['serie']}
+        aluno = {"nome": sol['aluno_nome'], "turma": sol['turma'], "serie": sol['serie']}
         today = datetime.now().strftime("%Y-%m-%d")
 
         if request.method == "POST":
@@ -416,10 +387,16 @@ def register_parent_routes(app):
                         (data_solicitada, horario, motivo, tipo_saida, acompanhante or None, sol_id)
                     )
                     # Remove a saída pendente antiga da portaria — precisa ser reaprovada
-                    conn.execute(
-                        "DELETE FROM saidas WHERE aluno=%s AND data_saida=%s AND status='pendente'",
-                        (sol['aluno_id'], sol['data_solicitada'])
-                    )
+                    if sol['ra']:
+                        conn.execute(
+                            "DELETE FROM saidas WHERE ra=%s AND data_saida=%s AND status='pendente'",
+                            (sol['ra'], sol['data_solicitada'])
+                        )
+                    else:
+                        conn.execute(
+                            "DELETE FROM saidas WHERE aluno=%s AND data_saida=%s AND status='pendente'",
+                            (sol['aluno_id'], sol['data_solicitada'])
+                        )
                     flash("Solicitação atualizada. Como o horário, tipo ou acompanhante mudou, "
                           "ela voltou para aguardando aprovação da escola.", "success")
                 else:
@@ -432,10 +409,16 @@ def register_parent_routes(app):
                     )
                     if sol['status'] == 'aprovado':
                         # Mantém a saída já aprovada em sincronia com o novo motivo
-                        conn.execute(
-                            "UPDATE saidas SET motivo=%s WHERE aluno=%s AND data_saida=%s AND status='pendente'",
-                            (motivo, sol['aluno_id'], sol['data_solicitada'])
-                        )
+                        if sol['ra']:
+                            conn.execute(
+                                "UPDATE saidas SET motivo=%s WHERE ra=%s AND data_saida=%s AND status='pendente'",
+                                (motivo, sol['ra'], sol['data_solicitada'])
+                            )
+                        else:
+                            conn.execute(
+                                "UPDATE saidas SET motivo=%s WHERE aluno=%s AND data_saida=%s AND status='pendente'",
+                                (motivo, sol['aluno_id'], sol['data_solicitada'])
+                            )
                     flash("Solicitação atualizada com sucesso!", "success")
 
             return redirect("/pais/minhas_solicitacoes")
@@ -445,28 +428,24 @@ def register_parent_routes(app):
 
     # ==================== HISTÓRICO DE SAÍDAS DO FILHO ====================
 
-    @app.route("/pais/historico/<int:aluno_id>")
+    @app.route("/pais/historico/<ra>")
     @pai_required
-    def pais_historico_filho(aluno_id):
+    def pais_historico_filho(ra):
+        filhos = get_school_directory().get_students_for_guardian_email(session['pai_email'])
+        aluno = next((f for f in filhos if f['ra'] == ra), None)
+
+        if not aluno:
+            flash("Aluno não encontrado ou sem vínculo com sua conta.", "error")
+            return redirect("/pais/dashboard")
+
         with get_db() as conn:
-            aluno = conn.execute(
-                """SELECT a.id, a.nome, a.turma, a.serie FROM alunos a
-                   JOIN vinculos_pais_alunos v ON v.aluno_id = a.id
-                   WHERE a.id = %s AND v.responsavel_id = %s""",
-                (aluno_id, session['pai_id'])
-            ).fetchone()
-
-            if not aluno:
-                flash("Aluno não encontrado ou sem vínculo com sua conta.", "error")
-                return redirect("/pais/dashboard")
-
             expirar_saidas_nao_liberadas(conn)
             historico = conn.execute(
                 """SELECT data_saida, horario, tipo_saida, acompanhante, status
                    FROM saidas
-                   WHERE aluno = %s
+                   WHERE ra = %s
                    ORDER BY data_saida DESC, horario DESC""",
-                (aluno_id,)
+                (ra,)
             ).fetchall()
 
         return render_template("pais/historico_filho.html", aluno=aluno, historico=historico)
@@ -484,19 +463,22 @@ def register_parent_routes(app):
                   AND criado_em < NOW() - INTERVAL '30 days'
             """, (session['pai_id'],))
             expirar_saidas_nao_liberadas(conn)
-            solicitacoes = conn.execute(
+            rows = conn.execute(
                 """SELECT ss.id, ss.data_solicitada, ss.horario_solicitado, ss.motivo,
-                          ss.status, ss.criado_em,
-                          a.nome AS aluno_nome, a.turma, a.serie,
+                          ss.status, ss.criado_em, ss.ra,
+                          a.nome AS nome_legado, a.turma AS turma_legado, a.serie AS serie_legado,
                           s.status AS saida_status
                    FROM solicitacoes_saida ss
-                   JOIN alunos a ON a.id = ss.aluno_id
-                   LEFT JOIN saidas s ON s.aluno = ss.aluno_id
-                         AND s.data_saida = ss.data_solicitada
+                   LEFT JOIN alunos a ON a.id = ss.aluno_id
+                   LEFT JOIN saidas s ON (
+                       (ss.ra IS NOT NULL AND s.ra = ss.ra AND s.data_saida = ss.data_solicitada)
+                       OR (ss.aluno_id IS NOT NULL AND s.aluno = ss.aluno_id AND s.data_saida = ss.data_solicitada)
+                   )
                    WHERE ss.responsavel_id = %s
                    ORDER BY ss.criado_em DESC""",
                 (session['pai_id'],)
             ).fetchall()
+        solicitacoes = _resolver_dados_solicitacoes(rows)
         return render_template("pais/minhas_solicitacoes.html", solicitacoes=solicitacoes, nome=session['pai_nome'])
 
     # ==================== ESQUECI A SENHA ====================
