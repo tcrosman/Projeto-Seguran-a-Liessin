@@ -86,6 +86,12 @@ def migrate_database():
         if not _col_exists(conn, 'saidas', 'usuario_autorizou'):
             conn.execute("ALTER TABLE saidas ADD COLUMN usuario_autorizou INTEGER")
 
+        # RA do aluno (identidade passa a vir do RA, não mais de alunos.id) e hora real da liberação
+        if not _col_exists(conn, 'saidas', 'ra'):
+            conn.execute("ALTER TABLE saidas ADD COLUMN ra TEXT")
+        if not _col_exists(conn, 'saidas', 'liberado_em'):
+            conn.execute("ALTER TABLE saidas ADD COLUMN liberado_em TIMESTAMP")
+
         # Tabela de logs de alunos (auditoria)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS logs_alunos (
@@ -151,7 +157,7 @@ def migrate_database():
         """)
 
         # Colunas adicionadas após criação inicial da tabela solicitacoes_saida
-        for col in ['tipo_saida', 'acompanhante', 'responsavel_escola']:
+        for col in ['tipo_saida', 'acompanhante', 'responsavel_escola', 'ra']:
             if not _col_exists(conn, 'solicitacoes_saida', col):
                 conn.execute(f"ALTER TABLE solicitacoes_saida ADD COLUMN {col} TEXT")
 
