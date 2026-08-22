@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, session, flash, send_from_directory
 from app.api.middleware import login_required, admin_required
-from app.core.database import get_db
+from app.core.database import get_db, expirar_saidas_nao_liberadas
 from app.core.audit_logger import log_operacao
 from app.config import Config
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -302,10 +302,11 @@ def register_routes(app):
                 flash("Aluno não encontrado", "error")
                 return redirect("/cadastro_aluno")
 
+            expirar_saidas_nao_liberadas(conn)
             historico = conn.execute("""
                 SELECT data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status
                 FROM saidas
-                WHERE aluno = %s AND status = 'concluida'
+                WHERE aluno = %s
                 ORDER BY data_saida DESC, horario DESC
             """, (id_aluno,)).fetchall()
         
@@ -319,6 +320,7 @@ def register_routes(app):
         
         if nome:
             with get_db() as conn:
+                expirar_saidas_nao_liberadas(conn)
                 rows = conn.execute("""
                     SELECT a.id, a.nome, a.turma, a.serie, a.foto_path,
                            s.data_saida, s.horario, s.motivo, s.responsavel_escola, s.tipo_saida, s.acompanhante, s.status
@@ -395,7 +397,9 @@ def register_routes(app):
         with get_db() as conn:
             # Limpar saídas antigas
             conn.execute("DELETE FROM saidas WHERE status = 'concluida' AND data_saida < TO_CHAR(CURRENT_DATE - INTERVAL '30 days', 'YYYY-MM-DD')")
-            
+            # Marca como não realizadas as saídas aprovadas cujo dia já passou sem liberação
+            expirar_saidas_nao_liberadas(conn)
+
             if busca:
                 rows = conn.execute("""
                     SELECT s.id, a.nome as aluno, s.horario, s.motivo, s.responsavel_escola, s.tipo_saida, s.acompanhante, s.documento_path, s.status,
@@ -419,10 +423,12 @@ def register_routes(app):
         
         pendentes = [s for s in saidas if s['status'] == 'pendente']
         concluidas = [s for s in saidas if s['status'] == 'concluida']
-        
+        nao_realizadas = [s for s in saidas if s['status'] == 'nao_realizada']
+
         return render_template("departures/list_of_exits.html",
                                pendentes=pendentes,
                                concluidas=concluidas,
+                               nao_realizadas=nao_realizadas,
                                data_selecionada=data_selecionada,
                                busca=busca)
     
@@ -467,6 +473,32 @@ def register_routes(app):
         with get_db() as conn:
             conn.execute("UPDATE saidas SET status = 'concluida', usuario_autorizou = %s WHERE id = %s",
                         (session['user_id'], id_saida))
+
+            saida = conn.execute("""
+                SELECT s.data_saida, s.horario, a.id AS aluno_id, a.nome AS aluno_nome
+                FROM saidas s
+                JOIN alunos a ON a.id = s.aluno
+                WHERE s.id = %s
+            """, (id_saida,)).fetchone()
+
+            responsaveis = conn.execute("""
+                SELECT r.email
+                FROM vinculos_pais_alunos v
+                JOIN responsaveis r ON r.id = v.responsavel_id
+                WHERE v.aluno_id = %s
+            """, (saida['aluno_id'],)).fetchall() if saida else []
+
+        if saida:
+            from app.core.mailer import enviar_email
+            for r in responsaveis:
+                enviar_email(
+                    r['email'],
+                    "Saída liberada — SecureEdu",
+                    f"""<p>Olá! A saída de <strong>{saida['aluno_nome']}</strong> foi
+                    <strong style="color:#16a34a;">liberada pela segurança da escola</strong>
+                    hoje às <strong>{saida['horario']}</strong>.</p>"""
+                )
+
         log_operacao(session.get('username'), "CONCLUIU SAÍDA", f"ID Saída: {id_saida}")
         flash("Saída autorizada!", "success")
         return redirect("/saidas")
@@ -782,14 +814,22 @@ def register_routes(app):
     @admin_required
     def admin_solicitacoes():
         with get_db() as conn:
+            conn.execute("""
+                DELETE FROM solicitacoes_saida
+                WHERE status IN ('aprovado', 'rejeitado')
+                  AND criado_em < NOW() - INTERVAL '30 days'
+            """)
+            expirar_saidas_nao_liberadas(conn)
             rows = conn.execute("""
                 SELECT ss.id, ss.data_solicitada, ss.horario_solicitado, ss.motivo, ss.status,
                        ss.tipo_saida, ss.acompanhante,
                        a.nome AS aluno_nome, a.turma, a.serie,
-                       r.nome AS responsavel_nome, r.email AS responsavel_email
+                       r.nome AS responsavel_nome, r.email AS responsavel_email,
+                       s.status AS saida_status
                 FROM solicitacoes_saida ss
                 JOIN alunos a ON a.id = ss.aluno_id
                 JOIN responsaveis r ON r.id = ss.responsavel_id
+                LEFT JOIN saidas s ON s.aluno = ss.aluno_id AND s.data_saida = ss.data_solicitada
                 ORDER BY ss.criado_em DESC
                 LIMIT 100
             """).fetchall()
@@ -834,13 +874,6 @@ def register_routes(app):
                 sol['acompanhante'] or sol['responsavel_nome'],
             ))
 
-        from app.core.mailer import enviar_email
-        enviar_email(
-            sol['responsavel_email'],
-            "Saída aprovada — SecureEdu",
-            f"""<p>Olá! A saída de <strong>{sol['aluno_nome']}</strong> para o dia <strong>{sol['data_solicitada']}</strong>
-            foi <strong style="color:#16a34a;">aprovada</strong> pela escola.</p>"""
-        )
         flash(f"Saída de {sol['aluno_nome']} aprovada e registrada.", "success")
         return redirect("/admin/solicitacoes")
 

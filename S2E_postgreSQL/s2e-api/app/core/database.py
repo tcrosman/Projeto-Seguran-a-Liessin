@@ -165,3 +165,22 @@ def migrate_database():
                 UNIQUE(responsavel_id, aluno_id)
             )
         """)
+
+        # Tokens de redefinição de senha para responsáveis
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS reset_tokens_pais (
+                id             SERIAL PRIMARY KEY,
+                responsavel_id INTEGER NOT NULL,
+                token          TEXT NOT NULL UNIQUE,
+                expires_at     TIMESTAMP NOT NULL,
+                criado_em      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+
+def expirar_saidas_nao_liberadas(conn):
+    """Marca como 'nao_realizada' as saídas aprovadas cuja data já passou sem terem sido liberadas pela segurança."""
+    conn.execute("""
+        UPDATE saidas SET status = 'nao_realizada'
+        WHERE status = 'pendente' AND data_saida < TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')
+    """)

@@ -7,8 +7,10 @@
   <link rel="stylesheet" href="/static/css/style.css">
   <style>
     .badge-aguardando { background:#fef9c3; color:#92400e; border:1px solid #fde68a; }
-    .badge-aprovado   { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
+    .badge-aprovado   { background:#dbeafe; color:#1d4ed8; border:1px solid #bfdbfe; }
+    .badge-saiu       { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
     .badge-rejeitado  { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+    .badge-nao-realizada { background:#f3f4f6; color:#4b5563; border:1px solid #e5e7eb; }
     .status-badge {
       display:inline-block; padding:2px 10px; border-radius:20px;
       font-size:12px; font-weight:600;
@@ -34,6 +36,16 @@
     </div>
 
     {% if solicitacoes %}
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
+        <input id="busca" type="text" placeholder="Buscar por aluno ou motivo..."
+               class="form-input" style="flex:1; min-width:180px; max-width:320px;"
+               oninput="filtrar()">
+        <input id="data-filtro" type="date" class="form-input" style="width:180px;"
+               onchange="filtrar()">
+        <button class="btn btn-secondary" style="font-size:13px;" onclick="limpar()">Limpar</button>
+      </div>
+      <p id="sem-resultado" style="display:none; color:#9ca3af; font-size:14px; margin-bottom:12px;">Nenhuma solicitação encontrada.</p>
+
       <div class="card" style="padding:0; overflow:hidden;">
         <table style="width:100%; border-collapse:collapse;">
           <thead>
@@ -42,11 +54,12 @@
               <th style="text-align:left; padding:12px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Data</th>
               <th style="text-align:left; padding:12px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Motivo</th>
               <th style="text-align:left; padding:12px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Status</th>
+              <th style="padding:12px 16px; border-bottom:1px solid #e5e7eb;"></th>
             </tr>
           </thead>
           <tbody>
             {% for s in solicitacoes %}
-              <tr style="border-bottom:1px solid #f3f4f6;">
+              <tr class="linha-sol" data-busca="{{ s.aluno_nome|lower }} {{ (s.motivo or '')|lower }}" data-data="{{ s.data_solicitada }}" style="border-bottom:1px solid #f3f4f6;">
                 <td style="padding:12px 16px;">
                   <div style="font-size:14px; font-weight:600; color:#111827;">{{ s.aluno_nome }}</div>
                   <div style="font-size:12px; color:#9ca3af;">{{ s.serie }} — Turma {{ s.turma }}</div>
@@ -61,10 +74,21 @@
                 <td style="padding:12px 16px;">
                   {% if s.status == 'aguardando' %}
                     <span class="status-badge badge-aguardando">Aguardando</span>
-                  {% elif s.status == 'aprovado' %}
-                    <span class="status-badge badge-aprovado">Aprovado</span>
                   {% elif s.status == 'rejeitado' %}
                     <span class="status-badge badge-rejeitado">Rejeitado</span>
+                  {% elif s.status == 'aprovado' %}
+                    {% if s.saida_status == 'concluida' %}
+                      <span class="status-badge badge-saiu">Aluno saiu ✓</span>
+                    {% elif s.saida_status == 'nao_realizada' %}
+                      <span class="status-badge badge-nao-realizada">Não realizada</span>
+                    {% else %}
+                      <span class="status-badge badge-aprovado">Aprovado</span>
+                    {% endif %}
+                  {% endif %}
+                </td>
+                <td style="padding:12px 16px;">
+                  {% if s.status == 'aguardando' or (s.status == 'aprovado' and s.saida_status not in ['concluida', 'nao_realizada']) %}
+                    <a href="/pais/editar_solicitacao/{{ s.id }}" style="font-size:13px; color:#2563eb; font-weight:600; text-decoration:none; white-space:nowrap;">Editar</a>
                   {% endif %}
                 </td>
               </tr>
@@ -81,5 +105,27 @@
       </div>
     {% endif %}
   </div>
+  <script>
+    function filtrar() {
+      const texto = document.getElementById('busca').value.toLowerCase().trim();
+      const data  = document.getElementById('data-filtro').value;
+      const linhas = document.querySelectorAll('.linha-sol');
+      let visiveis = 0;
+      linhas.forEach(function(tr) {
+        const textoOk = !texto || tr.dataset.busca.includes(texto);
+        const dataOk  = !data  || tr.dataset.data === data;
+        const mostrar = textoOk && dataOk;
+        tr.style.display = mostrar ? '' : 'none';
+        if (mostrar) visiveis++;
+      });
+      const ativo = texto || data;
+      document.getElementById('sem-resultado').style.display = (visiveis === 0 && ativo) ? '' : 'none';
+    }
+    function limpar() {
+      document.getElementById('busca').value = '';
+      document.getElementById('data-filtro').value = '';
+      filtrar();
+    }
+  </script>
 </body>
 </html>

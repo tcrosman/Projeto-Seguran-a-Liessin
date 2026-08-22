@@ -86,9 +86,14 @@
               <div class="filho-nome">{{ filho.nome }}</div>
               <div class="filho-serie">{{ filho.serie }} — Turma {{ filho.turma }}</div>
             </div>
-            <a href="/pais/solicitar/{{ filho.id }}" class="btn btn-primary" style="font-size:13px; padding:8px 18px;">
-              Solicitar saída
-            </a>
+            <div style="display:flex; gap:8px;">
+              <a href="/pais/historico/{{ filho.id }}" class="btn btn-secondary" style="font-size:13px; padding:8px 16px; white-space:nowrap;">
+                Histórico
+              </a>
+              <a href="/pais/solicitar/{{ filho.id }}" class="btn btn-primary" style="font-size:13px; padding:8px 18px; white-space:nowrap;">
+                Solicitar saída
+              </a>
+            </div>
           </div>
         {% endfor %}
       </div>

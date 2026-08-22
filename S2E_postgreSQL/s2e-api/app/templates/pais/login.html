@@ -19,6 +19,10 @@
       <p style="font-size:13px; color:#6b7280;">Acesse para solicitar saídas antecipadas</p>
     </div>
 
+    {% if request.args.get('resetado') %}
+      <div class="alert alert-success" style="margin-bottom:16px;">Senha redefinida com sucesso. Faça o login.</div>
+    {% endif %}
+
     {% if erro %}
       <div class="alert alert-error" style="margin-bottom:16px;">{{ erro }}</div>
     {% endif %}
@@ -38,10 +42,21 @@
                placeholder="Sua senha" autocomplete="current-password">
       </div>
 
-      <button class="btn btn-primary btn-full" type="submit" style="margin-top:8px;">Entrar</button>
+      <button class="btn btn-primary btn-full" type="submit" id="btn-entrar" style="margin-top:8px;">Entrar</button>
     </form>
+    <script>
+      document.querySelector('form').addEventListener('submit', function() {
+        const btn = document.getElementById('btn-entrar');
+        btn.disabled = true;
+        btn.textContent = 'Entrando...';
+      });
+    </script>
 
-    <p style="text-align:center; margin-top:20px; font-size:13px; color:#6b7280;">
+    <p style="text-align:center; margin-top:12px; font-size:13px;">
+      <a href="/pais/esqueci_senha" style="color:#2563eb;">Esqueceu a senha?</a>
+    </p>
+
+    <p style="text-align:center; margin-top:8px; font-size:13px; color:#6b7280;">
       Não tem conta? <a href="/pais/cadastro" style="color:#2563eb; font-weight:600;">Cadastre-se</a>
     </p>
 
