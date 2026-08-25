@@ -62,7 +62,6 @@
                   <th>Resp. Escola</th>
                   <th>Tipo</th>
                   <th>Status</th>
-                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -99,9 +98,6 @@
                     {% else %}
                       <span style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:2px 10px; border-radius:20px; font-size:12px; font-weight:600;">Concluída</span>
                     {% endif %}
-                  </td>
-                  <td>
-                    <a href="/historico_aluno/{{ r.id }}" class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;">Detalhes</a>
                   </td>
                 </tr>
                 {% endfor %}

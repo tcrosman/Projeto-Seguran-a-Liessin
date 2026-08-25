@@ -168,7 +168,8 @@ def migrate_database():
         # Solicitações novas são identificadas por ra, não por aluno_id (FK local)
         conn.execute("ALTER TABLE solicitacoes_saida ALTER COLUMN aluno_id DROP NOT NULL")
 
-        # Vínculos pai→aluno validados pelo TOTVS (substituiu email_responsavel em alunos)
+        # Vínculos pai→aluno legados (substituiu email_responsavel em alunos); o fluxo atual
+        # resolve o vínculo ao vivo no banco SQL da escola, sem gravar aqui
         conn.execute("""
             CREATE TABLE IF NOT EXISTS vinculos_pais_alunos (
                 id             SERIAL PRIMARY KEY,

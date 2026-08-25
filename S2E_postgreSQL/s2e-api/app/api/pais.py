@@ -2,8 +2,7 @@ from flask import render_template, request, redirect, session, flash
 from app.api.middleware import pai_required
 from app.core.database import get_db, expirar_saidas_nao_liberadas
 from app.core.mailer import enviar_email
-from app.services.totus_client import get_totus_client
-from app.services.school_directory import get_school_directory
+from app.services.school_sql_directory import get_school_sql_directory
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -11,16 +10,32 @@ import random
 import string
 
 
+def _responsavel_reconhecido_pela_escola(email):
+    """Confirma no banco SQL da escola se o e-mail é um responsável reconhecido — usada no
+    autocadastro (/pais/cadastro) e no login (/pais/login). Falha na consulta é tratada como
+    "não reconhecido" (fail-closed): sem confirmar o vínculo, não se cria conta nem se libera acesso."""
+    try:
+        return bool(get_school_sql_directory().responsavel_reconhecido(email))
+    except Exception as e:
+        print(f"[SCHOOL_SQL] Erro ao validar responsável: {e}")
+        return False
+
+
 def _resolver_dados_solicitacoes(rows):
     """Enriquece linhas de `solicitacoes_saida` com nome/turma/série do aluno.
 
-    Linhas novas (com ra): resolvidas ao vivo via school_directory.
+    Linhas novas (com ra): resolvidas ao vivo via school_sql_directory.
     Linhas antigas (pré-migração RA, sem ra): usam os campos já trazidos pelo LEFT JOIN
     legado com a tabela `alunos`, até serem migradas na Fase 5 do redesenho.
     """
     rows = [dict(r) for r in rows]
     ras = [r['ra'] for r in rows if r.get('ra')]
-    diretorio = get_school_directory().get_students_by_ras(ras) if ras else {}
+    diretorio = {}
+    if ras:
+        try:
+            diretorio = get_school_sql_directory().get_students_by_ras(ras)
+        except Exception as e:
+            print(f"[SCHOOL_SQL] Erro ao resolver solicitações: {e}")
 
     for r in rows:
         if r.get('ra'):
@@ -87,6 +102,13 @@ def register_parent_routes(app):
             if len(senha) < 8:
                 return render_template("pais/cadastro.html", erro="A senha deve ter pelo menos 8 caracteres.")
 
+            # Só permite autocadastro se a escola reconhece este e-mail como responsável.
+            if not _responsavel_reconhecido_pela_escola(email):
+                return render_template(
+                    "pais/cadastro.html",
+                    erro="Não encontramos esse e-mail como responsável cadastrado na escola. Entre em contato com a secretaria."
+                )
+
             with get_db() as conn:
                 existente = conn.execute(
                     "SELECT id FROM responsaveis WHERE email = %s", (email,)
@@ -146,9 +168,8 @@ def register_parent_routes(app):
             if resp['status'] == 'bloqueado':
                 return render_template("pais/login.html", erro="Sua conta foi bloqueada. Entre em contato com a escola.")
 
-            # Valida com o TOTVS
-            totus = get_totus_client()
-            if not totus.validar_responsavel(email):
+            # Confirma no banco SQL da escola que o e-mail ainda é um responsável reconhecido
+            if not _responsavel_reconhecido_pela_escola(email):
                 return render_template("pais/login.html", erro="Não foi possível confirmar seu vínculo com a escola. Entre em contato com a secretaria.")
 
             # Gera e envia token 2FA — protege contra duplo-submit
@@ -232,7 +253,11 @@ def register_parent_routes(app):
     @app.route("/pais/dashboard")
     @pai_required
     def pais_dashboard():
-        filhos = get_school_directory().get_students_for_guardian_email(session['pai_email'])
+        try:
+            filhos = get_school_sql_directory().get_students_for_guardian_email(session['pai_email'])
+        except Exception as e:
+            print(f"[SCHOOL_SQL] Erro ao carregar dashboard: {e}")
+            filhos = []
         for f in filhos:
             f['foto_src'] = f.get('foto_url')
         return render_template("pais/dashboard.html", filhos=filhos, nome=session['pai_nome'])
@@ -245,7 +270,11 @@ def register_parent_routes(app):
         email = session['pai_email']
 
         # Garante que este aluno pertence ao responsável logado (via consulta ao vivo)
-        filhos = get_school_directory().get_students_for_guardian_email(email)
+        try:
+            filhos = get_school_sql_directory().get_students_for_guardian_email(email)
+        except Exception as e:
+            print(f"[SCHOOL_SQL] Erro ao solicitar saída: {e}")
+            filhos = []
         aluno = next((f for f in filhos if f['ra'] == ra), None)
 
         if not aluno:
@@ -431,7 +460,11 @@ def register_parent_routes(app):
     @app.route("/pais/historico/<ra>")
     @pai_required
     def pais_historico_filho(ra):
-        filhos = get_school_directory().get_students_for_guardian_email(session['pai_email'])
+        try:
+            filhos = get_school_sql_directory().get_students_for_guardian_email(session['pai_email'])
+        except Exception as e:
+            print(f"[SCHOOL_SQL] Erro ao carregar histórico: {e}")
+            filhos = []
         aluno = next((f for f in filhos if f['ra'] == ra), None)
 
         if not aluno:

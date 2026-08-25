@@ -47,9 +47,11 @@ def create_app():
         'connect-src': "'self'",
         'frame-ancestors': "'none'",
     }
+    _force_https = os.getenv('FORCE_HTTPS', 'false').lower() == 'true'
     Talisman(
         app,
-        force_https=os.getenv('FORCE_HTTPS', 'false').lower() == 'true',
+        force_https=_force_https,
+        session_cookie_secure=_force_https,
         strict_transport_security=True,
         strict_transport_security_max_age=31536000,
         strict_transport_security_include_subdomains=True,

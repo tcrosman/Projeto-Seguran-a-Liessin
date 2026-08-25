@@ -6,7 +6,7 @@ class TTLCache:
     """Cache em memória de processo com expiração por tempo.
 
     Não persiste em disco nem sobrevive a um restart do processo — usado para
-    dados vindos de consultas externas (ex: app/services/school_directory.py)
+    dados vindos de consultas externas (ex: app/services/school_sql_directory.py)
     que não devem ser gravados localmente, só reduzir chamadas repetidas.
     """
 

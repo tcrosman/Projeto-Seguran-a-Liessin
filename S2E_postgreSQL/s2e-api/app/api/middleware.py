@@ -4,10 +4,9 @@ from datetime import datetime
 
 # LGPD Art. 46 (💻 App obligation) — need-to-know access control: routes forbidden to vigia role
 _VIGIA_BLOCKED_ENDPOINTS = {
-    'cadastro_aluno', 'editar_aluno', 'deletar_aluno', 'historico_aluno',
     'historico_geral', 'registrar_saida', 'editar_saida',
     'configuracoes', 'admin_backup', 'gerenciar_usuarios', 'deletar_usuario',
-    'configurar_horarios', 'cadastro_massa', 'manual', 'manual_basico', 'manual_avancado',
+    'configurar_horarios', 'manual', 'manual_basico', 'manual_avancado',
 }
 
 def login_required(f):

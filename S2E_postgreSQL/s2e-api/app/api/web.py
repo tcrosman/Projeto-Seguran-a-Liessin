@@ -3,7 +3,7 @@ from app.api.middleware import login_required, admin_required
 from app.core.database import get_db, expirar_saidas_nao_liberadas
 from app.core.audit_logger import log_operacao
 from app.core.cache import TTLCache
-from app.services.school_directory import get_school_directory
+from app.services.school_sql_directory import get_school_sql_directory
 from app.config import Config
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import datetime, timedelta
@@ -16,18 +16,18 @@ _cache_diretorio = TTLCache(ttl_seconds=300)
 
 
 def _buscar_alunos_com_cache(ras):
-    """Resolve ra -> dados do aluno via school_directory, com cache curto (5 min) e fallback
+    """Resolve ra -> dados do aluno via school_sql_directory, com cache curto (5 min) e fallback
     para o último dado conhecido se a consulta externa estiver indisponível no momento."""
     if not ras:
         return {}
     faltando = [ra for ra in set(ras) if _cache_diretorio.get(ra) is None]
     if faltando:
         try:
-            frescos = get_school_directory().get_students_by_ras(faltando)
+            frescos = get_school_sql_directory().get_students_by_ras(faltando)
             for ra, info in frescos.items():
                 _cache_diretorio.set(ra, info)
         except Exception as e:
-            print(f"[SCHOOL_DIRECTORY] Consulta indisponível, usando cache: {e}")
+            print(f"[SCHOOL_SQL] Consulta indisponível, usando cache: {e}")
     resultado = {}
     for ra in set(ras):
         info = _cache_diretorio.get(ra) or _cache_diretorio.get_stale(ra)
@@ -36,10 +36,46 @@ def _buscar_alunos_com_cache(ras):
     return resultado
 
 
+def _nome_e_emails_para_saida(ra):
+    """Resolve nome do aluno e e-mails dos responsáveis via school_sql_directory para notificar
+    após liberar uma saída, sem propagar falha — usada por /concluir_saida, onde a liberação
+    já foi persistida no banco e não pode ser desfeita por uma falha na consulta externa."""
+    try:
+        info = get_school_sql_directory().get_student(ra)
+        emails = get_school_sql_directory().get_guardian_emails_for_ra(ra)
+    except Exception as e:
+        print(f"[SCHOOL_SQL] Erro ao concluir saída: {e}")
+        info, emails = None, []
+    nome_aluno = info['nome'] if info else f"RA {ra}"
+    return nome_aluno, emails
+
+
+def _resolver_solicitacoes(rows):
+    """Enriquece linhas de `solicitacoes_saida` com nome/turma/série do aluno, para as telas do admin.
+
+    Linhas novas (com ra): resolvidas ao vivo no banco da escola — são a maioria, já que o portal
+    dos pais só grava `ra`. Linhas antigas (sem ra): usam os campos do LEFT JOIN legado com `alunos`.
+    """
+    rows = [dict(r) for r in rows]
+    diretorio = _buscar_alunos_com_cache([r['ra'] for r in rows if r.get('ra')])
+
+    for r in rows:
+        if r.get('ra'):
+            info = diretorio.get(r['ra'])
+            r['aluno_nome'] = info['nome'] if info else f"RA {r['ra']}"
+            r['serie'] = (info or {}).get('serie')
+            r['turma'] = (info or {}).get('turma')
+        else:
+            r['aluno_nome'] = r.get('nome_legado')
+            r['serie'] = r.get('serie_legado')
+            r['turma'] = r.get('turma_legado')
+    return rows
+
+
 def _resolver_dados_saidas(rows):
     """Enriquece linhas de `saidas` com nome/foto/turma/série do aluno, prontas para o template.
 
-    Linhas novas (com ra): resolvidas ao vivo via school_directory — nada disso é persistido,
+    Linhas novas (com ra): resolvidas ao vivo via school_sql_directory — nada disso é persistido,
     só usado para renderizar a página atual.
     Linhas antigas (pré-migração RA, sem ra): usam os campos já trazidos pelo LEFT JOIN legado
     com a tabela `alunos`, até serem migradas na Fase 5 do redesenho.
@@ -246,127 +282,6 @@ def register_routes(app):
         
         return render_template("auth/reset.html", erro=erro, token=token if user_id else None)
     
-    # ==================== ALUNOS ====================
-    @app.route("/cadastro_aluno")
-    @login_required
-    def cadastro_aluno():
-        busca = request.args.get("busca")
-        _ordem_serie = """
-            CASE serie
-                WHEN 'Berçário 1' THEN 1  WHEN 'Berçário 2' THEN 2
-                WHEN 'Pré 1'      THEN 3  WHEN 'Pré 2'      THEN 4
-                WHEN '1º ano EF'  THEN 5  WHEN '2º ano EF'  THEN 6
-                WHEN '3º ano EF'  THEN 7  WHEN '4º ano EF'  THEN 8
-                WHEN '5º ano EF'  THEN 9  WHEN '6º ano EF'  THEN 10
-                WHEN '7º ano EF'  THEN 11 WHEN '8º ano EF'  THEN 12
-                WHEN '9º ano EF'  THEN 13
-                WHEN '1º ano EM'  THEN 14 WHEN '2º ano EM'  THEN 15
-                WHEN '3º ano EM'  THEN 16 ELSE 99
-            END, turma, nome
-        """
-        with get_db() as conn:
-            if busca:
-                rows = conn.execute(
-                    f"SELECT id, nome, turma, serie, foto_path FROM alunos WHERE nome ILIKE %s ORDER BY {_ordem_serie}",
-                    (f'%{busca}%',)
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    f"SELECT id, nome, turma, serie, foto_path FROM alunos ORDER BY {_ordem_serie}"
-                ).fetchall()
-
-        from itertools import groupby
-        alunos = [dict(row) for row in rows]
-        grupos = [
-            {'serie': serie, 'turma': turma, 'alunos': list(membros)}
-            for (serie, turma), membros in groupby(alunos, key=lambda a: (a['serie'], a['turma']))
-        ]
-        return render_template("students/list_of_students.html", grupos=grupos, busca=busca, series=Config.SERIES)
-    
-    @app.route("/editar_aluno/<int:id_aluno>", methods=["GET", "POST"])
-    @admin_required
-    def editar_aluno(id_aluno):
-        log_operacao(session.get('username'), "ACESSO_DADOS_SAUDE", f"editou aluno ID={id_aluno}", ip=request.remote_addr)
-        from app.core.validators import normalizar_serie
-
-        with get_db() as conn:
-            aluno = conn.execute("SELECT * FROM alunos WHERE id = %s", (id_aluno,)).fetchone()
-            if not aluno:
-                flash("Aluno não encontrado", "error")
-                return redirect("/cadastro_aluno")
-
-            if request.method == "POST":
-                nome = request.form.get("nome", "").strip()
-                turma = request.form.get("turma", "").strip()
-                serie = request.form.get("serie", "").strip()
-
-                if not nome or not turma or not serie:
-                    flash("Preencher nome, turma e série", "error")
-                else:
-                    serie_norm = normalizar_serie(serie) or serie
-                    conn.execute("""
-                        UPDATE alunos SET
-                            nome=%s, turma=%s, serie=%s, saida_seg=%s, saida_ter=%s, saida_qua=%s, saida_qui=%s, saida_sex=%s,
-                            responsaveis=%s, telefone=%s, data_nascimento=%s, alergias=%s, observacoes=%s
-                        WHERE id=%s
-                    """, (
-                        nome, turma, serie_norm,
-                        request.form.get("saida_seg", ""),
-                        request.form.get("saida_ter", ""),
-                        request.form.get("saida_qua", ""),
-                        request.form.get("saida_qui", ""),
-                        request.form.get("saida_sex", ""),
-                        request.form.get("responsaveis", ""),
-                        request.form.get("telefone", ""),
-                        request.form.get("data_nascimento", ""),
-                        request.form.get("alergias", ""),
-                        request.form.get("observacoes", ""),
-                        id_aluno
-                    ))
-                    flash("Aluno atualizado!", "success")
-                    return redirect(f"/historico_aluno/{id_aluno}")
-            
-            return render_template("students/edit_students.html", aluno=dict(aluno), series=Config.SERIES)
-    
-    @app.route("/deletar_aluno/<int:id_aluno>", methods=["POST"])
-    @admin_required
-    def deletar_aluno(id_aluno):
-        with get_db() as conn:
-            pendentes = conn.execute(
-                "SELECT COUNT(*) as total FROM saidas WHERE aluno = %s AND status = 'pendente'",
-                (id_aluno,)
-            ).fetchone()['total']
-
-            if pendentes > 0:
-                flash("Não é possível remover aluno com saídas pendentes", "error")
-                return redirect("/cadastro_aluno")
-
-            conn.execute("DELETE FROM alunos WHERE id = %s", (id_aluno,))
-        
-        log_operacao(session.get('username'), "EXCLUIU ALUNO", f"ID: {id_aluno}")
-        flash("Aluno removido!", "success")
-        return redirect("/cadastro_aluno")
-    
-    @app.route("/historico_aluno/<int:id_aluno>")
-    @login_required
-    def historico_aluno(id_aluno):
-        log_operacao(session.get('username'), "ACESSO_DADOS_SAUDE", f"visualizou histórico aluno ID={id_aluno}", ip=request.remote_addr)
-        with get_db() as conn:
-            aluno = conn.execute("SELECT * FROM alunos WHERE id = %s", (id_aluno,)).fetchone()
-            if not aluno:
-                flash("Aluno não encontrado", "error")
-                return redirect("/cadastro_aluno")
-
-            expirar_saidas_nao_liberadas(conn)
-            historico = conn.execute("""
-                SELECT data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status
-                FROM saidas
-                WHERE aluno = %s
-                ORDER BY data_saida DESC, horario DESC
-            """, (id_aluno,)).fetchall()
-        
-        return render_template("students/history_students.html", aluno=dict(aluno), historico=[dict(h) for h in historico])
-    
     @app.route("/historico", methods=["GET"])
     @login_required
     def historico_geral():
@@ -395,7 +310,11 @@ def register_routes(app):
         """Busca alunos por nome/RA parcial para o formulário de registrar saída.
         Dado vem direto da consulta externa — nada aqui é persistido no S2E."""
         query = request.args.get("q", "")
-        resultados = get_school_directory().search_students(query)
+        try:
+            resultados = get_school_sql_directory().search_students(query)
+        except Exception as e:
+            print(f"[SCHOOL_SQL] Erro ao buscar aluno na portaria: {e}")
+            resultados = []
         return jsonify([
             {"ra": a["ra"], "nome": a["nome"], "turma": a.get("turma"), "serie": a.get("serie")}
             for a in resultados
@@ -418,7 +337,11 @@ def register_routes(app):
             if not ra or not horario or not motivo or not responsavel_escola or not tipo_saida:
                 flash("Todos os campos são obrigatórios, incluindo a seleção do aluno na busca!", "error")
             else:
-                aluno = get_school_directory().get_student(ra)
+                try:
+                    aluno = get_school_sql_directory().get_student(ra)
+                except Exception as e:
+                    print(f"[SCHOOL_SQL] Erro ao registrar saída: {e}")
+                    aluno = None
                 if not aluno:
                     flash("Aluno não encontrado para o RA informado. Busque novamente pelo nome ou RA.", "error")
                 else:
@@ -548,9 +471,7 @@ def register_routes(app):
             """, (id_saida,)).fetchone()
 
             if saida and saida['ra']:
-                info = get_school_directory().get_student(saida['ra'])
-                nome_aluno = info['nome'] if info else f"RA {saida['ra']}"
-                emails = get_school_directory().get_guardian_emails_for_ra(saida['ra'])
+                nome_aluno, emails = _nome_e_emails_para_saida(saida['ra'])
             elif saida:
                 nome_aluno = saida['aluno_nome_legado']
                 responsaveis = conn.execute("""
@@ -580,161 +501,11 @@ def register_routes(app):
     
     # ==================== ADMIN ====================
 
-    @app.route("/cadastro_massa", methods=["GET", "POST"])
-    @admin_required
-    def cadastro_massa():
-        from app.core.audit_logger import log_operacao
-        import pandas as pd
-        from werkzeug.utils import secure_filename
-        import os
-        from app.core.validators import normalizar_serie
-        from pathlib import Path
-
-        mensagem_erro = ""
-        horarios_padrao = {}
-
-        # Carregar horários padrão para o frontend
-        with get_db() as conn:
-            rows = conn.execute("SELECT serie, saida_seg, saida_ter, saida_qua, saida_qui, saida_sex FROM horarios_padrao").fetchall()
-            for row in rows:
-                horarios_padrao[row['serie']] = {
-                    'seg': row['saida_seg'] or '',
-                    'ter': row['saida_ter'] or '',
-                    'qua': row['saida_qua'] or '',
-                    'qui': row['saida_qui'] or '',
-                    'sex': row['saida_sex'] or ''
-                }
-
-        if request.method == "POST":
-            # Verificar se é upload de Excel ou cadastro individual
-            if "arquivo_excel" in request.files and request.files["arquivo_excel"].filename != "":
-                # Importação Excel
-                arquivo = request.files["arquivo_excel"]
-                try:
-                    df = pd.read_excel(arquivo)
-                    df.columns = df.columns.str.lower().str.strip()
-                    
-                    erros = []
-                    rows = []
-                    for i, linha in df.iterrows():
-                        serie_raw = str(linha["serie"]).strip()
-                        serie = normalizar_serie(serie_raw)
-                        if not serie:
-                            erros.append(f"Linha {i + 2}: série não reconhecida → \"{serie_raw}\"")
-                        else:
-                            rows.append((
-                                str(linha["nome"]).strip(),
-                                str(linha["turma"]).strip(),
-                                serie,
-                                str(linha.get("saida_seg", "")).strip(),
-                                str(linha.get("saida_ter", "")).strip(),
-                                str(linha.get("saida_qua", "")).strip(),
-                                str(linha.get("saida_qui", "")).strip(),
-                                str(linha.get("saida_sex", "")).strip(),
-                                str(linha.get("responsaveis", "")).strip()
-                            ))
-                    
-                    if erros:
-                        series_str = ", ".join(Config.SERIES)
-                        mensagem_erro = "Série não reconhecida nas seguintes linhas:<br>" + "<br>".join(erros) + f"<br><br><strong>Valores aceitos:</strong> {series_str}"
-                    else:
-                        # Processar fotos
-                        foto_map = {}
-                        fotos_files = request.files.getlist('fotos')
-                        for foto_file in fotos_files:
-                            if not foto_file or foto_file.filename == '':
-                                continue
-                            nome_arquivo = Path(foto_file.filename).name
-                            ext = nome_arquivo.rsplit('.', 1)[-1].lower() if '.' in nome_arquivo else ''
-                            if ext not in {'png', 'jpg', 'jpeg'}:
-                                continue
-                            from app.core.normalize import normalizar_nome_para_foto
-                            nome_sem_ext = Path(nome_arquivo).stem
-                            nome_normalizado = normalizar_nome_para_foto(nome_sem_ext)
-                            foto_map[nome_normalizado] = foto_file.read()
-                        
-                        upload_folder = app.config.get('UPLOAD_FOLDER', 'storage')
-                        from app.core.normalize import normalizar_nome_para_foto
-                        
-                        with get_db() as conn:
-                            alunos_inseridos = 0
-                            for row in rows:
-                                aluno_id = conn.execute("""
-                                    INSERT INTO alunos (nome, turma, serie, saida_seg, saida_ter, saida_qua, saida_qui, saida_sex, responsaveis)
-                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-                                """, row).fetchone()['id']
-                                nome_aluno = row[0]
-                                nome_normalizado = normalizar_nome_para_foto(nome_aluno)
-                                if nome_normalizado in foto_map:
-                                    filename = secure_filename(f"{aluno_id}_{nome_aluno}.jpg")
-                                    os.makedirs(os.path.join(upload_folder, 'photos'), exist_ok=True)
-                                    with open(os.path.join(upload_folder, 'photos', filename), 'wb') as f:
-                                        f.write(foto_map[nome_normalizado])
-                                    foto_path = os.path.join('photos', filename)
-                                    conn.execute("UPDATE alunos SET foto_path = %s WHERE id = %s", (foto_path, aluno_id))
-                                alunos_inseridos += 1
-                        
-                        log_operacao(session.get('username'), "IMPORTOU EXCEL", f"{alunos_inseridos} alunos")
-                        flash(f"{alunos_inseridos} alunos importados!", "success")
-                        return redirect("/cadastro_aluno")
-                        
-                except Exception as e:
-                    mensagem_erro = f"Erro ao processar o arquivo: {str(e)}"
-            
-            else:
-                # Cadastro individual
-                nome = request.form.get("nome", "").strip()
-                turma = request.form.get("turma", "").strip()
-                serie = request.form.get("serie", "").strip()
-                responsaveis = request.form.get("responsaveis", "").strip()
-                
-                if not nome or not turma or not serie:
-                    mensagem_erro = "Preencher nome, turma e série é obrigatório!"
-                else:
-                    # Buscar horários padrão
-                    with get_db() as conn:
-                        padrao = conn.execute(
-                            "SELECT saida_seg, saida_ter, saida_qua, saida_qui, saida_sex FROM horarios_padrao WHERE serie = %s",
-                            (serie,)
-                        ).fetchone()
-
-                    foto_path = None
-                    if 'foto' in request.files:
-                        file = request.files['foto']
-                        if file and file.filename != '':
-                            from app.core.validators import allowed_file
-                            if allowed_file(file.filename):
-                                filename = secure_filename(f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}")
-                                upload_folder = app.config.get('UPLOAD_FOLDER', 'storage')
-                                os.makedirs(os.path.join(upload_folder, 'photos'), exist_ok=True)
-                                file.save(os.path.join(upload_folder, 'photos', filename))
-                                foto_path = os.path.join('photos', filename)
-
-                    with get_db() as conn:
-                        conn.execute("""
-                            INSERT INTO alunos (nome, turma, serie, saida_seg, saida_ter, saida_qua, saida_qui, saida_sex, responsaveis, foto_path)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (
-                            nome, turma, serie,
-                            request.form.get("saida_seg") or (padrao['saida_seg'] if padrao else ''),
-                            request.form.get("saida_ter") or (padrao['saida_ter'] if padrao else ''),
-                            request.form.get("saida_qua") or (padrao['saida_qua'] if padrao else ''),
-                            request.form.get("saida_qui") or (padrao['saida_qui'] if padrao else ''),
-                            request.form.get("saida_sex") or (padrao['saida_sex'] if padrao else ''),
-                            responsaveis, foto_path
-                        ))
-                    log_operacao(session.get('username'), "CADASTROU ALUNO", f"Nome: {nome}")
-                    flash(f"Aluno {nome} cadastrado com sucesso!", "success")
-                    return redirect("/cadastro_aluno")
-        
-        return render_template("students/bulk.html", erro=mensagem_erro, series=Config.SERIES, horarios_padrao=horarios_padrao)
-
     @app.route("/configuracoes")
     @admin_required
     def configuracoes():
         hoje = datetime.now().strftime("%Y-%m-%d")
         with get_db() as conn:
-            total_alunos = conn.execute("SELECT COUNT(*) as total FROM alunos").fetchone()['total']
             total_usuarios = conn.execute("SELECT COUNT(*) as total FROM usuarios").fetchone()['total']
             total_saidas = conn.execute("SELECT COUNT(*) as total FROM saidas").fetchone()['total']
             saidas_hoje = conn.execute(
@@ -742,7 +513,6 @@ def register_routes(app):
             ).fetchone()['total']
 
         return render_template("admin/settings.html",
-                               total_alunos=total_alunos,
                                total_usuarios=total_usuarios,
                                total_saidas=total_saidas,
                                saidas_hoje=saidas_hoje)
@@ -896,18 +666,20 @@ def register_routes(app):
             """)
             expirar_saidas_nao_liberadas(conn)
             rows = conn.execute("""
-                SELECT ss.id, ss.data_solicitada, ss.horario_solicitado, ss.motivo, ss.status,
+                SELECT ss.id, ss.ra, ss.data_solicitada, ss.horario_solicitado, ss.motivo, ss.status,
                        ss.tipo_saida, ss.acompanhante,
-                       a.nome AS aluno_nome, a.turma, a.serie,
+                       a.nome AS nome_legado, a.turma AS turma_legado, a.serie AS serie_legado,
                        r.nome AS responsavel_nome, r.email AS responsavel_email,
                        s.status AS saida_status
                 FROM solicitacoes_saida ss
-                JOIN alunos a ON a.id = ss.aluno_id
                 JOIN responsaveis r ON r.id = ss.responsavel_id
-                LEFT JOIN saidas s ON s.aluno = ss.aluno_id AND s.data_saida = ss.data_solicitada
+                LEFT JOIN alunos a ON a.id = ss.aluno_id
+                LEFT JOIN saidas s ON s.data_saida = ss.data_solicitada
+                     AND (s.ra = ss.ra OR s.aluno = ss.aluno_id)
                 ORDER BY ss.criado_em DESC
                 LIMIT 100
             """).fetchall()
+        rows = _resolver_solicitacoes(rows)
         aguardando = [r for r in rows if r['status'] == 'aguardando']
         historico  = [r for r in rows if r['status'] != 'aguardando']
         return render_template("admin/solicitacoes.html", aguardando=aguardando, historico=historico)
@@ -916,31 +688,37 @@ def register_routes(app):
     @admin_required
     def admin_aprovar_solicitacao(sol_id):
         with get_db() as conn:
-            sol = conn.execute("""
-                SELECT ss.aluno_id, ss.data_solicitada, ss.horario_solicitado, ss.motivo,
-                       ss.tipo_saida, ss.acompanhante,
-                       r.nome AS responsavel_nome, r.email AS responsavel_email, a.nome AS aluno_nome
+            sol_row = conn.execute("""
+                SELECT ss.aluno_id, ss.ra, ss.data_solicitada, ss.horario_solicitado, ss.motivo,
+                       ss.tipo_saida, ss.acompanhante, ss.status,
+                       r.nome AS responsavel_nome, r.email AS responsavel_email,
+                       a.nome AS nome_legado, a.turma AS turma_legado, a.serie AS serie_legado
                 FROM solicitacoes_saida ss
                 JOIN responsaveis r ON r.id = ss.responsavel_id
-                JOIN alunos a ON a.id = ss.aluno_id
+                LEFT JOIN alunos a ON a.id = ss.aluno_id
                 WHERE ss.id = %s AND ss.status = 'aguardando'
             """, (sol_id,)).fetchone()
 
-            if not sol:
+            if not sol_row:
                 flash("Solicitação não encontrada ou já revisada.", "error")
                 return redirect("/admin/solicitacoes")
+
+            sol = _resolver_solicitacoes([sol_row])[0]
 
             # Aprova a solicitação
             conn.execute(
                 "UPDATE solicitacoes_saida SET status = 'aprovado', revisado_por = %s, revisado_em = NOW() WHERE id = %s",
                 (session['user_id'], sol_id)
             )
-            # Cria a saída real na tabela saidas para a portaria ver
+            # Cria a saída real na tabela saidas para a portaria ver — por ra no fluxo novo,
+            # mantendo aluno (FK legada) para as solicitações antigas
             conn.execute("""
-                INSERT INTO saidas (aluno, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, 'pendente')
+                INSERT INTO saidas (aluno, ra, turma, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pendente')
             """, (
                 sol['aluno_id'],
+                sol['ra'],
+                sol['turma'],
                 sol['data_solicitada'],
                 sol['horario_solicitado'] or '',
                 sol['motivo'] or 'Solicitado pelo responsável',
@@ -956,17 +734,20 @@ def register_routes(app):
     @admin_required
     def admin_rejeitar_solicitacao(sol_id):
         with get_db() as conn:
-            sol = conn.execute("""
-                SELECT ss.id, r.email AS responsavel_email, a.nome AS aluno_nome
+            sol_row = conn.execute("""
+                SELECT ss.id, ss.ra, r.email AS responsavel_email,
+                       a.nome AS nome_legado, a.turma AS turma_legado, a.serie AS serie_legado
                 FROM solicitacoes_saida ss
                 JOIN responsaveis r ON r.id = ss.responsavel_id
-                JOIN alunos a ON a.id = ss.aluno_id
+                LEFT JOIN alunos a ON a.id = ss.aluno_id
                 WHERE ss.id = %s AND ss.status = 'aguardando'
             """, (sol_id,)).fetchone()
 
-            if not sol:
+            if not sol_row:
                 flash("Solicitação não encontrada ou já revisada.", "error")
                 return redirect("/admin/solicitacoes")
+
+            sol = _resolver_solicitacoes([sol_row])[0]
 
             conn.execute(
                 "UPDATE solicitacoes_saida SET status = 'rejeitado', revisado_por = %s, revisado_em = NOW() WHERE id = %s",

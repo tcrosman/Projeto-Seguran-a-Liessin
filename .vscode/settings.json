@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "S2E_postgreSQL/s2e-api"
+    ]
+}
