@@ -1,5 +1,5 @@
 from app.core.database import get_db
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 
 class BaseRepository:
     """Classe base para todos os repositórios"""
