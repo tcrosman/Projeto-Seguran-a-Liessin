@@ -33,6 +33,9 @@ class SchoolSqlDirectoryClient:
         self._database = os.getenv('SCHOOL_SQL_DATABASE', '')
         self._user = os.getenv('SCHOOL_SQL_USER', '')
         self._password = os.getenv('SCHOOL_SQL_PASSWORD', '')
+        # Segundos para abrir a conexão e para cada consulta. Curto de propósito: é melhor a tela
+        # mostrar o aluno sem foto, ou a busca voltar vazia, do que a request inteira travar.
+        self._timeout = int(os.getenv('SCHOOL_SQL_TIMEOUT_SEG', 5))
 
     @property
     def _ph(self):
@@ -64,7 +67,7 @@ class SchoolSqlDirectoryClient:
             if not self._database:
                 raise RuntimeError("SCHOOL_SQL_DATABASE (caminho do arquivo .db) não configurado no .env")
             import sqlite3
-            conn = sqlite3.connect(self._database)
+            conn = sqlite3.connect(self._database, timeout=self._timeout)
             conn.row_factory = sqlite3.Row
             conn.create_function("norm_texto", 1, self._normalizar)
             return conn
@@ -77,6 +80,12 @@ class SchoolSqlDirectoryClient:
                 host=self._host, port=self._port or 5432, dbname=self._database,
                 user=self._user, password=self._password,
                 cursor_factory=psycopg2.extras.RealDictCursor,
+                # Sem estes dois limites, o banco da escola fora do ar pendura a request até o
+                # timeout de TCP do sistema (mais de um minuto). Como essas consultas rodam dentro
+                # de rotas e o gunicorn tem poucos workers, bastavam alguns acessos simultâneos
+                # para o S2E inteiro parar de responder — inclusive a tela da portaria.
+                connect_timeout=self._timeout,                                   # abrir a conexão
+                options=f'-c statement_timeout={self._timeout * 1000}',          # e executar a query
             )
         raise RuntimeError(
             f"SCHOOL_SQL_ENGINE='{self._engine}' não suportado. Use 'sqlite' (banco provisório) "

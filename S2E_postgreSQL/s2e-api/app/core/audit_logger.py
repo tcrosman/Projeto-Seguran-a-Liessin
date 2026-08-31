@@ -1,6 +1,6 @@
-from datetime import datetime
 import json
 from app.core.database import get_db
+from app.core.tempo import carimbo
 from app.core.logging_config import obter
 
 _log = obter('s2e.audit')
@@ -26,5 +26,5 @@ def log_aluno(aluno_id, usuario_id, acao, dados_antigos=None, dados_novos=None):
             acao,
             json.dumps(dados_antigos, default=str) if dados_antigos else None,
             json.dumps(dados_novos, default=str) if dados_novos else None,
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            carimbo()
         ))

@@ -7,6 +7,7 @@ from app.core.cache import TTLCache
 from app.core import rate_limit
 from app.core.passwords import senha_confere
 from app.core.validators import escapar_like, horario_valido, data_valida
+from app.core.tempo import agora, hoje, agora_utc
 from app.services.school_sql_directory import get_school_sql_directory
 from app.config import Config
 from werkzeug.security import generate_password_hash
@@ -201,7 +202,7 @@ def register_routes(app):
                 if user:
                     import secrets
                     token = secrets.token_urlsafe(32)
-                    expires_at = (datetime.now() + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+                    expires_at = (agora_utc() + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
                     conn.execute("DELETE FROM reset_tokens WHERE user_id = %s", (user['id'],))
                     conn.execute("INSERT INTO reset_tokens (user_id, token, expires_at) VALUES (%s, %s, %s)",
                                  (user['id'], token, expires_at))
@@ -247,7 +248,7 @@ def register_routes(app):
 
             if registro:
                 expires_at = datetime.strptime(registro['expires_at'], "%Y-%m-%d %H:%M:%S")
-                if datetime.now() <= expires_at:
+                if agora_utc() <= expires_at:
                     user_id = registro['user_id']
                 else:
                     conn.execute("DELETE FROM reset_tokens WHERE token = %s", (token,))
@@ -316,7 +317,7 @@ def register_routes(app):
 
         if request.method == "POST":
             ra = request.form.get("ra", "").strip()
-            data_saida = request.form.get("data_saida", "").strip() or datetime.now().strftime("%Y-%m-%d")
+            data_saida = request.form.get("data_saida", "").strip() or hoje()
             horario = request.form.get("horario", "").strip()
             motivo = request.form.get("motivo")
             responsavel_escola = request.form.get("responsavel_escola")
@@ -346,7 +347,7 @@ def register_routes(app):
                         from werkzeug.utils import secure_filename
                         from app.core.validators import allowed_file
                         if allowed_file(doc.filename):
-                            filename = secure_filename(f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{doc.filename}")
+                            filename = secure_filename(f"{agora():%Y%m%d%H%M%S}_{doc.filename}")
                             upload_folder = app.config.get('UPLOAD_FOLDER', 'storage')
                             os.makedirs(os.path.join(upload_folder, 'documents'), exist_ok=True)
                             doc.save(os.path.join(upload_folder, 'documents', filename))
@@ -371,12 +372,12 @@ def register_routes(app):
 
         return render_template("departures/register.html",
                                ra_selecionado=ra_pre_selecionado,
-                               today=datetime.now().strftime("%Y-%m-%d"))
+                               today=hoje())
     
     @app.route("/saidas")
     @login_required
     def lista_saidas():
-        data_selecionada = request.args.get("data", datetime.now().strftime("%Y-%m-%d"))
+        data_selecionada = request.args.get("data", hoje())
         busca = request.args.get("busca", "").strip()
 
         # A expiração de saídas e a remoção das antigas saíram daqui: rodavam a cada
@@ -509,12 +510,12 @@ def register_routes(app):
     @app.route("/configuracoes")
     @admin_required
     def configuracoes():
-        hoje = datetime.now().strftime("%Y-%m-%d")
+        hoje_local = hoje()
         with get_db() as conn:
             total_usuarios = conn.execute("SELECT COUNT(*) as total FROM usuarios").fetchone()['total']
             total_saidas = conn.execute("SELECT COUNT(*) as total FROM saidas").fetchone()['total']
             saidas_hoje = conn.execute(
-                "SELECT COUNT(*) as total FROM saidas WHERE data_saida = %s", (hoje,)
+                "SELECT COUNT(*) as total FROM saidas WHERE data_saida = %s", (hoje_local,)
             ).fetchone()['total']
 
         return render_template("admin/settings.html",
@@ -620,11 +621,14 @@ def register_routes(app):
     # ==================== ARQUIVOS ESTÁTICOS E UPLOADS ====================
     @app.route("/uploads/<path:filename>")
     def uploaded_file(filename):
-        # Aceita tanto sessão de funcionário quanto de responsável
-        if 'user_id' not in session and 'pai_id' not in session:
+        # Somente funcionários. Aqui ficam documentos anexados às saídas (atestados, autorizações)
+        # e as fotos legadas dos alunos, e a rota não sabe a qual aluno o arquivo pertence — com a
+        # sessão de responsável liberada, qualquer pai autenticado leria o documento de qualquer
+        # outro aluno. Nenhuma tela do portal dos pais aponta para /uploads: o link do anexo só
+        # existe em /saidas, e a foto do filho vem de foto_url, do banco da escola.
+        if 'user_id' not in session:
             return redirect('/')
-        upload_folder = app.config.get('UPLOAD_FOLDER', 'storage')
-        return send_from_directory(upload_folder, filename)
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
     
     # ==================== ADMIN: RESPONSÁVEIS ====================
 

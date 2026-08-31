@@ -11,9 +11,10 @@ Agora roda fora do ciclo de request: uma thread de fundo no próprio app (ver
 import os
 import threading
 import time
-from datetime import datetime
+from datetime import timedelta
 
 from app.core.database import get_db, expirar_saidas_nao_liberadas
+from app.core.tempo import agora, carimbo
 from app.core.logging_config import obter
 
 _log = obter()
@@ -42,11 +43,12 @@ def executar_manutencao(dias_retencao: int = DIAS_RETENCAO) -> dict:
         # Saídas aprovadas cujo dia passou sem a segurança liberar.
         resultado['saidas_expiradas'] = expirar_saidas_nao_liberadas(conn)
 
-        resultado['saidas_antigas_removidas'] = conn.execute("""
-            DELETE FROM saidas
-            WHERE status = 'concluida'
-              AND data_saida < TO_CHAR(CURRENT_DATE - make_interval(days => %s), 'YYYY-MM-DD')
-        """, (dias_retencao,)).rowcount
+        # Corte pela data da escola, não pelo CURRENT_DATE do banco (UTC) — mesma razão de
+        # expirar_saidas_nao_liberadas: data_saida está no fuso de quem preencheu.
+        corte = (agora() - timedelta(days=dias_retencao)).strftime('%Y-%m-%d')
+        resultado['saidas_antigas_removidas'] = conn.execute(
+            "DELETE FROM saidas WHERE status = 'concluida' AND data_saida < %s", (corte,)
+        ).rowcount
 
         resultado['solicitacoes_antigas_removidas'] = conn.execute("""
             DELETE FROM solicitacoes_saida
@@ -102,7 +104,7 @@ def iniciar_agendador(intervalo_seg: int = INTERVALO_PADRAO_SEG):
             try:
                 resumo = executar_manutencao()
                 if any(isinstance(v, int) and v for v in resumo.values()):
-                    _log.info(f"[MANUTENCAO] {datetime.now():%Y-%m-%d %H:%M:%S} {resumo}")
+                    _log.info(f"[MANUTENCAO] {carimbo()} {resumo}")
             except Exception as e:
                 _log.warning(f"[MANUTENCAO] Falhou (será tentado de novo em {intervalo_seg}s): {e}")
             time.sleep(intervalo_seg)

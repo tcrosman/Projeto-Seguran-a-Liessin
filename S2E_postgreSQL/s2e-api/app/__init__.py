@@ -39,7 +39,14 @@ def create_app():
             "no arquivo .env. Exemplo: SECRET_KEY=" + os.urandom(32).hex()
         )
     app.secret_key = _secret
-    app.config['UPLOAD_FOLDER'] = os.getenv('UPLOAD_FOLDER', 'storage')
+    # Caminho ABSOLUTO. Com o valor relativo ('storage'), a gravação em /registrar_saida usava o
+    # diretório de trabalho do processo enquanto o send_from_directory do Flask resolve caminho
+    # relativo contra app.root_path (s2e-api/app) — arquivo salvo num lugar, procurado noutro, e
+    # todo anexo dava 404. Ancorado na pasta do projeto (s2e-api/), que é onde os uploads já estão.
+    _upload = os.getenv('UPLOAD_FOLDER', 'storage')
+    if not os.path.isabs(_upload):
+        _upload = os.path.join(os.path.dirname(app.root_path), _upload)
+    app.config['UPLOAD_FOLDER'] = os.path.abspath(_upload)
     app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))
 
     # Criar pastas necessárias

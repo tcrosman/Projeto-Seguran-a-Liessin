@@ -278,10 +278,15 @@ def expirar_saidas_nao_liberadas(conn):
     """Marca como 'nao_realizada' as saídas aprovadas cuja data já passou sem terem sido liberadas
     pela segurança. Devolve quantas linhas mudaram.
 
+    A data de corte vem do fuso da escola, não do CURRENT_DATE do banco: `data_saida` guarda a
+    data que o usuário escolheu no relógio de Brasília, e o Postgres do Supabase está em UTC —
+    entre 21h e meia-noite as duas divergem em um dia.
+
     Chamada pela manutenção periódica (app/core/maintenance.py). Não deve voltar para as rotas de
     listagem: é uma escrita em tabela inteira, e rodava a cada carregamento de página.
     """
-    return conn.execute("""
-        UPDATE saidas SET status = 'nao_realizada'
-        WHERE status = 'pendente' AND data_saida < TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')
-    """).rowcount
+    from app.core.tempo import hoje
+    return conn.execute(
+        "UPDATE saidas SET status = 'nao_realizada' WHERE status = 'pendente' AND data_saida < %s",
+        (hoje(),),
+    ).rowcount

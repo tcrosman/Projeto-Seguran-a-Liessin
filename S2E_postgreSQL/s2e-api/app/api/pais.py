@@ -6,6 +6,7 @@ from app.core.mailer import enviar_email_async
 from app.core import rate_limit
 from app.core.passwords import senha_confere, verificar_forca
 from app.core.validators import horario_valido, data_valida
+from app.core.tempo import hoje, hora, agora_utc
 from app.services.school_sql_directory import get_school_sql_directory
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
@@ -189,7 +190,7 @@ def register_parent_routes(app):
 
                 if not recente:
                     token = _gerar_token_6digitos()
-                    expires_at = datetime.now() + timedelta(minutes=10)
+                    expires_at = agora_utc() + timedelta(minutes=10)
                     conn.execute("DELETE FROM tokens_2fa WHERE responsavel_id = %s", (resp['id'],))
                     conn.execute(
                         "INSERT INTO tokens_2fa (responsavel_id, token, expires_at) VALUES (%s, %s, %s)",
@@ -266,7 +267,7 @@ def register_parent_routes(app):
                     expires = token_row['expires_at']
                     if not isinstance(expires, datetime):
                         expires = datetime.fromisoformat(str(expires))
-                    if datetime.now() > expires:
+                    if agora_utc() > expires:
                         conn.execute("DELETE FROM tokens_2fa WHERE id = %s", (token_row['id'],))
                         desfecho = 'expirado'
                     # Consome o código de forma atômica: se outra request já o usou, rowcount é 0
@@ -343,7 +344,7 @@ def register_parent_routes(app):
             tipo_saida = request.form.get("tipo_saida", "").strip()
             acompanhante = request.form.get("acompanhante", "").strip()
 
-            today = datetime.now().strftime("%Y-%m-%d")
+            today = hoje()
             if not data_solicitada or not motivo:
                 return render_template("pais/solicitar_saida.html", aluno=aluno, today=today,
                                        erro="Preencha a data e o motivo.")
@@ -355,7 +356,7 @@ def register_parent_routes(app):
                                        erro="Data inválida. Use o formato AAAA-MM-DD.")
             # A comparação é textual, então só é confiável com HH:MM zero-preenchido — que é o
             # que horario_valido() acabou de garantir ("9:00" passaria despercebido sem ela).
-            if data_solicitada == today and horario <= datetime.now().strftime("%H:%M"):
+            if data_solicitada == today and horario <= hora():
                 return render_template("pais/solicitar_saida.html", aluno=aluno, today=today,
                                        erro="O horário informado já passou. Escolha um horário futuro.")
             if not tipo_saida:
@@ -387,7 +388,7 @@ def register_parent_routes(app):
             flash(f"Solicitação de saída para {aluno['nome']} enviada com sucesso! Aguarde aprovação da escola.", "success")
             return redirect("/pais/minhas_solicitacoes")
 
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = hoje()
         return render_template("pais/solicitar_saida.html", aluno=aluno, today=today)
 
     # ==================== EDITAR SOLICITAÇÃO ====================
@@ -424,7 +425,7 @@ def register_parent_routes(app):
             return redirect("/pais/minhas_solicitacoes")
 
         aluno = {"nome": sol['aluno_nome'], "turma": sol['turma'], "serie": sol['serie']}
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = hoje()
 
         if request.method == "POST":
             data_solicitada = request.form.get("data_solicitada", "")
@@ -445,7 +446,7 @@ def register_parent_routes(app):
                 return render_template("pais/solicitar_saida.html", aluno=aluno, today=today, sol=sol,
                                        voltar_url="/pais/minhas_solicitacoes",
                                        erro="Data inválida. Use o formato AAAA-MM-DD.")
-            if data_solicitada == today and horario <= datetime.now().strftime("%H:%M"):
+            if data_solicitada == today and horario <= hora():
                 return render_template("pais/solicitar_saida.html", aluno=aluno, today=today, sol=sol,
                                        voltar_url="/pais/minhas_solicitacoes",
                                        erro="O horário informado já passou. Escolha um horário futuro.")
@@ -584,7 +585,7 @@ def register_parent_routes(app):
                 ).fetchone()
                 if resp:
                     token = secrets.token_urlsafe(32)
-                    expires_at = datetime.now() + timedelta(hours=1)
+                    expires_at = agora_utc() + timedelta(hours=1)
                     conn.execute("DELETE FROM reset_tokens_pais WHERE responsavel_id = %s", (resp['id'],))
                     conn.execute(
                         "INSERT INTO reset_tokens_pais (responsavel_id, token, expires_at) VALUES (%s, %s, %s)",
@@ -634,7 +635,7 @@ def register_parent_routes(app):
                 expires = registro['expires_at']
                 if not isinstance(expires, datetime):
                     expires = datetime.fromisoformat(str(expires))
-                if datetime.now() <= expires:
+                if agora_utc() <= expires:
                     responsavel_id = registro['responsavel_id']
                 else:
                     conn.execute("DELETE FROM reset_tokens_pais WHERE token = %s", (token,))
