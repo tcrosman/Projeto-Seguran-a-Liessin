@@ -1,6 +1,7 @@
 from functools import wraps
-from flask import session, redirect, url_for, request
-from datetime import datetime
+from flask import session, redirect, request
+
+from app.core.audit_logger import log_operacao
 
 # LGPD Art. 46 (💻 App obligation) — need-to-know access control: routes forbidden to vigia role
 _VIGIA_BLOCKED_ENDPOINTS = {
@@ -46,7 +47,6 @@ def log_access(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'username' in session:
-            with open('logs/system.log', 'a', encoding='utf-8') as log:
-                log.write(f"[{datetime.now()}] {session['username']} - ACESSOU: {request.path}\n")
+            log_operacao(session['username'], "ACESSOU", request.path, ip=request.remote_addr)
         return f(*args, **kwargs)
     return decorated_function

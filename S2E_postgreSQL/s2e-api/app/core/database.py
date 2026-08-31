@@ -1,6 +1,8 @@
 import psycopg2
 import psycopg2.extras
+import psycopg2.pool
 from contextlib import contextmanager
+from threading import BoundedSemaphore, Lock
 from urllib.parse import urlparse
 import os
 from pathlib import Path
@@ -8,20 +10,55 @@ from dotenv import load_dotenv
 
 load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / '.env')
 
+# Pool de conexões. Antes, cada `with get_db()` abria TCP + TLS + autenticação contra o pooler do
+# Supabase, e várias rotas abrem 2-4 blocos por request — o handshake dominava a latência.
+#
+# Criado sob demanda (nunca no import): o gunicorn faz fork dos workers, e um pool criado antes do
+# fork teria seus sockets compartilhados entre processos. Como a primeira chamada acontece dentro
+# do worker, cada um monta o seu.
+_pool = None
+_vagas = None       # semáforo: quantas conexões ainda podem ser retiradas do pool
+_pool_lock = Lock()
 
-def _get_connection():
-    url = os.getenv('DATABASE_URL', '')
-    if not url:
-        raise RuntimeError("DATABASE_URL não configurada no .env")
-    p = urlparse(url)
-    return psycopg2.connect(
-        host=p.hostname,
-        port=p.port or 5432,
-        dbname=p.path.lstrip('/'),
-        user=p.username,
-        password=p.password,
-        sslmode='require'
-    )
+# Quanto uma request espera por uma conexão livre antes de desistir. Menor que o timeout do
+# gunicorn (120s) para o usuário receber a página de indisponibilidade em vez de um socket morto.
+ESPERA_CONEXAO_SEG = int(os.getenv('DB_POOL_TIMEOUT_SEG', 10))
+
+
+def _get_pool():
+    """Devolve (pool, semáforo), criando-os na primeira chamada."""
+    global _pool, _vagas
+    if _pool is None:
+        with _pool_lock:
+            if _pool is None:
+                url = os.getenv('DATABASE_URL', '')
+                if not url:
+                    raise RuntimeError("DATABASE_URL não configurada no .env")
+                p = urlparse(url)
+                maximo = int(os.getenv('DB_POOL_MAX', 5))
+                novo = psycopg2.pool.ThreadedConnectionPool(
+                    minconn=1,
+                    maxconn=maximo,
+                    host=p.hostname,
+                    port=p.port or 5432,
+                    dbname=p.path.lstrip('/'),
+                    user=p.username,
+                    password=p.password,
+                    sslmode='require',
+                    # Sem keepalives, o Supabase derruba a conexão ociosa e o pool só descobre
+                    # na próxima query, já dentro de uma request.
+                    keepalives=1,
+                    keepalives_idle=30,
+                    keepalives_interval=10,
+                    keepalives_count=5,
+                )
+                # getconn() do psycopg2 NÃO espera: com o pool cheio ele levanta
+                # PoolError na hora, e a request viraria erro 500. O semáforo faz a request
+                # excedente aguardar uma conexão ser devolvida, que é o comportamento esperado
+                # sob pico (antes, sem pool, ela simplesmente abria mais uma conexão).
+                _vagas = BoundedSemaphore(maximo)
+                _pool = novo
+    return _pool, _vagas
 
 
 class _PgConn:
@@ -47,17 +84,42 @@ class _PgConn:
 
 @contextmanager
 def get_db():
-    """Context manager para conexão com banco de dados PostgreSQL."""
-    raw = _get_connection()
-    conn = _PgConn(raw)
+    """Context manager para conexão com banco de dados PostgreSQL, tirada do pool."""
+    pool, vagas = _get_pool()
+
+    if not vagas.acquire(timeout=ESPERA_CONEXAO_SEG):
+        # OperationalError para cair no errorhandler que já mostra a página de banco
+        # indisponível, em vez de um 500 cru.
+        raise psycopg2.OperationalError(
+            f"Sem conexão livre no pool após {ESPERA_CONEXAO_SEG}s. "
+            "Aumente DB_POOL_MAX se isso acontecer sob carga normal."
+        )
+
     try:
-        yield conn
-        raw.commit()
-    except Exception:
-        raw.rollback()
-        raise
+        raw = pool.getconn()
+
+        # O pool pode devolver uma conexão que o servidor fechou enquanto estava ociosa; nesse
+        # caso ela é descartada e outra é pedida, em vez de estourar no meio da rota.
+        if raw.closed:
+            pool.putconn(raw, close=True)
+            raw = pool.getconn()
+
+        descartar = False
+        try:
+            yield _PgConn(raw)
+            raw.commit()
+        except Exception:
+            try:
+                raw.rollback()
+            except psycopg2.Error:
+                # Conexão quebrada: nem o rollback passa. Não pode voltar para o pool.
+                descartar = True
+            raise
+        finally:
+            pool.putconn(raw, close=descartar or raw.closed)
     finally:
-        raw.close()
+        # Só depois de devolver a conexão — senão outra thread acordaria sem nada disponível.
+        vagas.release()
 
 
 def _col_exists(conn, table, column):
@@ -145,6 +207,12 @@ def migrate_database():
             )
         """)
 
+        # Tentativas de verificação por token: são só 6 dígitos (10^6 combinações), então o
+        # limite de tentativas é o que impede força bruta do 2FA. Fica no banco, e não em
+        # memória do processo, para valer entre workers e sobreviver a restart.
+        if not _col_exists(conn, 'tokens_2fa', 'tentativas'):
+            conn.execute("ALTER TABLE tokens_2fa ADD COLUMN tentativas INTEGER NOT NULL DEFAULT 0")
+
         # Solicitações de saída criadas pelos responsáveis (revisadas pelo admin antes de virar saida)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS solicitacoes_saida (
@@ -191,10 +259,29 @@ def migrate_database():
             )
         """)
 
+        # Tentativas de autenticação falhas (ver app/core/rate_limit.py). No banco, e não em
+        # memória do processo, para valer entre os workers do gunicorn e sobreviver a restart.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS rate_limit_falhas (
+                id        SERIAL PRIMARY KEY,
+                escopo    TEXT NOT NULL,
+                chave     TEXT NOT NULL,
+                criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rate_limit_busca ON rate_limit_falhas(escopo, chave, criado_em)"
+        )
+
 
 def expirar_saidas_nao_liberadas(conn):
-    """Marca como 'nao_realizada' as saídas aprovadas cuja data já passou sem terem sido liberadas pela segurança."""
-    conn.execute("""
+    """Marca como 'nao_realizada' as saídas aprovadas cuja data já passou sem terem sido liberadas
+    pela segurança. Devolve quantas linhas mudaram.
+
+    Chamada pela manutenção periódica (app/core/maintenance.py). Não deve voltar para as rotas de
+    listagem: é uma escrita em tabela inteira, e rodava a cada carregamento de página.
+    """
+    return conn.execute("""
         UPDATE saidas SET status = 'nao_realizada'
         WHERE status = 'pendente' AND data_saida < TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')
-    """)
+    """).rowcount

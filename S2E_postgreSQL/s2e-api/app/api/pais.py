@@ -1,13 +1,18 @@
 from flask import render_template, request, redirect, session, flash
+from markupsafe import escape
 from app.api.middleware import pai_required
-from app.core.database import get_db, expirar_saidas_nao_liberadas
-from app.core.mailer import enviar_email
+from app.core.database import get_db
+from app.core.mailer import enviar_email_async
+from app.core import rate_limit
+from app.core.passwords import senha_confere, verificar_forca
+from app.core.validators import horario_valido, data_valida
 from app.services.school_sql_directory import get_school_sql_directory
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
-from collections import defaultdict
-import random
-import string
+import secrets
+from app.core.logging_config import obter
+
+_log = obter()
 
 
 def _responsavel_reconhecido_pela_escola(email):
@@ -17,7 +22,7 @@ def _responsavel_reconhecido_pela_escola(email):
     try:
         return bool(get_school_sql_directory().responsavel_reconhecido(email))
     except Exception as e:
-        print(f"[SCHOOL_SQL] Erro ao validar responsável: {e}")
+        _log.warning(f"[SCHOOL_SQL] Erro ao validar responsável: {e}")
         return False
 
 
@@ -35,7 +40,7 @@ def _resolver_dados_solicitacoes(rows):
         try:
             diretorio = get_school_sql_directory().get_students_by_ras(ras)
         except Exception as e:
-            print(f"[SCHOOL_SQL] Erro ao resolver solicitações: {e}")
+            _log.warning(f"[SCHOOL_SQL] Erro ao resolver solicitações: {e}")
 
     for r in rows:
         if r.get('ra'):
@@ -53,29 +58,18 @@ def _resolver_dados_solicitacoes(rows):
 def register_parent_routes(app):
     """Registra todas as rotas do portal dos responsáveis."""
 
-    # ==================== RATE LIMIT (isolado dos funcionários) ====================
-    _falhas_pai = defaultdict(list)
-    _bloqueios_pai = {}
-
-    def _pai_rate_limited(ip):
-        agora = datetime.now()
-        if ip in _bloqueios_pai:
-            if agora < _bloqueios_pai[ip]:
-                return True
-            del _bloqueios_pai[ip]
-            _falhas_pai.pop(ip, None)
-        return False
-
-    def _registrar_falha_pai(ip):
-        agora = datetime.now()
-        _falhas_pai[ip] = [t for t in _falhas_pai[ip] if agora - t < timedelta(minutes=15)]
-        _falhas_pai[ip].append(agora)
-        if len(_falhas_pai[ip]) >= 5:
-            _bloqueios_pai[ip] = agora + timedelta(minutes=5)
-            _falhas_pai.pop(ip, None)
+    # Tentativas erradas aceitas por código de 2FA antes de descartá-lo (ver /pais/verificar).
+    _MAX_TENTATIVAS_2FA = 5
 
     def _gerar_token_6digitos():
-        return ''.join(random.choices(string.digits, k=6))
+        """Código de 6 dígitos com gerador criptográfico — `random` é previsível a partir de
+        saídas observadas e não serve para um fator de autenticação."""
+        return f"{secrets.randbelow(1_000_000):06d}"
+
+    def _limpar_sessao_temp():
+        """Descarta a sessão parcial criada entre a senha e o 2FA."""
+        for chave in ('pai_temp_id', 'pai_temp_email', 'pai_temp_nome'):
+            session.pop(chave, None)
 
     # ==================== ENTRY POINT ====================
 
@@ -99,8 +93,10 @@ def register_parent_routes(app):
                 return render_template("pais/cadastro.html", erro="Preencha todos os campos.")
             if senha != confirmar:
                 return render_template("pais/cadastro.html", erro="As senhas não coincidem.")
-            if len(senha) < 8:
-                return render_template("pais/cadastro.html", erro="A senha deve ter pelo menos 8 caracteres.")
+            # Mesma política dos funcionários: é esta conta que dá acesso a dados de menores.
+            erro_senha = verificar_forca(senha)
+            if erro_senha:
+                return render_template("pais/cadastro.html", erro=erro_senha + '.')
 
             # Só permite autocadastro se a escola reconhece este e-mail como responsável.
             if not _responsavel_reconhecido_pela_escola(email):
@@ -125,13 +121,16 @@ def register_parent_routes(app):
                     "SELECT email FROM usuarios WHERE role = 'admin' AND email IS NOT NULL AND email != ''"
                 ).fetchall()
 
+            # nome e email vêm crus do formulário público de autocadastro. Sem escapar, qualquer
+            # um poderia injetar HTML — um link de phishing, por exemplo — no e-mail que os
+            # administradores recebem.
+            corpo_admin = (
+                f"""<p>O responsável <strong>{escape(nome)}</strong> ({escape(email)}) se cadastrou """
+                """e aguarda aprovação.</p>
+                <p><a href="/admin/responsaveis">Revisar cadastros</a></p>"""
+            )
             for admin in admins:
-                enviar_email(
-                    admin['email'],
-                    "Novo responsável aguardando aprovação — SecureEdu",
-                    f"""<p>O responsável <strong>{nome}</strong> ({email}) se cadastrou e aguarda aprovação.</p>
-                    <p><a href="/admin/responsaveis">Revisar cadastros</a></p>"""
-                )
+                enviar_email_async(admin['email'], "Novo responsável aguardando aprovação — SecureEdu", corpo_admin)
 
             return render_template("pais/cadastro.html", sucesso=True)
 
@@ -145,12 +144,16 @@ def register_parent_routes(app):
             return redirect("/pais/dashboard")
 
         ip = request.remote_addr
-        if _pai_rate_limited(ip):
-            return render_template("pais/login.html", erro="Muitas tentativas. Tente novamente em 5 minutos.")
 
         if request.method == "POST":
             email = request.form.get("email", "").strip().lower()
             senha = request.form.get("senha", "")
+
+            # Só no POST: o limite custa uma consulta ao banco e não há o que limitar num GET.
+            if rate_limit.esta_bloqueado(rate_limit.PAIS_LOGIN_IP, ip) or (
+                email and rate_limit.esta_bloqueado(rate_limit.PAIS_LOGIN_CONTA, email)
+            ):
+                return render_template("pais/login.html", erro="Muitas tentativas. Tente novamente em 5 minutos.")
 
             with get_db() as conn:
                 resp = conn.execute(
@@ -159,9 +162,14 @@ def register_parent_routes(app):
                 ).fetchone()
 
             # Verifica credenciais locais
-            if not resp or not check_password_hash(resp['password_hash'], senha):
-                _registrar_falha_pai(ip)
+            if not senha_confere(resp['password_hash'] if resp else None, senha):
+                rate_limit.registrar_falha(rate_limit.PAIS_LOGIN_IP, ip)
+                if email:
+                    rate_limit.registrar_falha(rate_limit.PAIS_LOGIN_CONTA, email)
                 return render_template("pais/login.html", erro="Email ou senha incorretos.")
+
+            rate_limit.limpar(rate_limit.PAIS_LOGIN_CONTA, email)
+            rate_limit.limpar(rate_limit.PAIS_LOGIN_IP, ip)
 
             if resp['status'] == 'pendente':
                 return render_template("pais/login.html", erro="Sua conta ainda aguarda aprovação da escola.")
@@ -187,7 +195,7 @@ def register_parent_routes(app):
                         "INSERT INTO tokens_2fa (responsavel_id, token, expires_at) VALUES (%s, %s, %s)",
                         (resp['id'], token, expires_at)
                     )
-                    enviado = enviar_email(
+                    enviar_email_async(
                         email,
                         "Código de verificação — SecureEdu",
                         f"""<div style="font-family:sans-serif;max-width:400px;margin:0 auto;padding:32px 24px;">
@@ -196,10 +204,9 @@ def register_parent_routes(app):
                           <div style="font-size:36px;font-weight:800;letter-spacing:8px;color:#2563eb;text-align:center;
                                background:#eff6ff;padding:20px;border-radius:12px;margin-bottom:24px;">{token}</div>
                           <p style="color:#9ca3af;font-size:12px;">Se você não solicitou isso, ignore este email.</p>
-                        </div>"""
+                        </div>""",
+                        fallback_log=f"[2FA FALLBACK] Token para {email}: {token}",
                     )
-                    if not enviado:
-                        print(f"[2FA FALLBACK] Token para {email}: {token}")
 
             # Armazena ID temporário (sem criar sessão completa ainda)
             session['pai_temp_id'] = resp['id']
@@ -218,10 +225,23 @@ def register_parent_routes(app):
         if 'pai_temp_id' not in session:
             return redirect("/pais/login")
 
+        ip = request.remote_addr
+
         if request.method == "POST":
+            # Escopo próprio, separado do login: errar o código de 2FA não pode consumir o limite
+            # de tentativas de senha nem trancar quem só quer entrar com a senha do mesmo IP da
+            # escola. O limite por conta aqui é o contador em tokens_2fa.tentativas, logo abaixo.
+            if rate_limit.esta_bloqueado(rate_limit.PAIS_2FA_IP, ip):
+                return render_template("pais/verificar_2fa.html",
+                                       erro="Muitas tentativas. Tente novamente em 5 minutos.",
+                                       expirado=True)
+
             codigo = request.form.get("codigo", "").strip()
             pai_id = session['pai_temp_id']
 
+            # Todo o acesso ao banco fica num bloco só, e o desfecho vira um rótulo tratado
+            # depois. rate_limit abre a própria conexão: chamá-lo aqui dentro seguraria duas
+            # conexões do pool ao mesmo tempo e, sob concorrência, travaria o pool.
             with get_db() as conn:
                 token_row = conn.execute(
                     "SELECT id, expires_at FROM tokens_2fa WHERE responsavel_id = %s AND token = %s AND usado = FALSE",
@@ -229,16 +249,51 @@ def register_parent_routes(app):
                 ).fetchone()
 
                 if not token_row:
-                    return render_template("pais/verificar_2fa.html", erro="Código inválido. Verifique o email e tente novamente.")
+                    # Código errado: conta a tentativa nos tokens abertos deste responsável.
+                    tentativas = conn.execute(
+                        """UPDATE tokens_2fa SET tentativas = tentativas + 1
+                           WHERE responsavel_id = %s AND usado = FALSE
+                           RETURNING tentativas""",
+                        (pai_id,)
+                    ).fetchall()
+                    if any(t['tentativas'] >= _MAX_TENTATIVAS_2FA for t in tentativas):
+                        # Queima o código: o responsável precisa refazer o login para receber outro.
+                        conn.execute("DELETE FROM tokens_2fa WHERE responsavel_id = %s", (pai_id,))
+                        desfecho = 'queimado'
+                    else:
+                        desfecho = 'invalido'
+                else:
+                    expires = token_row['expires_at']
+                    if not isinstance(expires, datetime):
+                        expires = datetime.fromisoformat(str(expires))
+                    if datetime.now() > expires:
+                        conn.execute("DELETE FROM tokens_2fa WHERE id = %s", (token_row['id'],))
+                        desfecho = 'expirado'
+                    # Consome o código de forma atômica: se outra request já o usou, rowcount é 0
+                    # e a sessão não é promovida (o mesmo código não vale duas vezes).
+                    elif conn.execute(
+                        "UPDATE tokens_2fa SET usado = TRUE WHERE id = %s AND usado = FALSE",
+                        (token_row['id'],)
+                    ).rowcount:
+                        desfecho = 'ok'
+                    else:
+                        desfecho = 'ja_usado'
 
-                expires = token_row['expires_at']
-                if not isinstance(expires, datetime):
-                    expires = datetime.fromisoformat(str(expires))
-                if datetime.now() > expires:
-                    conn.execute("DELETE FROM tokens_2fa WHERE id = %s", (token_row['id'],))
-                    return render_template("pais/verificar_2fa.html", erro="Código expirado. Faça login novamente.", expirado=True)
-
-                conn.execute("UPDATE tokens_2fa SET usado = TRUE WHERE id = %s", (token_row['id'],))
+            if desfecho in ('invalido', 'queimado'):
+                rate_limit.registrar_falha(rate_limit.PAIS_2FA_IP, ip)
+            if desfecho == 'invalido':
+                return render_template("pais/verificar_2fa.html", erro="Código inválido. Verifique o email e tente novamente.")
+            if desfecho == 'queimado':
+                _limpar_sessao_temp()
+                return render_template("pais/verificar_2fa.html",
+                                       erro="Código incorreto muitas vezes. Faça login novamente para receber um novo código.",
+                                       expirado=True)
+            if desfecho == 'expirado':
+                return render_template("pais/verificar_2fa.html", erro="Código expirado. Faça login novamente.", expirado=True)
+            if desfecho == 'ja_usado':
+                return render_template("pais/verificar_2fa.html",
+                                       erro="Este código já foi utilizado. Faça login novamente.",
+                                       expirado=True)
 
             # Promove para sessão completa
             session['pai_id'] = session.pop('pai_temp_id')
@@ -256,7 +311,7 @@ def register_parent_routes(app):
         try:
             filhos = get_school_sql_directory().get_students_for_guardian_email(session['pai_email'])
         except Exception as e:
-            print(f"[SCHOOL_SQL] Erro ao carregar dashboard: {e}")
+            _log.warning(f"[SCHOOL_SQL] Erro ao carregar dashboard: {e}")
             filhos = []
         for f in filhos:
             f['foto_src'] = f.get('foto_url')
@@ -273,7 +328,7 @@ def register_parent_routes(app):
         try:
             filhos = get_school_sql_directory().get_students_for_guardian_email(email)
         except Exception as e:
-            print(f"[SCHOOL_SQL] Erro ao solicitar saída: {e}")
+            _log.warning(f"[SCHOOL_SQL] Erro ao solicitar saída: {e}")
             filhos = []
         aluno = next((f for f in filhos if f['ra'] == ra), None)
 
@@ -283,7 +338,7 @@ def register_parent_routes(app):
 
         if request.method == "POST":
             data_solicitada = request.form.get("data_solicitada", "")
-            horario = request.form.get("horario", "")
+            horario = request.form.get("horario", "").strip()
             motivo = request.form.get("motivo", "").strip()
             tipo_saida = request.form.get("tipo_saida", "").strip()
             acompanhante = request.form.get("acompanhante", "").strip()
@@ -292,9 +347,14 @@ def register_parent_routes(app):
             if not data_solicitada or not motivo:
                 return render_template("pais/solicitar_saida.html", aluno=aluno, today=today,
                                        erro="Preencha a data e o motivo.")
-            if not horario:
+            if not horario_valido(horario):
                 return render_template("pais/solicitar_saida.html", aluno=aluno, today=today,
-                                       erro="Informe o horário da saída.")
+                                       erro="Informe o horário da saída no formato HH:MM.")
+            if not data_valida(data_solicitada):
+                return render_template("pais/solicitar_saida.html", aluno=aluno, today=today,
+                                       erro="Data inválida. Use o formato AAAA-MM-DD.")
+            # A comparação é textual, então só é confiável com HH:MM zero-preenchido — que é o
+            # que horario_valido() acabou de garantir ("9:00" passaria despercebido sem ela).
             if data_solicitada == today and horario <= datetime.now().strftime("%H:%M"):
                 return render_template("pais/solicitar_saida.html", aluno=aluno, today=today,
                                        erro="O horário informado já passou. Escolha um horário futuro.")
@@ -336,7 +396,6 @@ def register_parent_routes(app):
     @pai_required
     def pais_editar_solicitacao(sol_id):
         with get_db() as conn:
-            expirar_saidas_nao_liberadas(conn)
             sol_row = conn.execute(
                 """SELECT ss.*, a.nome AS nome_legado, a.turma AS turma_legado, a.serie AS serie_legado,
                           s.status AS saida_status
@@ -369,7 +428,7 @@ def register_parent_routes(app):
 
         if request.method == "POST":
             data_solicitada = request.form.get("data_solicitada", "")
-            horario = request.form.get("horario", "")
+            horario = request.form.get("horario", "").strip()
             motivo = request.form.get("motivo", "").strip()
             tipo_saida = request.form.get("tipo_saida", "").strip()
             acompanhante = request.form.get("acompanhante", "").strip()
@@ -378,10 +437,14 @@ def register_parent_routes(app):
                 return render_template("pais/solicitar_saida.html", aluno=aluno, today=today, sol=sol,
                                        voltar_url="/pais/minhas_solicitacoes",
                                        erro="Preencha a data e o motivo.")
-            if not horario:
+            if not horario_valido(horario):
                 return render_template("pais/solicitar_saida.html", aluno=aluno, today=today, sol=sol,
                                        voltar_url="/pais/minhas_solicitacoes",
-                                       erro="Informe o horário da saída.")
+                                       erro="Informe o horário da saída no formato HH:MM.")
+            if not data_valida(data_solicitada):
+                return render_template("pais/solicitar_saida.html", aluno=aluno, today=today, sol=sol,
+                                       voltar_url="/pais/minhas_solicitacoes",
+                                       erro="Data inválida. Use o formato AAAA-MM-DD.")
             if data_solicitada == today and horario <= datetime.now().strftime("%H:%M"):
                 return render_template("pais/solicitar_saida.html", aluno=aluno, today=today, sol=sol,
                                        voltar_url="/pais/minhas_solicitacoes",
@@ -463,7 +526,7 @@ def register_parent_routes(app):
         try:
             filhos = get_school_sql_directory().get_students_for_guardian_email(session['pai_email'])
         except Exception as e:
-            print(f"[SCHOOL_SQL] Erro ao carregar histórico: {e}")
+            _log.warning(f"[SCHOOL_SQL] Erro ao carregar histórico: {e}")
             filhos = []
         aluno = next((f for f in filhos if f['ra'] == ra), None)
 
@@ -472,7 +535,6 @@ def register_parent_routes(app):
             return redirect("/pais/dashboard")
 
         with get_db() as conn:
-            expirar_saidas_nao_liberadas(conn)
             historico = conn.execute(
                 """SELECT data_saida, horario, tipo_saida, acompanhante, status
                    FROM saidas
@@ -489,13 +551,6 @@ def register_parent_routes(app):
     @pai_required
     def pais_minhas_solicitacoes():
         with get_db() as conn:
-            conn.execute("""
-                DELETE FROM solicitacoes_saida
-                WHERE responsavel_id = %s
-                  AND status IN ('aprovado', 'rejeitado')
-                  AND criado_em < NOW() - INTERVAL '30 days'
-            """, (session['pai_id'],))
-            expirar_saidas_nao_liberadas(conn)
             rows = conn.execute(
                 """SELECT ss.id, ss.data_solicitada, ss.horario_solicitado, ss.motivo,
                           ss.status, ss.criado_em, ss.ra,
@@ -518,7 +573,6 @@ def register_parent_routes(app):
 
     @app.route("/pais/esqueci_senha", methods=["GET", "POST"])
     def pais_esqueci_senha():
-        import secrets
         mensagem = ""
         if request.method == "POST":
             email = request.form.get("email", "").strip().lower()
@@ -557,9 +611,10 @@ def register_parent_routes(app):
                   </p>
                 </div>
                 """
-                enviado = enviar_email(email, "Redefinição de senha — SecureEdu", corpo)
-                if not enviado:
-                    print(f"[FALLBACK] Link de reset para {email}: {link_para_enviar}")
+                enviar_email_async(
+                    email, "Redefinição de senha — SecureEdu", corpo,
+                    fallback_log=f"[FALLBACK] Link de reset para {email}: {link_para_enviar}",
+                )
 
             mensagem = "Se este email estiver cadastrado, você receberá um link em breve."
 
@@ -590,8 +645,9 @@ def register_parent_routes(app):
         if request.method == "POST" and responsavel_id:
             nova = request.form.get("senha", "")
             confirma = request.form.get("confirma", "")
-            if len(nova) < 8:
-                erro = "A senha deve ter pelo menos 8 caracteres."
+            erro_senha = verificar_forca(nova)
+            if erro_senha:
+                erro = erro_senha + '.'
             elif nova != confirma:
                 erro = "As senhas não coincidem."
             else:
@@ -607,12 +663,11 @@ def register_parent_routes(app):
 
     # ==================== LOGOUT ====================
 
-    @app.route("/pais/logout")
+    # POST apenas — mesmo motivo do /logout dos funcionários.
+    @app.route("/pais/logout", methods=["POST"])
     def pais_logout():
         session.pop('pai_id', None)
         session.pop('pai_email', None)
         session.pop('pai_nome', None)
-        session.pop('pai_temp_id', None)
-        session.pop('pai_temp_email', None)
-        session.pop('pai_temp_nome', None)
+        _limpar_sessao_temp()
         return redirect("/pais/login")

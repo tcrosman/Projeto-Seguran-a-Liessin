@@ -1,4 +1,8 @@
 import os
+from app.core.logging_config import obter
+from app.core.validators import escapar_like
+
+_log = obter()
 
 
 class SchoolSqlDirectoryClient:
@@ -124,7 +128,7 @@ class SchoolSqlDirectoryClient:
                 return None
             return self._montar_aluno(linhas[0], self._emails_por_ra([ra]).get(ra, []))
         except Exception as e:
-            print(f"[SCHOOL_SQL] Erro ao buscar aluno: {e}")
+            _log.warning(f"[SCHOOL_SQL] Erro ao buscar aluno: {e}")
             return None
 
     def get_students_by_ras(self, ras: list) -> dict:
@@ -141,7 +145,7 @@ class SchoolSqlDirectoryClient:
             emails = self._emails_por_ra([l["ra"] for l in linhas])
             return {l["ra"]: self._montar_aluno(l, emails.get(l["ra"], [])) for l in linhas}
         except Exception as e:
-            print(f"[SCHOOL_SQL] Erro ao buscar alunos em lote: {e}")
+            _log.warning(f"[SCHOOL_SQL] Erro ao buscar alunos em lote: {e}")
             return {}
 
     def get_students_for_guardian_email(self, email: str) -> list:
@@ -159,7 +163,7 @@ class SchoolSqlDirectoryClient:
             emails = self._emails_por_ra([l["ra"] for l in linhas])
             return [self._montar_aluno(l, emails.get(l["ra"], [])) for l in linhas]
         except Exception as e:
-            print(f"[SCHOOL_SQL] Erro ao buscar alunos do responsável: {e}")
+            _log.warning(f"[SCHOOL_SQL] Erro ao buscar alunos do responsável: {e}")
             return []
 
     def search_students(self, query: str) -> list:
@@ -168,16 +172,19 @@ class SchoolSqlDirectoryClient:
         if not q:
             return []
         try:
+            # ESCAPE explícito: o SQLite não tem caractere de escape padrão no LIKE, então sem
+            # isso um '%' digitado na busca da portaria listaria a escola inteira.
             linhas = self._consultar(
                 f"""SELECT ra, nome, turma, serie, foto_url FROM alunos
-                    WHERE ativo = 1 AND ({self._expr_norm('nome')} LIKE {self._ph} OR ra LIKE {self._ph})
+                    WHERE ativo = 1 AND ({self._expr_norm('nome')} LIKE {self._ph} ESCAPE '\\'
+                                         OR ra LIKE {self._ph} ESCAPE '\\')
                     ORDER BY nome LIMIT 20""",
-                (f"%{self._normalizar(q)}%", f"%{q}%"),
+                (f"%{escapar_like(self._normalizar(q))}%", f"%{escapar_like(q)}%"),
             )
             emails = self._emails_por_ra([l["ra"] for l in linhas])
             return [self._montar_aluno(l, emails.get(l["ra"], [])) for l in linhas]
         except Exception as e:
-            print(f"[SCHOOL_SQL] Erro ao buscar alunos: {e}")
+            _log.warning(f"[SCHOOL_SQL] Erro ao buscar alunos: {e}")
             return []
 
     def get_guardian_emails_for_ra(self, ra: str) -> list:
@@ -185,7 +192,7 @@ class SchoolSqlDirectoryClient:
         try:
             return self._emails_por_ra([ra]).get(ra, [])
         except Exception as e:
-            print(f"[SCHOOL_SQL] Erro ao buscar responsáveis: {e}")
+            _log.warning(f"[SCHOOL_SQL] Erro ao buscar responsáveis: {e}")
             return []
 
     def responsavel_reconhecido(self, email: str) -> bool:
@@ -206,7 +213,7 @@ class SchoolSqlDirectoryClient:
             )
             return bool(linhas)
         except Exception as e:
-            print(f"[SCHOOL_SQL] Erro ao validar responsável: {e}")
+            _log.warning(f"[SCHOOL_SQL] Erro ao validar responsável: {e}")
             return False
 
 

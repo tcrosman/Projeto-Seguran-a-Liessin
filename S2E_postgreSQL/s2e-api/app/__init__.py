@@ -1,10 +1,14 @@
 from flask import Flask, session, render_template
 from flask_wtf.csrf import CSRFProtect
 from flask_talisman import Talisman
+from werkzeug.middleware.proxy_fix import ProxyFix
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import os
 import psycopg2
+from app.core.logging_config import obter
+
+_log = obter()
 
 # Carrega variáveis de ambiente
 load_dotenv()
@@ -12,6 +16,18 @@ load_dotenv()
 def create_app():
     """Factory do Flask - cria e configura a aplicação"""
     app = Flask(__name__)
+
+    # Atrás do proxy do Render, request.remote_addr é o IP do proxy, igual para todos os
+    # visitantes — o que tornava o rate limit por IP ou inócuo ou capaz de trancar todo mundo de
+    # uma vez. Com ProxyFix, remote_addr passa a ser o IP real, lido de X-Forwarded-For.
+    # x_for=1: confia em exatamente um proxy à frente (o do Render). Aumentar esse número sem ter
+    # os proxies correspondentes deixaria o cliente forjar o próprio IP no cabeçalho.
+    # x_proto=1 é necessário para o Talisman saber que a request chegou por HTTPS e não entrar em
+    # loop de redirect. x_host fica de fora de propósito: nada aqui depende de request.host (os
+    # links de e-mail vêm de BASE_URL), e confiar em X-Forwarded-Host permitiria envenenar o
+    # destino do redirect de HTTPS.
+    if os.getenv('TRUST_PROXY', 'true').lower() == 'true':
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
     # Configurações
     # LGPD Art. 46 (💻 App obligation) — reject startup if secret key is insecure
@@ -48,16 +64,25 @@ def create_app():
         'frame-ancestors': "'none'",
     }
     _force_https = os.getenv('FORCE_HTTPS', 'false').lower() == 'true'
+    # O cookie de sessão precisa de Secure sempre que o site é servido por HTTPS, mesmo quando
+    # FORCE_HTTPS está desligado — essa flag controla o *redirect*, não o transporte. Um deploy
+    # com TLS no proxy e FORCE_HTTPS=false mandaria o cookie de sessão em claro.
+    _https = _force_https or os.getenv('BASE_URL', '').startswith('https://')
     Talisman(
         app,
         force_https=_force_https,
-        session_cookie_secure=_force_https,
+        session_cookie_secure=_https,
         strict_transport_security=True,
         strict_transport_security_max_age=31536000,
         strict_transport_security_include_subdomains=True,
         frame_options='DENY',
         content_security_policy=_csp,
     )
+    # Lax barra o envio do cookie em POST cross-site (CSRF), sem quebrar a volta de links
+    # externos — como o link de redefinição de senha que chega por e-mail.
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SECURE'] = _https
 
     # LGPD Art. 46 (💻 App obligation) — session lifetime and idle timeout
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
@@ -65,7 +90,10 @@ def create_app():
 
     @app.before_request
     def enforce_session_timeout():
-        if 'user_id' not in session:
+        # Vale para as duas sessões: a de funcionário (user_id) e a de responsável (pai_id), que
+        # antes ficava aberta indefinidamente. 'pai_temp_id' entra junto para a sessão parcial
+        # entre a senha e o 2FA não sobreviver a uma máquina abandonada.
+        if not any(k in session for k in ('user_id', 'pai_id', 'pai_temp_id')):
             return
         session.permanent = True
         last_seen = session.get('last_seen')
@@ -84,7 +112,14 @@ def create_app():
         migrate_database()
         run_migrations()
     except Exception as _mig_err:
-        print(f"[WARN] Migrações não puderam ser aplicadas automaticamente: {_mig_err}")
+        _log.warning(f"[WARN] Migrações não puderam ser aplicadas automaticamente: {_mig_err}")
+
+    # Limpeza/expiração periódica em thread de fundo — antes essas escritas rodavam dentro das
+    # rotas GET de listagem. Desligue com MANUTENCAO_AUTOMATICA=false se preferir só o cron
+    # externo (python manutencao.py).
+    if os.getenv('MANUTENCAO_AUTOMATICA', 'true').lower() == 'true':
+        from app.core.maintenance import iniciar_agendador
+        iniciar_agendador()
 
     # Importar e registrar rotas
     from app.api import web

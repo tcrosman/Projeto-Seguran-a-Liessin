@@ -1,15 +1,20 @@
-from flask import Flask, render_template, request, redirect, session, flash, send_from_directory, jsonify
+from flask import render_template, request, redirect, session, flash, send_from_directory, jsonify
+from markupsafe import escape
 from app.api.middleware import login_required, admin_required
-from app.core.database import get_db, expirar_saidas_nao_liberadas
+from app.core.database import get_db
 from app.core.audit_logger import log_operacao
 from app.core.cache import TTLCache
+from app.core import rate_limit
+from app.core.passwords import senha_confere
+from app.core.validators import escapar_like, horario_valido, data_valida
 from app.services.school_sql_directory import get_school_sql_directory
 from app.config import Config
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
-from collections import defaultdict
 import os
-import re
+from app.core.logging_config import obter
+
+_log = obter()
 
 
 _cache_diretorio = TTLCache(ttl_seconds=300)
@@ -27,7 +32,7 @@ def _buscar_alunos_com_cache(ras):
             for ra, info in frescos.items():
                 _cache_diretorio.set(ra, info)
         except Exception as e:
-            print(f"[SCHOOL_SQL] Consulta indisponível, usando cache: {e}")
+            _log.warning(f"[SCHOOL_SQL] Consulta indisponível, usando cache: {e}")
     resultado = {}
     for ra in set(ras):
         info = _cache_diretorio.get(ra) or _cache_diretorio.get_stale(ra)
@@ -44,7 +49,7 @@ def _nome_e_emails_para_saida(ra):
         info = get_school_sql_directory().get_student(ra)
         emails = get_school_sql_directory().get_guardian_emails_for_ra(ra)
     except Exception as e:
-        print(f"[SCHOOL_SQL] Erro ao concluir saída: {e}")
+        _log.warning(f"[SCHOOL_SQL] Erro ao concluir saída: {e}")
         info, emails = None, []
     nome_aluno = info['nome'] if info else f"RA {ra}"
     return nome_aluno, emails
@@ -104,34 +109,6 @@ def _resolver_dados_saidas(rows):
 def register_routes(app):
     """Registra todas as rotas web"""
     
-    # ==================== RATE LIMIT ====================
-    # Bloqueia após 5 senhas erradas; libera automaticamente após 5 minutos.
-    _falhas_por_ip   = defaultdict(list)  # ip -> lista de timestamps de falhas
-    _bloqueios_por_ip = {}                # ip -> datetime de liberação
-
-    _MAX_FALHAS   = 5
-    _JANELA_MIN   = 15   # janela de tempo para contar falhas (minutos)
-    _BLOQUEIO_MIN = 5    # duração do bloqueio após atingir o limite (minutos)
-
-    def is_rate_limited(ip):
-        """Retorna True se o IP está bloqueado por excesso de senhas erradas."""
-        agora = datetime.now()
-        if ip in _bloqueios_por_ip:
-            if agora < _bloqueios_por_ip[ip]:
-                return True
-            del _bloqueios_por_ip[ip]
-            _falhas_por_ip.pop(ip, None)
-        return False
-
-    def registrar_falha(ip):
-        """Conta falha de login; bloqueia por 5 min após 5 tentativas erradas."""
-        agora = datetime.now()
-        _falhas_por_ip[ip] = [t for t in _falhas_por_ip[ip] if agora - t < timedelta(minutes=_JANELA_MIN)]
-        _falhas_por_ip[ip].append(agora)
-        if len(_falhas_por_ip[ip]) >= _MAX_FALHAS:
-            _bloqueios_por_ip[ip] = agora + timedelta(minutes=_BLOQUEIO_MIN)
-            _falhas_por_ip.pop(ip, None)
-    
     # ==================== ARQUIVOS ESTÁTICOS ====================
     @app.route('/static/css/style.css')
     def serve_css():
@@ -147,30 +124,40 @@ def register_routes(app):
     @app.route("/", methods=["GET", "POST"])
     def login():
         ip = request.remote_addr
-        
-        if is_rate_limited(ip):
-            return render_template("auth/login.html", erro="Muitas tentativas de login. Tente novamente em 5 minutos.")
 
         if request.method == "POST":
+            usuario_informado = request.form.get("u", "").strip()
+
+            # Verificado só no POST: "/" é a landing page do app e o limite agora custa uma
+            # consulta ao banco — não vale pagá-la em toda visita anônima.
+            # Limite estreito por conta (protege quem está sendo atacado) e largo por IP (rede de
+            # segurança contra varredura). Ver app/core/rate_limit.py para o porquê da diferença.
+            if rate_limit.esta_bloqueado(rate_limit.LOGIN_IP, ip) or (
+                usuario_informado and rate_limit.esta_bloqueado(rate_limit.LOGIN_CONTA, usuario_informado)
+            ):
+                return render_template("auth/login.html", erro="Muitas tentativas de login. Tente novamente em 5 minutos.")
+
             with get_db() as conn:
+                # Mesmo valor usado na chave do rate limit: buscar pelo não-normalizado deixaria
+                # " admin " contando falhas em "admin" mas nunca casando com o usuário.
                 user = conn.execute(
                     "SELECT id, role, username, password FROM usuarios WHERE username=%s",
-                    (request.form["u"],)
+                    (usuario_informado,)
                 ).fetchone()
 
-            if user and check_password_hash(user['password'], request.form["s"]):
-                # Login OK — zera contadores deste IP
-                _falhas_por_ip.pop(ip, None)
-                _bloqueios_por_ip.pop(ip, None)
+            if senha_confere(user['password'] if user else None, request.form.get("s", "")):
+                rate_limit.limpar(rate_limit.LOGIN_CONTA, user['username'])
+                rate_limit.limpar(rate_limit.LOGIN_IP, ip)
                 log_operacao(user['username'], "LOGIN_SUCESSO", f"role={user['role']}", ip=ip)
                 session['user_id'] = user['id']
                 session['role'] = user['role']
                 session['username'] = user['username']
                 return redirect("/inicio")
             else:
-                registrar_falha(ip)
-                tentativa_usuario = request.form.get("u", "")
-                log_operacao(tentativa_usuario or "desconhecido", "LOGIN_FALHA", "senha incorreta ou usuário inexistente", ip=ip)
+                rate_limit.registrar_falha(rate_limit.LOGIN_IP, ip)
+                if usuario_informado:
+                    rate_limit.registrar_falha(rate_limit.LOGIN_CONTA, usuario_informado)
+                log_operacao(usuario_informado or "desconhecido", "LOGIN_FALHA", "senha incorreta ou usuário inexistente", ip=ip)
                 return render_template("auth/login.html", erro="Usuário ou senha incorretos.")
 
         return render_template("auth/login.html")
@@ -192,7 +179,9 @@ def register_routes(app):
                                solicitacoes_pendentes=solicitacoes_pendentes,
                                responsaveis_pendentes=responsaveis_pendentes)
     
-    @app.route("/logout")
+    # POST apenas: com GET, um <img src="/logout"> em qualquer página derrubava a sessão do
+    # usuário. O formulário no sidebar carrega o token CSRF.
+    @app.route("/logout", methods=["POST"])
     def logout():
         log_operacao(session.get('username', 'desconhecido'), "LOGOUT", "", ip=request.remote_addr)
         session.clear()
@@ -200,7 +189,7 @@ def register_routes(app):
     
     @app.route("/esqueci_senha", methods=["GET", "POST"])
     def esqueci_senha():
-        from app.core.mailer import enviar_email
+        from app.core.mailer import enviar_email_async
         mensagem = ""
         if request.method == "POST":
             email = request.form.get("email", "").strip().lower()
@@ -237,9 +226,10 @@ def register_routes(app):
                   </p>
                 </div>
                 """
-                enviado = enviar_email(email, "Redefinição de senha — SecureEdu", corpo)
-                if not enviado:
-                    print(f"[FALLBACK] Email não enviado. Use este link manualmente: {link_para_enviar}")
+                enviar_email_async(
+                    email, "Redefinição de senha — SecureEdu", corpo,
+                    fallback_log=f"[FALLBACK] Email não enviado. Use este link manualmente: {link_para_enviar}",
+                )
 
             mensagem = "Se este email estiver cadastrado, você receberá um link em breve."
         return render_template("auth/forgot.html", mensagem=mensagem)
@@ -290,15 +280,14 @@ def register_routes(app):
         
         if nome:
             with get_db() as conn:
-                expirar_saidas_nao_liberadas(conn)
                 rows = conn.execute("""
                     SELECT a.id, a.nome, a.turma, a.serie, a.foto_path,
                            s.data_saida, s.horario, s.motivo, s.responsavel_escola, s.tipo_saida, s.acompanhante, s.status
                     FROM alunos a
                     LEFT JOIN saidas s ON a.id = s.aluno
-                    WHERE a.nome ILIKE %s
+                    WHERE a.nome ILIKE %s ESCAPE '\\'
                     ORDER BY s.data_saida DESC, s.horario DESC
-                """, (f'%{nome}%',)).fetchall()
+                """, (f'%{escapar_like(nome)}%',)).fetchall()
                 resultados = [dict(row) for row in rows]
         
         return render_template("departures/history_of_departures.html", resultados=resultados, nome=nome)
@@ -313,7 +302,7 @@ def register_routes(app):
         try:
             resultados = get_school_sql_directory().search_students(query)
         except Exception as e:
-            print(f"[SCHOOL_SQL] Erro ao buscar aluno na portaria: {e}")
+            _log.warning(f"[SCHOOL_SQL] Erro ao buscar aluno na portaria: {e}")
             resultados = []
         return jsonify([
             {"ra": a["ra"], "nome": a["nome"], "turma": a.get("turma"), "serie": a.get("serie")}
@@ -327,8 +316,8 @@ def register_routes(app):
 
         if request.method == "POST":
             ra = request.form.get("ra", "").strip()
-            data_saida = request.form.get("data_saida", datetime.now().strftime("%Y-%m-%d"))
-            horario = request.form.get("horario")
+            data_saida = request.form.get("data_saida", "").strip() or datetime.now().strftime("%Y-%m-%d")
+            horario = request.form.get("horario", "").strip()
             motivo = request.form.get("motivo")
             responsavel_escola = request.form.get("responsavel_escola")
             tipo_saida = request.form.get("tipo_saida")
@@ -336,11 +325,17 @@ def register_routes(app):
 
             if not ra or not horario or not motivo or not responsavel_escola or not tipo_saida:
                 flash("Todos os campos são obrigatórios, incluindo a seleção do aluno na busca!", "error")
+            elif not horario_valido(horario):
+                flash("Horário inválido. Use o formato HH:MM.", "error")
+            elif not data_valida(data_saida):
+                flash("Data inválida. Use o formato AAAA-MM-DD.", "error")
+            elif tipo_saida not in ('sozinho', 'acompanhado'):
+                flash("Tipo de saída inválido.", "error")
             else:
                 try:
                     aluno = get_school_sql_directory().get_student(ra)
                 except Exception as e:
-                    print(f"[SCHOOL_SQL] Erro ao registrar saída: {e}")
+                    _log.warning(f"[SCHOOL_SQL] Erro ao registrar saída: {e}")
                     aluno = None
                 if not aluno:
                     flash("Aluno não encontrado para o RA informado. Busque novamente pelo nome ou RA.", "error")
@@ -384,12 +379,9 @@ def register_routes(app):
         data_selecionada = request.args.get("data", datetime.now().strftime("%Y-%m-%d"))
         busca = request.args.get("busca", "").strip()
 
+        # A expiração de saídas e a remoção das antigas saíram daqui: rodavam a cada
+        # carregamento da página. Agora ficam em app/core/maintenance.py.
         with get_db() as conn:
-            # Limpar saídas antigas
-            conn.execute("DELETE FROM saidas WHERE status = 'concluida' AND data_saida < TO_CHAR(CURRENT_DATE - INTERVAL '30 days', 'YYYY-MM-DD')")
-            # Marca como não realizadas as saídas aprovadas cujo dia já passou sem liberação
-            expirar_saidas_nao_liberadas(conn)
-
             rows = conn.execute("""
                 SELECT s.id, s.ra, s.turma, s.horario, s.motivo, s.responsavel_escola, s.tipo_saida,
                        s.acompanhante, s.documento_path, s.status,
@@ -439,15 +431,22 @@ def register_routes(app):
             saida = _resolver_dados_saidas([saida_row])[0]
 
             if request.method == "POST":
-                horario = request.form.get("horario")
+                horario = request.form.get("horario", "").strip()
                 motivo = request.form.get("motivo")
                 responsavel_escola = request.form.get("responsavel_escola")
                 tipo_saida = request.form.get("tipo_saida")
                 acompanhante = request.form.get("acompanhante") if tipo_saida == 'acompanhado' else None
 
+                if not horario_valido(horario):
+                    flash("Horário inválido. Use o formato HH:MM.", "error")
+                    return render_template("departures/edit_exits.html", saida=saida)
+                if tipo_saida not in ('sozinho', 'acompanhado'):
+                    flash("Tipo de saída inválido.", "error")
+                    return render_template("departures/edit_exits.html", saida=saida)
+
                 conn.execute("""
                     UPDATE saidas SET horario=%s, motivo=%s, responsavel_escola=%s, tipo_saida=%s, acompanhante=%s
-                    WHERE id=%s
+                    WHERE id=%s AND status='pendente'
                 """, (horario, motivo, responsavel_escola, tipo_saida, acompanhante, id_saida))
                 flash("Saída atualizada!", "success")
                 return redirect("/saidas")
@@ -458,10 +457,17 @@ def register_routes(app):
     @login_required
     def concluir_saida(id_saida):
         with get_db() as conn:
-            conn.execute(
-                "UPDATE saidas SET status = 'concluida', usuario_autorizou = %s, liberado_em = NOW() WHERE id = %s",
+            # Só a transição pendente -> concluída conta. Sem o filtro de status, um duplo-clique
+            # (ou POST repetido) reescrevia liberado_em e reenviava o e-mail aos responsáveis.
+            liberou = conn.execute(
+                """UPDATE saidas SET status = 'concluida', usuario_autorizou = %s, liberado_em = NOW()
+                   WHERE id = %s AND status = 'pendente'""",
                 (session['user_id'], id_saida)
-            )
+            ).rowcount
+
+            if not liberou:
+                flash("Esta saída já havia sido autorizada.", "error")
+                return redirect("/saidas")
 
             saida = conn.execute("""
                 SELECT s.data_saida, s.horario, s.ra, a.id AS aluno_id_legado, a.nome AS aluno_nome_legado
@@ -485,15 +491,14 @@ def register_routes(app):
                 nome_aluno, emails = None, []
 
         if saida:
-            from app.core.mailer import enviar_email
-            for email in emails:
-                enviar_email(
-                    email,
-                    "Saída liberada — SecureEdu",
-                    f"""<p>Olá! A saída de <strong>{nome_aluno}</strong> foi
+            from app.core.mailer import enviar_email_async
+            # nome_aluno vem do banco da escola e horario do formulário da portaria: ambos vão
+            # escapados, para não injetarem HTML no e-mail que chega ao responsável.
+            corpo = (f"""<p>Olá! A saída de <strong>{escape(nome_aluno)}</strong> foi
                     <strong style="color:#16a34a;">liberada pela segurança da escola</strong>
-                    hoje às <strong>{saida['horario']}</strong>.</p>"""
-                )
+                    hoje às <strong>{escape(saida['horario'])}</strong>.</p>""")
+            for email in emails:
+                enviar_email_async(email, "Saída liberada — SecureEdu", corpo)
 
         log_operacao(session.get('username'), "CONCLUIU SAÍDA", f"ID Saída: {id_saida}")
         flash("Saída autorizada!", "success")
@@ -659,12 +664,6 @@ def register_routes(app):
     @admin_required
     def admin_solicitacoes():
         with get_db() as conn:
-            conn.execute("""
-                DELETE FROM solicitacoes_saida
-                WHERE status IN ('aprovado', 'rejeitado')
-                  AND criado_em < NOW() - INTERVAL '30 days'
-            """)
-            expirar_saidas_nao_liberadas(conn)
             rows = conn.execute("""
                 SELECT ss.id, ss.ra, ss.data_solicitada, ss.horario_solicitado, ss.motivo, ss.status,
                        ss.tipo_saida, ss.acompanhante,
@@ -705,11 +704,37 @@ def register_routes(app):
 
             sol = _resolver_solicitacoes([sol_row])[0]
 
-            # Aprova a solicitação
-            conn.execute(
-                "UPDATE solicitacoes_saida SET status = 'aprovado', revisado_por = %s, revisado_em = NOW() WHERE id = %s",
+            # Aprova a solicitação. O filtro por status é o que serializa duas aprovações
+            # simultâneas: a segunda transação relê a linha já aprovada, casa 0 linhas e para
+            # aqui, em vez de criar uma segunda saída para o mesmo aluno.
+            aprovou = conn.execute(
+                """UPDATE solicitacoes_saida SET status = 'aprovado', revisado_por = %s, revisado_em = NOW()
+                   WHERE id = %s AND status = 'aguardando'""",
                 (session['user_id'], sol_id)
-            )
+            ).rowcount
+
+            if not aprovou:
+                flash("Solicitação não encontrada ou já revisada.", "error")
+                return redirect("/admin/solicitacoes")
+
+            # A portaria pode ter registrado a saída deste aluno para o mesmo dia por conta
+            # própria — mesma checagem que /registrar_saida já faz antes de inserir.
+            if sol['ra']:
+                ja_pendente = conn.execute(
+                    "SELECT 1 FROM saidas WHERE ra = %s AND data_saida = %s AND status = 'pendente'",
+                    (sol['ra'], sol['data_solicitada'])
+                ).fetchone()
+            else:
+                ja_pendente = conn.execute(
+                    "SELECT 1 FROM saidas WHERE aluno = %s AND data_saida = %s AND status = 'pendente'",
+                    (sol['aluno_id'], sol['data_solicitada'])
+                ).fetchone()
+
+            if ja_pendente:
+                flash(f"Solicitação de {sol['aluno_nome']} aprovada. Este aluno já tinha uma saída "
+                      "pendente para esta data, então nenhuma saída nova foi criada.", "success")
+                return redirect("/admin/solicitacoes")
+
             # Cria a saída real na tabela saidas para a portaria ver — por ra no fluxo novo,
             # mantendo aluno (FK legada) para as solicitações antigas
             conn.execute("""
@@ -754,15 +779,15 @@ def register_routes(app):
                 (session['user_id'], sol_id)
             )
 
-        from app.core.mailer import enviar_email
-        enviar_email(
+        from app.core.mailer import enviar_email_async
+        enviar_email_async(
             sol['responsavel_email'],
             "Solicitação de saída — SecureEdu",
-            f"""<p>A solicitação de saída de <strong>{sol['aluno_nome']}</strong>
+            f"""<p>A solicitação de saída de <strong>{escape(sol['aluno_nome'])}</strong>
             foi <strong style="color:#dc2626;">rejeitada</strong> pela escola.
             Entre em contato com a secretaria para mais informações.</p>"""
         )
-        flash(f"Solicitação rejeitada.", "success")
+        flash("Solicitação rejeitada.", "success")
         return redirect("/admin/solicitacoes")
 
     # ==================== MANUAL ====================

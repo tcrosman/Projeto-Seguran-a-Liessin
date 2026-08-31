@@ -1,4 +1,6 @@
 import unicodedata
+from datetime import datetime
+
 from app.config import Config
 
 
@@ -19,6 +21,51 @@ def normalizar_serie(valor):
         return valor_str
 
     return Config.NORMALIZE_SERIE.get(_chave_normalizada(valor_str))
+
+
+def horario_valido(valor):
+    """True se o valor é um horário HH:MM com zero à esquerda (00:00 a 23:59).
+
+    O <input type="time"> do navegador já restringe o formato, mas isso não vale nada contra um
+    POST montado à mão — e o horário vai direto para a tela da portaria e para o e-mail do
+    responsável.
+
+    O zero à esquerda não é preciosismo: horários são comparados como texto no portal dos pais
+    ("o horário informado já passou"), e "9:30" > "10:00" na ordem lexicográfica. Como
+    strptime aceita "9:30", a volta por strftime é o que de fato exige o formato canônico.
+    """
+    return _confere_formato(valor, '%H:%M')
+
+
+def data_valida(valor):
+    """True se o valor é uma data YYYY-MM-DD canônica (mesmo motivo de horario_valido)."""
+    return _confere_formato(valor, '%Y-%m-%d')
+
+
+def _confere_formato(valor, formato):
+    """Valida e exige a forma canônica: strptime aceita variações que a comparação textual quebra."""
+    if not valor:
+        return False
+    texto = str(valor).strip()
+    try:
+        return datetime.strptime(texto, formato).strftime(formato) == texto
+    except ValueError:
+        return False
+
+
+def escapar_like(termo):
+    """Neutraliza os curingas de LIKE/ILIKE num termo de busca digitado pelo usuário.
+
+    Sem isso, buscar por '%' casa com todos os alunos e '_' casa com qualquer caractere — o
+    usuário consegue listar a base inteira a partir de um campo de busca. A barra invertida vem
+    primeiro, senão ela escaparia os escapes inseridos logo depois.
+
+    Quem usa precisa declarar o caractere de escape na query (ESCAPE '\\'): o Postgres assume a
+    barra invertida por padrão, mas o SQLite não assume nenhum.
+    """
+    return (str(termo).replace('\\', '\\\\')
+                      .replace('%', '\\%')
+                      .replace('_', '\\_'))
 
 
 def allowed_file(filename):

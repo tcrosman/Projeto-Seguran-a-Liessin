@@ -1,21 +1,19 @@
-from typing import Optional, Dict, List
+from typing import Optional
 import re
+
+from app.core.passwords import verificar_forca
 
 class UserSchema:
     """Schema para validação e serialização de usuários"""
 
     @staticmethod
     def _check_password_strength(password: str) -> Optional[str]:
-        """Retorna mensagem de erro se a senha não atende à política, ou None se válida."""
-        if len(password) < 8:
-            return 'Senha deve ter no mínimo 8 caracteres'
-        if not re.search(r'[A-Z]', password):
-            return 'Senha deve conter ao menos uma letra maiúscula'
-        if not re.search(r'[0-9]', password):
-            return 'Senha deve conter ao menos um número'
-        if not re.search(r'[!@#$%^&*()\-_=+\[\]{};:\'",.<>/?\\|`~]', password):
-            return 'Senha deve conter ao menos um caractere especial (@, !, #, etc.)'
-        return None
+        """Retorna mensagem de erro se a senha não atende à política, ou None se válida.
+
+        A política em si mora em app/core/passwords.py, compartilhada com o portal dos
+        responsáveis; aqui fica só o encaminhamento, para não haver duas regras divergentes.
+        """
+        return verificar_forca(password)
 
     @staticmethod
     def validate(data: dict, is_update: bool = False) -> tuple[bool, Optional[str], dict]:

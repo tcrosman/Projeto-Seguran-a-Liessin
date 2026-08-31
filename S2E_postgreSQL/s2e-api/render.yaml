@@ -25,3 +25,8 @@ services:
         value: "true"
       - key: UPLOAD_FOLDER
         value: storage
+      # Render põe um proxy na frente: sem isso, o rate limit veria o IP do proxy para todos.
+      - key: TRUST_PROXY
+        value: "true"
+      - key: DB_POOL_MAX
+        value: "5"

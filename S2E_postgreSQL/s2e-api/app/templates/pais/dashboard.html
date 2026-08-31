@@ -53,7 +53,10 @@
     <div class="pai-nav">
       <span style="font-size:13px; color:#6b7280;">Olá, <strong>{{ nome }}</strong></span>
       <a href="/pais/minhas_solicitacoes" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">Minhas solicitações</a>
-      <a href="/pais/logout" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">Sair</a>
+      <form method="POST" action="/pais/logout" style="margin:0; display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">Sair</button>
+      </form>
     </div>
   </div>
 

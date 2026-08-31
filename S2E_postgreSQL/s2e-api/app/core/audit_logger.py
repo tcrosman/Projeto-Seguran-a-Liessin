@@ -1,14 +1,18 @@
 from datetime import datetime
 import json
-import os
 from app.core.database import get_db
+from app.core.logging_config import obter
+
+_log = obter('s2e.audit')
 
 def log_operacao(usuario, acao, detalhes, ip=None):
-    """Registra log em arquivo texto com IP opcional"""
-    os.makedirs('logs', exist_ok=True)
+    """Registra uma ação na trilha de auditoria (arquivo rotacionado + stdout).
+
+    Antes isto abria 'logs/system.log' em append a cada chamada: sem rotação, o arquivo crescia
+    sem limite, e dois workers escrevendo ao mesmo tempo podiam intercalar linhas.
+    """
     ip_str = f" [{ip}]" if ip else ""
-    with open('logs/system.log', 'a', encoding='utf-8') as f:
-        f.write(f"[{datetime.now()}]{ip_str} {usuario} - {acao}: {detalhes}\n")
+    _log.info("%s%s - %s: %s", usuario, ip_str, acao, detalhes)
 
 def log_aluno(aluno_id, usuario_id, acao, dados_antigos=None, dados_novos=None):
     """Registra auditoria de aluno no banco"""
