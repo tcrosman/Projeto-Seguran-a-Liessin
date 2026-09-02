@@ -1,8 +1,42 @@
 import os
+from contextlib import contextmanager
+from threading import BoundedSemaphore, Lock
+
 from app.core.logging_config import obter
 from app.core.validators import escapar_like
 
 _log = obter()
+
+# Pool de conexões do banco da escola — mesmo desenho do pool do banco próprio, em
+# app/core/database.py, e pelo mesmo motivo.
+#
+# Antes, cada consulta abria e fechava a própria conexão: TCP + autenticação por query. E as
+# consultas vêm em grupo, não isoladas — get_student são 2 conexões (por causa de
+# _emails_por_ra), _nome_e_emails_para_saida são 3, /alunos são 2, e o autocomplete da portaria
+# são 2 a cada tecla digitada. Numa tarde de saídas isso é o handshake dominando a latência de
+# uma consulta que já é a mais lenta do sistema.
+#
+# Só para Postgres. Com SQLite (o banco provisório de escola_provisoria/) abrir o arquivo é
+# barato e a conexão não pode ser compartilhada entre threads sem cuidado extra — não vale a
+# complexidade por um banco que é de desenvolvimento.
+POOL_MAX = int(os.getenv('SCHOOL_SQL_POOL_MAX', 4))
+
+_pool = None
+_vagas = None       # semáforo: quantas conexões ainda podem ser retiradas do pool
+_trava_pool = Lock()
+
+
+def _reiniciar_pool():
+    """Descarta o pool. Existe para os testes trocarem de configuração sem herdar o pool
+    anterior — em produção o pool vive enquanto o worker viver."""
+    global _pool, _vagas
+    with _trava_pool:
+        if _pool is not None:
+            try:
+                _pool.closeall()
+            except Exception:
+                pass
+        _pool, _vagas = None, None
 
 
 class SchoolSqlDirectoryClient:
@@ -17,10 +51,11 @@ class SchoolSqlDirectoryClient:
     especificação do mínimo que a escola precisa expor: `alunos(ra, nome, turma, serie, foto_url,
     ativo)`, `responsaveis(email, nome, ativo)` e `vinculos(ra, email)`.
 
-    Para plugar o banco real: acrescentar o engine em `_conectar()` (psycopg2 já está no projeto
-    para Postgres; pyodbc/pymssql para SQL Server; cx_Oracle para Oracle) e ajustar os nomes de
-    tabela/coluna se a escola usar outros. O texto das queries já usa um placeholder neutro, então
-    a diferença de sintaxe (`?` no SQLite vs `%s` no psycopg2) não exige reescrevê-las.
+    Para plugar o banco real: acrescentar o engine em `_conexao()` — com pool, no molde de
+    `_pool_postgres()`, que é o que o Postgres já usa — e ajustar os nomes de tabela/coluna se a
+    escola usar outros (pyodbc/pymssql para SQL Server; cx_Oracle para Oracle). O texto das
+    queries já usa um placeholder neutro, então a diferença de sintaxe (`?` no SQLite vs `%s` no
+    psycopg2) não exige reescrevê-las.
 
     Nenhum método propaga exceção: falha de conexão ou de consulta vira log + retorno seguro
     (None/{}/[]/False), para uma indisponibilidade do banco da escola não derrubar o S2E.
@@ -63,6 +98,9 @@ class SchoolSqlDirectoryClient:
         return f"unaccent(lower({coluna}))"  # Postgres: exige a extensão unaccent
 
     def _conectar(self):
+        """Abre uma conexão avulsa. Só o SQLite passa por aqui — no Postgres a conexão vem do
+        pool (ver _conexao/_pool_postgres), que é onde os mesmos limites de tempo são aplicados.
+        """
         if self._engine == 'sqlite':
             if not self._database:
                 raise RuntimeError("SCHOOL_SQL_DATABASE (caminho do arquivo .db) não configurado no .env")
@@ -71,36 +109,102 @@ class SchoolSqlDirectoryClient:
             conn.row_factory = sqlite3.Row
             conn.create_function("norm_texto", 1, self._normalizar)
             return conn
-        if self._engine in ('postgres', 'postgresql'):
-            if not self._host or not self._database:
-                raise RuntimeError("SCHOOL_SQL_HOST e SCHOOL_SQL_DATABASE não configurados no .env")
-            import psycopg2
-            import psycopg2.extras
-            return psycopg2.connect(
-                host=self._host, port=self._port or 5432, dbname=self._database,
-                user=self._user, password=self._password,
-                cursor_factory=psycopg2.extras.RealDictCursor,
-                # Sem estes dois limites, o banco da escola fora do ar pendura a request até o
-                # timeout de TCP do sistema (mais de um minuto). Como essas consultas rodam dentro
-                # de rotas e o gunicorn tem poucos workers, bastavam alguns acessos simultâneos
-                # para o S2E inteiro parar de responder — inclusive a tela da portaria.
-                connect_timeout=self._timeout,                                   # abrir a conexão
-                options=f'-c statement_timeout={self._timeout * 1000}',          # e executar a query
-            )
         raise RuntimeError(
             f"SCHOOL_SQL_ENGINE='{self._engine}' não suportado. Use 'sqlite' (banco provisório) "
             "ou 'postgres'. Para outro banco, acrescente o driver em _conectar()."
         )
 
+    def _pool_postgres(self):
+        """Devolve (pool, semáforo) do banco da escola, criando-os na primeira chamada.
+
+        Criado sob demanda, nunca no import: o gunicorn faz fork dos workers, e um pool criado
+        antes do fork teria os sockets compartilhados entre processos.
+        """
+        global _pool, _vagas
+        if _pool is None:
+            with _trava_pool:
+                if _pool is None:
+                    import psycopg2.pool
+                    import psycopg2.extras
+                    novo = psycopg2.pool.ThreadedConnectionPool(
+                        minconn=1,
+                        maxconn=POOL_MAX,
+                        host=self._host, port=self._port or 5432, dbname=self._database,
+                        user=self._user, password=self._password,
+                        cursor_factory=psycopg2.extras.RealDictCursor,
+                        # Sem estes dois limites, o banco da escola fora do ar pendura a
+                        # request até o timeout de TCP do sistema (mais de um minuto). Como essas
+                        # consultas rodam dentro de rotas e o gunicorn tem poucos workers,
+                        # bastavam alguns acessos simultâneos para o S2E inteiro parar de
+                        # responder — inclusive a tela da portaria.
+                        connect_timeout=self._timeout,                            # abrir a conexão
+                        options=f'-c statement_timeout={self._timeout * 1000}',   # e a query
+                    )
+                    # getconn() não espera: com o pool cheio ele levanta PoolError na hora. O
+                    # semáforo faz a requisição excedente aguardar — e por no máximo o mesmo
+                    # tempo dos outros limites do banco da escola, para uma tela nunca ficar
+                    # presa aqui além do que já se aceita esperar por ele.
+                    _vagas = BoundedSemaphore(POOL_MAX)
+                    _pool = novo
+        return _pool, _vagas
+
+    @contextmanager
+    def _conexao(self):
+        """Empresta uma conexão: do pool no Postgres, aberta e fechada no SQLite."""
+        if self._engine == 'sqlite':
+            conn = self._conectar()
+            try:
+                yield conn
+            finally:
+                conn.close()
+            return
+
+        if not self._host or not self._database:
+            raise RuntimeError("SCHOOL_SQL_HOST e SCHOOL_SQL_DATABASE não configurados no .env")
+        if self._engine not in ('postgres', 'postgresql'):
+            raise RuntimeError(
+                f"SCHOOL_SQL_ENGINE='{self._engine}' não suportado. Use 'sqlite' (banco "
+                "provisório) ou 'postgres'. Para outro banco, acrescente o driver em _conectar()."
+            )
+
+        import psycopg2
+        pool, vagas = self._pool_postgres()
+        if not vagas.acquire(timeout=self._timeout):
+            raise RuntimeError(
+                f"Sem conexão livre para o banco da escola após {self._timeout}s "
+                "(SCHOOL_SQL_POOL_MAX)."
+            )
+        try:
+            conn = pool.getconn()
+            # O servidor pode ter fechado a conexão enquanto ela estava ociosa no pool.
+            if conn.closed:
+                pool.putconn(conn, close=True)
+                conn = pool.getconn()
+            descartar = False
+            try:
+                yield conn
+                # Só leitura, mas o psycopg2 abre transação implícita no primeiro execute: sem
+                # encerrá-la, a conexão volta ao pool com um snapshot preso, e o "idle in
+                # transaction" segura recursos do banco da escola indefinidamente.
+                conn.rollback()
+            except Exception:
+                try:
+                    conn.rollback()
+                except psycopg2.Error:
+                    descartar = True    # conexão quebrada: não pode voltar para o pool
+                raise
+            finally:
+                pool.putconn(conn, close=descartar or conn.closed)
+        finally:
+            # Só depois de devolver a conexão — senão outra thread acorda sem nada disponível.
+            vagas.release()
+
     def _consultar(self, sql, params=()):
         """Roda um SELECT e devolve lista de dicts. Levanta em caso de erro — quem chama trata."""
-        conn = self._conectar()
-        try:
+        with self._conexao() as conn:
             cur = conn.cursor()
             cur.execute(sql, params)
             return [dict(row) for row in cur.fetchall()]
-        finally:
-            conn.close()
 
     @staticmethod
     def _montar_aluno(row, emails):

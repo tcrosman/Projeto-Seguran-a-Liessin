@@ -29,3 +29,30 @@ CREATE TABLE vinculos (
 
 CREATE INDEX idx_alunos_nome ON alunos(nome);
 CREATE INDEX idx_vinculos_email ON vinculos(email);
+
+-- ---------------------------------------------------------------------------------------------
+-- O que o banco REAL da escola precisa ter alem das tabelas acima
+-- ---------------------------------------------------------------------------------------------
+--
+-- A busca de aluno (search_students) faz LIKE '%termo%' sobre o nome normalizado. Um indice
+-- B-tree comum, como o idx_alunos_nome acima, NAO atende esse padrao: o curinga no inicio o
+-- descarta, e cada busca vira varredura da tabela inteira. No autocomplete da portaria isso
+-- acontece a cada tecla digitada, por porteiro, na hora de maior movimento.
+--
+-- No SQLite (este banco provisorio) nao ha o que fazer, e nem precisa: sao poucos alunos e o
+-- banco e local. No PostgreSQL da instituicao, peca:
+--
+--   CREATE EXTENSION IF NOT EXISTS unaccent;   -- exigida por _expr_norm(); sem ela toda
+--                                              -- consulta de busca falha
+--   CREATE EXTENSION IF NOT EXISTS pg_trgm;
+--
+--   -- unaccent() nao e IMMUTABLE por padrao e por isso nao pode entrar direto num indice.
+--   -- O caminho e um wrapper IMMUTABLE:
+--   CREATE FUNCTION nome_normalizado(texto text) RETURNS text
+--     AS $$ SELECT unaccent(lower($1)) $$ LANGUAGE sql IMMUTABLE;
+--   CREATE INDEX idx_alunos_nome_busca ON alunos USING gin (nome_normalizado(nome) gin_trgm_ops);
+--
+-- E tambem:
+--   * `ativo` como INTEGER 0/1 ou BOOLEAN — as duas formas sao aceitas (ver _cond_ativo em
+--     app/services/school_sql_directory.py), mas diga qual e para a checagem de saude conferir;
+--   * um usuario SOMENTE LEITURA para o S2E. O sistema nunca escreve neste banco.
