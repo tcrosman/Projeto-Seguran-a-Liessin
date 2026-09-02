@@ -25,7 +25,7 @@ _vagas = None       # semáforo: quantas conexões ainda podem ser retiradas do 
 _pool_lock = Lock()
 
 # Quanto uma request espera por uma conexão livre antes de desistir. Menor que o timeout do
-# gunicorn (120s) para o usuário receber a página de indisponibilidade em vez de um socket morto.
+# gunicorn (30s) para o usuário receber a página de indisponibilidade em vez de um socket morto.
 ESPERA_CONEXAO_SEG = int(os.getenv('DB_POOL_TIMEOUT_SEG', 10))
 
 
