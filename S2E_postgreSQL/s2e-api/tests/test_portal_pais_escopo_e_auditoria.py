@@ -34,12 +34,10 @@ FORM_EDICAO = {
 
 
 @pytest.fixture
-def responsavel(cliente):
-    with cliente.session_transaction() as s:
-        s['pai_id'] = 3
-        s['pai_email'] = 'mae@teste.com'
-        s['pai_nome'] = 'Maria Souza'
-    return cliente
+def responsavel(sessao_responsavel):
+    """Sessão do portal dos pais — montada no conftest, que também declara a conta como ativa
+    para o pai_required (ver C3)."""
+    return sessao_responsavel
 
 
 # ---------------------------------------------------------------- o escopo do DELETE

@@ -45,10 +45,13 @@ def app_teste():
 
 @pytest.fixture(autouse=True)
 def _cache_do_diretorio_limpo():
-    """O resolvedor de RA usa um TTLCache de módulo (5 min). Sem zerar, um teste enxerga o aluno
-    que outro cadastrou e a suíte passa a depender da ordem de execução."""
-    from app.api import web
+    """Zera os caches de módulo entre testes. Sem isso um teste enxerga o aluno que outro
+    cadastrou — ou o status de responsável que outro declarou — e a suíte passa a depender da
+    ordem de execução."""
+    from app.api import web, middleware
     web._cache_diretorio = web.TTLCache(ttl_seconds=300)
+    middleware._cache_status_responsavel = middleware.TTLCache(
+        ttl_seconds=middleware._TTL_STATUS_RESPONSAVEL)
     yield
 
 
@@ -65,11 +68,12 @@ def correio():
 @pytest.fixture
 def cliente(app_teste, banco, correio):
     """Client Flask com todos os get_db() apontando para o BancoFalso e o envio de e-mail preso."""
-    from app.api import web, pais
+    from app.api import web, pais, middleware
     from app.core import rate_limit, audit_logger, database, mailer
     from app.repositories import user_repo, base_repositories
     # base_repositories importou get_db por conta própria — get_by_id/delete passam por lá.
-    alvos = [web, pais, rate_limit, audit_logger, user_repo, base_repositories]
+    # middleware entrou na lista quando pai_required passou a reler responsaveis.status.
+    alvos = [web, pais, middleware, rate_limit, audit_logger, user_repo, base_repositories]
     ctx = [patch.object(m, 'get_db', banco.get_db) for m in alvos]
     ctx.append(patch.object(database, '_get_pool', _sem_banco_real))
     # web.py importa enviar_email_async dentro das funções (resolve em mailer na hora da chamada);
@@ -85,6 +89,22 @@ def cliente(app_teste, banco, correio):
     finally:
         for c in ctx:
             c.stop()
+
+
+@pytest.fixture
+def sessao_responsavel(cliente, banco):
+    """Sessão de responsável já autenticada no portal dos pais.
+
+    Declara a conta como ativa porque `pai_required` passou a reler `responsaveis.status` a cada
+    request (com cache curto de 30s): sem essa resposta, todo teste do portal cairia no redirect
+    de conta bloqueada antes de chegar à rota que está sendo exercitada.
+    """
+    banco.responder("SELECT status FROM responsaveis WHERE id", [{'status': 'aprovado'}])
+    with cliente.session_transaction() as s:
+        s['pai_id'] = 3
+        s['pai_email'] = 'mae@teste.com'
+        s['pai_nome'] = 'Maria Souza'
+    return cliente
 
 
 @pytest.fixture
