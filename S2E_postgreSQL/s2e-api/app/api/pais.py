@@ -8,7 +8,8 @@ from app.core import rate_limit
 from app.core.passwords import senha_confere, verificar_forca
 from app.core.validators import horario_valido, data_valida
 from app.core.tempo import hoje, hora, agora_utc
-from app.services.school_sql_directory import get_school_sql_directory
+from app.services.school_sql_directory import (get_school_sql_directory,
+                                                 aluno_vinculado_ao_responsavel)
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
 import secrets
@@ -35,6 +36,52 @@ def _responsavel_reconhecido_pela_escola(email):
     except Exception as e:
         _log.warning(f"[SCHOOL_SQL] Erro ao validar responsável: {e}")
         return False
+
+
+# Motivos pelos quais uma ação do responsável sobre a própria solicitação é recusada. Texto
+# separado do código porque os três caminham juntos: todos recusam, e o que muda é só o que a
+# pessoa precisa fazer a seguir.
+_MOTIVO_RECUSA = {
+    'conta_inativa': ("Sua conta não está ativa no portal de responsáveis. "
+                      "Entre em contato com a secretaria da escola."),
+    'sem_vinculo': ("Você não consta mais como responsável por este aluno no cadastro da escola. "
+                    "Entre em contato com a secretaria."),
+    'indisponivel': ("Não foi possível confirmar seu vínculo com este aluno agora — o cadastro da "
+                     "escola está indisponível. Tente novamente em alguns minutos."),
+}
+
+
+def _autorizacao_sobre_solicitacao(sol_row):
+    """Reconfere, no momento da ação, o direito do responsável logado sobre esta solicitação.
+
+    Devolve 'ok', 'conta_inativa', 'sem_vinculo' ou 'indisponivel'.
+
+    O `responsavel_id` da consulta diz quem CRIOU a solicitação; não diz que essa pessoa ainda
+    pode agir sobre ela hoje. São duas perguntas diferentes, e só a segunda autoriza mudar quem
+    busca a criança no portão.
+    """
+    if sol_row['responsavel_status'] != 'aprovado':
+        return 'conta_inativa'
+    if sol_row['ra']:
+        return aluno_vinculado_ao_responsavel(
+            get_school_sql_directory(), session['pai_email'], sol_row['ra'])
+    # Solicitação anterior à migração para RA: não há RA para perguntar ao banco da escola, e o
+    # vínculo dessas linhas só existe na tabela local que o fluxo antigo alimentava. Continua
+    # sendo uma checagem de vínculo, na única fonte que responde por elas.
+    with get_db() as conn:
+        local = conn.execute(
+            "SELECT 1 FROM vinculos_pais_alunos WHERE responsavel_id = %s AND aluno_id = %s",
+            (session['pai_id'], sol_row['aluno_id'])
+        ).fetchone()
+    return 'ok' if local else 'sem_vinculo'
+
+
+def _recusar_acao_do_responsavel(estado, alvo):
+    """Recusa fail-closed e auditada. A tentativa fica registrada: uma recusa por vínculo perdido
+    é exatamente o evento que a escola precisa conseguir reconstruir depois."""
+    log_operacao(_autor(), "ACESSO NEGADO A SOLICITAÇÃO", f"{alvo} | motivo: {estado}",
+                 ip=request.remote_addr)
+    return _MOTIVO_RECUSA[estado], 403
 
 
 def _resolver_dados_solicitacoes(rows):
@@ -429,9 +476,13 @@ def register_parent_routes(app):
         with get_db() as conn:
             sol_row = conn.execute(
                 """SELECT ss.*, a.nome AS nome_legado, a.turma AS turma_legado, a.serie AS serie_legado,
-                          s.status AS saida_status
+                          r.status AS responsavel_status, s.status AS saida_status
                    FROM solicitacoes_saida ss
                    LEFT JOIN alunos a ON a.id = ss.aluno_id
+                   -- O status do responsável vem na mesma consulta: bloquear a conta precisa
+                   -- valer para as solicitações que ela já criou, e não só no próximo login.
+                   -- Sem query extra, que é o que importa no pico das 15h.
+                   LEFT JOIN responsaveis r ON r.id = ss.responsavel_id
                    LEFT JOIN LATERAL (
                        SELECT s2.status
                        FROM saidas s2
@@ -448,6 +499,19 @@ def register_parent_routes(app):
         if not sol_row:
             flash("Solicitação não encontrada.", "error")
             return redirect("/pais/minhas_solicitacoes")
+
+        # Segundo portão, além do `responsavel_id` da consulta acima. A solicitação pode ter sido
+        # criada semanas antes, e o vínculo pai↔aluno muda no meio do caminho — guarda, ordem
+        # judicial, transferência de escola. A solicitação antiga continua na base porque a
+        # manutenção só remove as já revisadas; as que ficaram em `aguardando` nunca são podadas.
+        #
+        # O login não cobre isso: `responsavel_reconhecido()` se satisfaz com UM vínculo ativo
+        # qualquer, então quem perdeu o vínculo com um filho e mantém o de outro entra
+        # normalmente. Sem esta checagem ele chegaria à solicitação do primeiro e trocaria data,
+        # horário, tipo de saída e acompanhante — isto é, quem busca a criança.
+        estado = _autorizacao_sobre_solicitacao(sol_row)
+        if estado != 'ok':
+            return _recusar_acao_do_responsavel(estado, f"ID Solicitação: {sol_id}")
 
         sol = _resolver_dados_solicitacoes([sol_row])[0]
 

@@ -14,6 +14,7 @@ SOL_APROVADA = {
     'id': 7, 'responsavel_id': 3, 'aluno_id': None, 'ra': '2024001',
     'data_solicitada': '2026-09-10', 'horario_solicitado': '13:00', 'motivo': 'Consulta',
     'tipo_saida': 'sozinho', 'acompanhante': None, 'status': 'aprovado',
+    'responsavel_status': 'aprovado',
     'saida_status': 'pendente', 'nome_legado': None, 'turma_legado': None, 'serie_legado': None,
 }
 
@@ -22,6 +23,7 @@ SOL_ADMIN = {
     'horario_solicitado': '13:00', 'motivo': 'Consulta', 'tipo_saida': 'sozinho',
     'acompanhante': None, 'status': 'aguardando', 'turma': 'A',
     'responsavel_nome': 'Maria Souza', 'responsavel_email': 'mae@teste.com',
+    'responsavel_status': 'aprovado',
     'nome_legado': None, 'turma_legado': None, 'serie_legado': None,
 }
 

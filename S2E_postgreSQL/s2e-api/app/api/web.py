@@ -9,7 +9,8 @@ from app.core.passwords import senha_confere
 from app.core.validators import (escapar_like, horario_valido, data_valida,
                                  normalizar_serie, ordem_da_serie)
 from app.core.tempo import hoje, agora_utc
-from app.services.school_sql_directory import get_school_sql_directory
+from app.services.school_sql_directory import (get_school_sql_directory,
+                                               aluno_vinculado_ao_responsavel)
 from app.config import Config
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
@@ -67,6 +68,37 @@ def _nome_e_emails_para_saida(ra):
         info, emails = None, []
     nome_aluno = info['nome'] if info else f"RA {ra}"
     return nome_aluno, emails
+
+
+# Por que a aprovação pode ser recusada. Mesma lista de motivos do portal dos pais
+# (app/api/pais.py), com o texto endereçado a quem está do lado da escola.
+_RECUSA_APROVACAO = {
+    'conta_inativa': ("Solicitação não aprovada: a conta do responsável não está ativa "
+                      "(pendente ou bloqueada). Regularize o cadastro antes de aprovar."),
+    'sem_vinculo': ("Solicitação NÃO aprovada: quem pediu não consta mais como responsável por "
+                    "este aluno no cadastro da escola. Confirme com a secretaria antes de "
+                    "liberar a saída."),
+    'indisponivel': ("Solicitação não aprovada: o cadastro da escola está indisponível e o "
+                     "vínculo do responsável com o aluno não pôde ser confirmado. Tente de novo "
+                     "em alguns minutos."),
+}
+
+
+def _revalidar_vinculo_da_solicitacao(sol_row):
+    """Reconfere o direito de quem pediu, no momento da aprovação. Devolve None quando está tudo
+    certo, ou a chave do motivo da recusa em `_RECUSA_APROVACAO`.
+
+    Só o fluxo por RA é reconferível aqui: as linhas legadas (sem RA) não têm identidade que o
+    banco da escola reconheça, e para elas o portão que resta é o status da conta, verificado
+    logo acima.
+    """
+    if sol_row['responsavel_status'] != 'aprovado':
+        return 'conta_inativa'
+    if not sol_row['ra']:
+        return None
+    estado = aluno_vinculado_ao_responsavel(
+        get_school_sql_directory(), sol_row['responsavel_email'], sol_row['ra'])
+    return None if estado == 'ok' else estado
 
 
 def _resolver_solicitacoes(rows):
@@ -921,6 +953,7 @@ def register_routes(app):
                 SELECT ss.aluno_id, ss.ra, ss.data_solicitada, ss.horario_solicitado, ss.motivo,
                        ss.tipo_saida, ss.acompanhante, ss.status,
                        r.nome AS responsavel_nome, r.email AS responsavel_email,
+                       r.status AS responsavel_status,
                        a.nome AS nome_legado, a.turma AS turma_legado, a.serie AS serie_legado
                 FROM solicitacoes_saida ss
                 LEFT JOIN responsaveis r ON r.id = ss.responsavel_id
@@ -933,6 +966,23 @@ def register_routes(app):
                 return redirect("/admin/solicitacoes")
 
             sol = _resolver_solicitacoes([sol_row])[0]
+
+            # Segundo portão. A solicitação foi criada pelo responsável, que naquele momento
+            # tinha o vínculo conferido em /pais/solicitar — mas a aprovação acontece depois,
+            # às vezes dias depois, e o vínculo pode ter mudado nesse intervalo (guarda, ordem
+            # judicial, transferência) ou a conta pode ter sido bloqueada pela própria escola.
+            # Aprovar sem reconferir transforma um pedido que deixou de ser legítimo numa saída
+            # válida na tela da portaria, com o acompanhante que aquele pedido indicava.
+            #
+            # Fail-closed: banco da escola sem resposta recusa a aprovação. O admin pode tentar
+            # de novo em minutos; entregar a criança à pessoa errada não tem segunda tentativa.
+            recusa = _revalidar_vinculo_da_solicitacao(sol_row)
+            if recusa:
+                log_operacao(session.get('username'), "APROVAÇÃO RECUSADA",
+                             f"ID Solicitação: {sol_id} | RA: {sol['ra'] or '—'} | motivo: {recusa}",
+                             ip=request.remote_addr, conn=conn)
+                flash(_RECUSA_APROVACAO[recusa], "error")
+                return redirect("/admin/solicitacoes")
 
             # Aprova a solicitação. O filtro por status é o que serializa duas aprovações
             # simultâneas: a segunda transação relê a linha já aprovada, casa 0 linhas e para

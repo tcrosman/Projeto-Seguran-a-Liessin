@@ -16,6 +16,7 @@ def _solicitacao(**extra):
         'horario_solicitado': '13:00', 'motivo': 'Consulta médica', 'tipo_saida': 'sozinho',
         'acompanhante': None, 'status': 'aguardando', 'turma': 'A',
         'responsavel_nome': 'Maria Souza', 'responsavel_email': 'mae@teste.com',
+        'responsavel_status': 'aprovado',
         'nome_legado': None, 'turma_legado': None, 'serie_legado': None,
     }
     linha.update(extra)

@@ -307,6 +307,35 @@ class SchoolSqlDirectoryMock(SchoolSqlDirectoryClient):
         return any(email_norm in a['responsaveis_email'] for a in self._ALUNOS.values())
 
 
+def aluno_vinculado_ao_responsavel(diretorio, email, ra):
+    """Reconfere se o aluno `ra` continua vinculado ao responsável `email`.
+
+    Devolve 'ok', 'sem_vinculo' ou 'indisponivel'.
+
+    Existe separada de `responsavel_reconhecido()` porque as duas respondem perguntas
+    diferentes. Aquela confirma que a pessoa tem ALGUM vínculo ativo, e isso basta para o login.
+    Esta pergunta por um aluno específico, que é o que autoriza agir sobre a saída dele: quem
+    perdeu o vínculo com um filho e mantém o de outro continua entrando no portal normalmente, e
+    sem esta checagem alcançaria a solicitação antiga do primeiro — mudando data, horário e
+    acompanhante, isto é, quem busca a criança.
+
+    Recebe o cliente pronto em vez de chamar `get_school_sql_directory()` por conta própria: cada
+    rota já resolve o diretório pelo seu próprio módulo, e é esse ponto que os testes substituem.
+
+    Fail-closed de propósito: sem resposta do banco da escola o resultado é 'indisponivel', que
+    quem chama trata como recusa. Uma saída de menor não pode ser autorizada por omissão de quem
+    deveria confirmar o vínculo.
+    """
+    if not email or not ra:
+        return 'sem_vinculo'
+    try:
+        filhos = diretorio.get_students_for_guardian_email(email)
+    except Exception as e:
+        _log.warning("[SCHOOL_SQL] Vínculo pai-aluno não pôde ser reconferido: %s", e)
+        return 'indisponivel'
+    return 'ok' if any(f.get('ra') == ra for f in filhos) else 'sem_vinculo'
+
+
 def get_school_sql_directory() -> SchoolSqlDirectoryClient:
     """Retorna o mock ou o client real conforme SCHOOL_SQL_MOCK, que precisa estar definido.
 
