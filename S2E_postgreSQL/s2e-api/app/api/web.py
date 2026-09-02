@@ -646,6 +646,10 @@ def register_routes(app):
                                concluidas=concluidas,
                                nao_realizadas=nao_realizadas,
                                data_selecionada=data_selecionada,
+                               # Só no dia da saída o botão de liberar faz sentido. A checagem
+                               # que vale é a de concluir_saida; esta evita oferecer na tela uma
+                               # ação que o servidor vai recusar.
+                               hoje_local=hoje(),
                                busca=busca)
     
     @app.route("/editar_saida/<int:id_saida>", methods=["GET", "POST"])
@@ -708,14 +712,37 @@ def register_routes(app):
         with get_db() as conn:
             # Só a transição pendente -> concluída conta. Sem o filtro de status, um duplo-clique
             # (ou POST repetido) reescrevia liberado_em e reenviava o e-mail aos responsáveis.
+            #
+            # E só no dia da própria saída. /saidas aceita ?data= qualquer e desenha a lista
+            # daquele dia; sem esta condição, mudar o seletor de data para amanhã e clicar em
+            # "Liberar" entregava hoje uma criança autorizada para outro dia — pela interface
+            # normal, sem POST forjado, e com o e-mail ao responsável dizendo "hoje às 12:00".
+            #
+            # A comparação vai dentro do UPDATE, e não num SELECT antes dele, para não abrir
+            # janela entre conferir e gravar: continua sendo um único comando atômico.
+            hoje_local = hoje()
             liberou = conn.execute(
                 """UPDATE saidas SET status = 'concluida', usuario_autorizou = %s, liberado_em = NOW()
-                   WHERE id = %s AND status = 'pendente'""",
-                (session['user_id'], id_saida)
+                   WHERE id = %s AND status = 'pendente' AND data_saida = %s""",
+                (session['user_id'], id_saida, hoje_local)
             ).rowcount
 
             if not liberou:
-                flash("Esta saída já havia sido autorizada.", "error")
+                # rowcount 0 tem duas causas com desfechos muito diferentes para quem está no
+                # portão: já autorizada, ou agendada para outro dia. Vale a consulta extra —
+                # ela só acontece no caminho de recusa.
+                atual = conn.execute(
+                    "SELECT status, data_saida FROM saidas WHERE id = %s", (id_saida,)
+                ).fetchone()
+                if atual and atual['status'] == 'pendente':
+                    log_operacao(session.get('username'), "LIBERAÇÃO RECUSADA (data)",
+                                 f"ID Saída: {id_saida} | agendada para {atual['data_saida']} | "
+                                 f"hoje é {hoje_local}",
+                                 ip=request.remote_addr, conn=conn)
+                    flash(f"Esta saída está agendada para {atual['data_saida']}, "
+                          "não pode ser liberada hoje.", "error")
+                else:
+                    flash("Esta saída já havia sido autorizada.", "error")
                 return redirect("/saidas")
 
             saida = conn.execute("""
