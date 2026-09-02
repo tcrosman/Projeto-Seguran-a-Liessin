@@ -1,9 +1,13 @@
-from app.core.database import get_db
+from app.core.database import get_db, _conexao
 
 
-def run_migrations():
-    """Aplica todas as migrações necessárias"""
-    with get_db() as conn:
+def run_migrations(conn=None):
+    """Aplica todas as migrações necessárias.
+
+    `conn` é passado por app.core.database.aplicar_migracoes(), para esta etapa rodar na mesma
+    transação — e sob o mesmo advisory lock — das demais.
+    """
+    with _conexao(conn) as conn:
         # A tela de "Horários Padrão" permitia configurar o horário de saída de cada série, e
         # nenhum fluxo do sistema lia esses valores: o admin preenchia 16 séries x 5 dias e aquilo
         # não tinha efeito nenhum. A tela foi removida e a tabela vai junto — estava vazia.

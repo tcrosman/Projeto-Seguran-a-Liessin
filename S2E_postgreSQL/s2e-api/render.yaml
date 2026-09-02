@@ -5,6 +5,15 @@ services:
     plan: free
     rootDir: .
     buildCommand: pip install -r requirements.txt
+    # Passo de release: as migracoes rodam UMA vez, antes de os workers subirem. Sem isso, os
+    # dois workers do gunicorn executam ~34 comandos DDL ao mesmo tempo (o gunicorn importa
+    # run.py depois do fork, sem --preload) e colidem: CREATE TABLE IF NOT EXISTS concorrente
+    # nao e atomico no PostgreSQL, e dois ALTER TABLE na mesma tabela deadlockam.
+    #
+    # preDeployCommand exige plano pago (ver A3). No plano free ele e ignorado -- por isso as
+    # migracoes do boot continuam ligadas por padrao, agora sob advisory lock. Com o passo de
+    # release garantido, da para acrescentar MIGRACOES_NO_BOOT=false aqui.
+    preDeployCommand: python run_migrations.py
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 run:app
     envVars:
       - key: DATABASE_URL

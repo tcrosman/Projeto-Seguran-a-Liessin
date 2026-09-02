@@ -116,7 +116,7 @@ def test_setup_db_nao_apaga_banco_por_padrao():
 
 def test_falha_de_migracao_nao_e_engolida():
     codigo = _ler('app', '__init__.py')
-    bloco = codigo[codigo.index('# Migração automática'):codigo.index('# Limpeza/expiração periódica')]
+    bloco = codigo[codigo.index('# Migração do schema'):codigo.index('# Limpeza/expiração periódica')]
 
     assert 'except Exception' not in bloco
 

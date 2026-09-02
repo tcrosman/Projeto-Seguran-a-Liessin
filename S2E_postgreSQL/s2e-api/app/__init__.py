@@ -127,15 +127,21 @@ def create_app():
         _log.warning("[SCHOOL_SQL] MODO MOCK ativo (SCHOOL_SQL_MOCK=true): os alunos são dados "
                      "de teste, não o cadastro da escola. Não use assim em produção.")
 
-    # Migração automática — idempotente (usa CREATE TABLE/COLUMN IF NOT EXISTS). Uma falha
-    # precisa abortar o boot: continuar serviria um processo aparentemente saudável sobre um
-    # schema incompleto, que só revelaria o problema nas primeiras requisições.
-    from app.core.database import migrate_database, aplicar_chaves_estrangeiras
-    from app.core.migrations import run_migrations
-    migrate_database()
-    run_migrations()
-    # Por último: as chaves estrangeiras precisam de todas as tabelas já criadas.
-    aplicar_chaves_estrangeiras()
+    # Migração do schema. Idempotente (CREATE TABLE/COLUMN IF NOT EXISTS) e, desde a correção
+    # C4, serializada por advisory lock — ver aplicar_migracoes() em app/core/database.py para o
+    # porquê. Uma falha precisa abortar o boot: continuar serviria um processo aparentemente
+    # saudável sobre um schema incompleto, que só revelaria o problema nas primeiras requisições.
+    #
+    # MIGRACOES_NO_BOOT=false desliga esta etapa para quem roda as migrações como passo de
+    # release (`python run_migrations.py` antes do deploy). O padrão continua ligado de
+    # propósito: um ambiente sem o passo de release configurado precisa subir com o schema
+    # aplicado, não sem schema nenhum.
+    if os.getenv('MIGRACOES_NO_BOOT', 'true').strip().lower() == 'true':
+        from app.core.database import aplicar_migracoes
+        aplicar_migracoes()
+    else:
+        _log.info("[SCHEMA] MIGRACOES_NO_BOOT=false: migrações não rodam no boot; devem vir do "
+                  "passo de release (python run_migrations.py).")
 
     # Limpeza/expiração periódica em thread de fundo — antes essas escritas rodavam dentro das
     # rotas GET de listagem. Desligue com MANUTENCAO_AUTOMATICA=false se preferir só o cron
