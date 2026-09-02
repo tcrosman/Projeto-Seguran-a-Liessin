@@ -5,6 +5,39 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Alunos — SecureEdu</title>
   <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .student-table th { background: #f8faff; }
+    .student-table tr.linha-aluno { cursor: pointer; }
+    .aluno-link { color: #2563eb; font-weight: 600; text-decoration: none; font-size: 13px; }
+    .aluno-link:hover { text-decoration: underline; }
+    .aviso-corte { font-size: 13px; color: #92400e; background: #fffbeb;
+                   border: 1px solid #fde68a; border-radius: 8px; padding: 10px 14px;
+                   margin-top: 16px; }
+    /* Uma tabela por série, com um respiro entre os grupos. */
+    .grupo-serie { margin-bottom: 26px; }
+    .grupo-serie:last-child { margin-bottom: 4px; }
+    .turmas-do-grupo { font-size: 12px; color: #6b7280; margin-left: auto; }
+    .turma-chip { display:inline-block; background:#f3f4f6; color:#374151; border-radius:6px;
+                  padding:1px 7px; font-weight:700; font-size:11px; margin-left:4px; }
+    .student-table th.col-centro,
+    .student-table td.col-centro { text-align: center; }
+
+    /* Cada série tem a sua própria tabela. Sem largura fixa, cada uma dimensiona as colunas pelo
+       conteúdo dela, e "Turma" e "RA" caem em posições diferentes a cada grupo — o nome mais
+       longo de uma série empurra as colunas seguintes. Com table-layout fixo e as mesmas larguras
+       declaradas, todos os grupos ficam com a mesma geometria e as colunas se alinham de cima a
+       baixo da página. */
+    .student-table { table-layout: fixed; min-width: 620px; }
+    .student-table th.col-turma { width: 110px; }
+    .student-table th.col-ra    { width: 150px; }
+    .student-table th.col-acao  { width: 160px; }
+    /* Nome comprido quebra dentro da própria coluna em vez de alargá-la. */
+    .student-table td .student-name-cell strong { overflow-wrap: anywhere; }
+    .filtros { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:4px; }
+    .filtro-campo { display:flex; flex-direction:column; gap:4px; }
+    .filtro-campo label { font-size:12px; font-weight:600; color:#6b7280;
+                          text-transform:uppercase; letter-spacing:0.4px; }
+  </style>
 </head>
 <body>
 <div class="layout">
@@ -17,81 +50,126 @@
       </a>
     </div>
     <div class="page-wrap">
-      <div class="list-topbar">
-        <div class="list-topbar-left">
-          <h1>Alunos</h1>
-          <p>Registrar saída ou ver histórico</p>
-        </div>
-      </div>
-
-      {% with messages = get_flashed_messages(with_categories=True) %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}" style="margin-bottom:16px;">{{ message }}</div>
-        {% endfor %}
-      {% endwith %}
-
-      <form method="GET" style="margin-bottom: 20px;">
-        <div class="search-wrap">
-          <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input class="search-input" type="text" name="busca" placeholder="Buscar aluno por nome..." value="{{ busca or '' }}" autofocus>
-        </div>
-      </form>
-
-      {% if grupos %}
-        {% for grupo in grupos %}
-          <div class="group-header">
-            <span class="group-title">{{ grupo.serie }} — Turma {{ grupo.turma }}</span>
-            <span class="group-badge">{{ grupo.alunos|length }} aluno{{ 's' if grupo.alunos|length > 1 else '' }}</span>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">🎓</div>
+          <div>
+            <div class="card-title">Alunos</div>
+            <div class="card-subtitle">Por série e turma — clique no aluno para ver o histórico de saídas</div>
           </div>
-          <div class="card" style="padding: 0; margin-bottom: 8px; overflow: hidden;">
-            <table class="student-table">
-              <tbody>
-                {% for aluno in grupo.alunos %}
-                <tr>
-                  <td style="width:35%;">
-                    <a href="/historico_aluno/{{ aluno.id }}" class="student-name-cell" style="text-decoration:none; color:inherit;" title="Ver histórico de {{ aluno.nome }}">
-                      {% if aluno.foto_path %}
-                        <img src="/uploads/{{ aluno.foto_path }}" style="width:32px; height:32px; border-radius:50%; object-fit:cover; margin-right:10px; flex-shrink:0;" alt="">
-                      {% else %}
-                        <div class="student-avatar" style="background: #1F6EFD;">{{ aluno.nome[0] }}</div>
-                      {% endif %}
-                      <span style="border-bottom:1px dashed #d1d5db;">{{ aluno.nome }}</span>
-                    </a>
-                  </td>
-                  <td style="width:15%; color:#6b7280;">{{ aluno.serie }}</td>
-                  <td style="width:10%; color:#6b7280;">{{ aluno.turma }}</td>
-                  <td style="text-align:right; width:40%;">
-                    <a href="/registrar_saida?aluno_id={{ aluno.id }}" class="btn btn-primary" style="padding: 7px 14px; font-size: 13px;">
-                      Registrar Saída
-                    </a>
-                    <a href="/historico_aluno/{{ aluno.id }}" class="btn btn-secondary" style="padding: 7px 14px; font-size: 13px;">
-                      Ver Histórico
-                    </a>
-                    {% if session.role == 'admin' %}
-                    <a href="/deletar_aluno/{{ aluno.id }}"
-                       onclick="return confirm('Apagar {{ aluno.nome }}? Esta ação não pode ser desfeita.')"
-                       class="action-btn danger" title="Apagar aluno">
-                      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                    </a>
-                    {% endif %}
-                  </td>
-                </tr>
+        </div>
+
+        <form method="get">
+          <div class="search-wrap">
+            <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input class="search-input" type="text" name="busca" placeholder="Buscar por nome ou RA..."
+                   value="{{ busca or '' }}">
+          </div>
+
+          <div class="filtros">
+            <div class="filtro-campo">
+              <label for="filtro-serie">Série</label>
+              <select class="form-input form-select" id="filtro-serie" name="serie" style="width:auto; min-width:170px;">
+                <option value="">Todas as séries</option>
+                {% for s in series_disponiveis %}
+                  <option value="{{ s }}" {% if s == filtro_serie %}selected{% endif %}>{{ s }}</option>
                 {% endfor %}
-              </tbody>
-            </table>
+              </select>
+            </div>
+            <div class="filtro-campo">
+              <label for="filtro-turma">Turma</label>
+              <select class="form-input form-select" id="filtro-turma" name="turma" style="width:auto; min-width:130px;">
+                <option value="">Todas as turmas</option>
+                {% for t in turmas_disponiveis %}
+                  <option value="{{ t }}" {% if t == filtro_turma %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="btn-actions" style="margin:0;">
+              <button class="btn btn-primary" type="submit">Filtrar</button>
+              {% if busca or filtro_serie or filtro_turma %}
+                <a href="/alunos" class="btn btn-secondary">Limpar</a>
+              {% endif %}
+            </div>
           </div>
-        {% endfor %}
-      {% elif busca %}
-        <div class="search-empty">
-          <div style="font-size:36px; margin-bottom:8px;">🔍</div>
-          Nenhum aluno encontrado para "<strong>{{ busca }}</strong>"
-        </div>
-      {% else %}
-        <div class="search-empty">
-          <div style="font-size:36px; margin-bottom:8px;">👥</div>
-          Nenhum aluno cadastrado ainda.
-        </div>
-      {% endif %}
+        </form>
+
+        {% if indisponivel %}
+          <div class="alert alert-error" style="margin-top:24px;">
+            Não foi possível consultar o cadastro de alunos da escola agora. Tente novamente em
+            alguns instantes.
+          </div>
+        {% elif grupos %}
+          <div class="section-title">
+            {{ grupos|length }} série{{ 's' if grupos|length != 1 }}
+            <span class="section-count">{{ total }} aluno{{ 's' if total != 1 }}</span>
+          </div>
+
+          {% for g in grupos %}
+            <div class="grupo-serie">
+              <div class="group-header">
+                <span class="group-title">{{ g.serie }}</span>
+                <span class="group-badge">{{ g.alunos|length }}</span>
+                <span class="turmas-do-grupo">
+                  Turma{{ 's' if g.turmas|length != 1 }}
+                  {% for t in g.turmas %}<span class="turma-chip">{{ t }}</span>{% endfor %}
+                </span>
+              </div>
+              <div style="overflow-x: auto;">
+                <table class="student-table">
+                  <thead>
+                    <tr>
+                      <th>Aluno</th>
+                      <th class="col-centro col-turma">Turma</th>
+                      <th class="col-centro col-ra">RA</th>
+                      <th class="col-acao"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for a in g.alunos %}
+                    <tr class="linha-aluno" onclick="window.location='/alunos/{{ a.ra }}'">
+                      <td>
+                        <div class="student-name-cell">
+                          {% if a.foto_url %}
+                            <img src="{{ a.foto_url }}" class="student-avatar" alt="">
+                          {% else %}
+                            <div class="student-avatar" style="background:#1F6EFD;">{{ (a.nome or '?')[0]|upper }}</div>
+                          {% endif %}
+                          <strong>{{ a.nome }}</strong>
+                        </div>
+                      </td>
+                      <td class="col-centro"><span class="turma-chip" style="margin:0;">{{ a.turma_grupo }}</span></td>
+                      <td class="col-centro" style="color:#6b7280;">{{ a.ra }}</td>
+                      <td style="text-align:right;">
+                        <a class="aluno-link" href="/alunos/{{ a.ra }}">Ver histórico →</a>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% endfor %}
+
+          {% if truncada %}
+            <div class="aviso-corte">
+              Mostrando os primeiros alunos do cadastro. Use a busca para encontrar quem não
+              aparece nesta lista.
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="empty-state" style="margin-top:24px;">
+            <div class="empty-state-icon">🔎</div>
+            <p>
+              {% if busca or filtro_serie or filtro_turma %}
+                Nenhum aluno encontrado com esses filtros.
+              {% else %}
+                Nenhum aluno no cadastro da escola.
+              {% endif %}
+            </p>
+          </div>
+        {% endif %}
+      </div>
     </div>
   </main>
 </div>

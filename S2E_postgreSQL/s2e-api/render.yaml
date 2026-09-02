@@ -25,3 +25,31 @@ services:
         value: "true"
       - key: UPLOAD_FOLDER
         value: storage
+      # Render põe um proxy na frente: sem isso, o rate limit veria o IP do proxy para todos.
+      - key: TRUST_PROXY
+        value: "true"
+      - key: DB_POOL_MAX
+        value: "5"
+      # Origem dos dados de aluno. Sem estas variáveis o app se recusa a subir, de propósito:
+      # antes o padrão silencioso era o mock, e um deploy sem elas servia três alunos de teste
+      # como se fossem o cadastro da escola.
+      #   false -> banco SQL da instituição (exige ENGINE e DATABASE abaixo)
+      #   true  -> três alunos fixos, só para desenvolvimento
+      - key: SCHOOL_SQL_MOCK
+        value: "false"
+      - key: SCHOOL_SQL_ENGINE
+        value: postgres
+      - key: SCHOOL_SQL_DATABASE
+        sync: false
+      - key: SCHOOL_SQL_HOST
+        sync: false
+      - key: SCHOOL_SQL_PORT
+        sync: false
+      - key: SCHOOL_SQL_USER
+        sync: false
+      - key: SCHOOL_SQL_PASSWORD
+        sync: false
+      # Fuso da escola: o servidor e o Postgres rodam em UTC, mas portaria e pais usam o
+      # relógio de Brasília.
+      - key: TIMEZONE
+        value: America/Sao_Paulo

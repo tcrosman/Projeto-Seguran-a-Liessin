@@ -25,7 +25,10 @@
     </div>
     <div style="display:flex; gap:8px;">
       <a href="/pais/dashboard" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">← Meus filhos</a>
-      <a href="/pais/logout" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">Sair</a>
+      <form method="POST" action="/pais/logout" style="margin:0; display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">Sair</button>
+      </form>
     </div>
   </div>
 

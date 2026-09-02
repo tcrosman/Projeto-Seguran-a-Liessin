@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ aluno.nome }} — SecureEdu</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .student-table th { background: #f8faff; }
+    .status-badge { display:inline-block; padding:2px 10px; border-radius:20px;
+                    font-size:12px; font-weight:600; white-space:nowrap; }
+    .badge-pendente      { background:#fef9c3; color:#92400e; border:1px solid #fde68a; }
+    .badge-concluida     { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
+    .badge-nao-realizada { background:#f3f4f6; color:#4b5563; border:1px solid #e5e7eb; }
+
+    .ficha-aluno { display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+    .ficha-foto  { width:64px; height:64px; border-radius:50%; object-fit:cover; flex-shrink:0; }
+    .ficha-inicial { width:64px; height:64px; border-radius:50%; background:#1F6EFD; color:#fff;
+                     display:flex; align-items:center; justify-content:center;
+                     font-size:24px; font-weight:800; flex-shrink:0; }
+    .resumo { display:flex; gap:10px; flex-wrap:wrap; margin:20px 0 4px; }
+    .resumo-item { border:1px solid #e5e7eb; border-radius:10px; padding:10px 16px;
+                   min-width:104px; background:#fff; }
+    .resumo-num { font-size:20px; font-weight:800; line-height:1; }
+    .resumo-rot { font-size:11px; color:#6b7280; text-transform:uppercase;
+                  letter-spacing:0.5px; font-weight:600; margin-top:5px; }
+    .doc-link { color:#2563eb; text-decoration:none; font-weight:600; font-size:13px; }
+    .doc-link:hover { text-decoration:underline; }
+  </style>
+</head>
+<body>
+<div class="layout">
+  {% include 'sidebar.html' %}
+  <main class="main">
+    <div class="topbar">
+      <a href="/alunos" class="back-link">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+        Voltar aos alunos
+      </a>
+    </div>
+    <div class="page-wrap">
+
+      {% with messages = get_flashed_messages(with_categories=True) %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}" style="margin-bottom:16px;">{{ message }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      <div class="card">
+        <div class="ficha-aluno">
+          {% if aluno.foto_url %}
+            <img src="{{ aluno.foto_url }}" class="ficha-foto" alt="Foto de {{ aluno.nome }}">
+          {% else %}
+            <div class="ficha-inicial">{{ (aluno.nome or '?')[0]|upper }}</div>
+          {% endif %}
+          <div style="flex:1; min-width:200px;">
+            <h1 style="font-size:22px; font-weight:800; color:#111827; margin:0;">{{ aluno.nome }}</h1>
+            <p style="font-size:14px; color:#6b7280; margin:4px 0 0;">
+              {{ aluno.serie or '—' }} &bull; Turma {{ aluno.turma or '—' }} &bull; RA {{ aluno.ra }}
+            </p>
+          </div>
+          {% if session.role != 'vigia' %}
+            <a href="/registrar_saida?ra={{ aluno.ra }}" class="btn btn-primary" style="font-size:13px;">
+              Registrar saída
+            </a>
+          {% endif %}
+        </div>
+
+        <div class="resumo">
+          <div class="resumo-item">
+            <div class="resumo-num" style="color:#111827;">{{ resumo.total }}</div>
+            <div class="resumo-rot">Saídas</div>
+          </div>
+          <div class="resumo-item">
+            <div class="resumo-num" style="color:#15803d;">{{ resumo.concluidas }}</div>
+            <div class="resumo-rot">Concluídas</div>
+          </div>
+          <div class="resumo-item">
+            <div class="resumo-num" style="color:#92400e;">{{ resumo.pendentes }}</div>
+            <div class="resumo-rot">Pendentes</div>
+          </div>
+          <div class="resumo-item">
+            <div class="resumo-num" style="color:#4b5563;">{{ resumo.nao_realizadas }}</div>
+            <div class="resumo-rot">Não realizadas</div>
+          </div>
+        </div>
+
+        {% if saidas %}
+          <div class="section-title">Histórico de saídas</div>
+          <div style="overflow-x: auto;">
+            <table class="student-table">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Horário</th>
+                  <th>Motivo</th>
+                  <th>Tipo</th>
+                  <th>Resp. escola</th>
+                  <th>Documento</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for s in saidas %}
+                <tr>
+                  <td style="font-weight:600; color:#111827;">{{ s.data_saida }}</td>
+                  <td>{{ s.horario or '—' }}</td>
+                  <td>{{ s.motivo or '—' }}</td>
+                  <td>
+                    {% if s.tipo_saida == 'acompanhado' %}
+                      Acompanhado(a){% if s.acompanhante %} — {{ s.acompanhante }}{% endif %}
+                    {% elif s.tipo_saida == 'sozinho' %}
+                      Sozinho(a)
+                    {% else %}
+                      —
+                    {% endif %}
+                  </td>
+                  <td style="color:#6b7280;">{{ s.responsavel_escola or '—' }}</td>
+                  <td>
+                    {% if s.tem_documento %}
+                      <a class="doc-link" href="/saidas/{{ s.id }}/documento" target="_blank">Ver anexo</a>
+                    {% elif s.documento_path %}
+                      <a class="doc-link" href="/uploads/{{ s.documento_path }}" target="_blank">Ver anexo</a>
+                    {% else %}
+                      <span style="color:#9ca3af;">—</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if s.status == 'concluida' %}
+                      <span class="status-badge badge-concluida">Concluída</span>
+                    {% elif s.status == 'nao_realizada' %}
+                      <span class="status-badge badge-nao-realizada">Não realizada</span>
+                    {% else %}
+                      <span class="status-badge badge-pendente">Pendente</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state" style="margin-top:8px;">
+            <div class="empty-state-icon">📭</div>
+            <p>Nenhuma saída registrada para este aluno.</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

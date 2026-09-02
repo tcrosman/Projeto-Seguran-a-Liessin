@@ -346,11 +346,10 @@
         <ul>
           <li><a href="#login">Login</a></li>
           <li><a href="#menu">Menu Principal</a></li>
-          <li><a href="#registrar">Alunos</a></li>
+          <li><a href="#registrar">Registrar Saída</a></li>
           <li><a href="#saidas">Saídas</a></li>
-          <li><a href="#historico">Histórico do Aluno</a></li>
+          <li><a href="#historico">Histórico de Saídas</a></li>
           {% if session.role == 'admin' %}
-          <li><a href="#cadastrar">Cadastrar Aluno</a></li>
           <li><a href="#configuracoes">Configurações</a></li>
           <li><a href="#responsaveis">Aprovar Responsáveis</a></li>
           <li><a href="#solicitacoes">Solicitações dos Pais</a></li>
@@ -417,7 +416,7 @@
               <div class="mockup-sidebar">
                 <div class="mockup-sidebar-logo"><span>SecureEdu</span></div>
                 <div class="mockup-nav-item active">Menu Principal</div>
-                <div class="mockup-nav-item">Alunos</div>
+                <div class="mockup-nav-item">Registrar Saída</div>
                 <div class="mockup-nav-item">Saídas</div>
                 <div class="mockup-nav-item">Manual</div>
                 {% if session.role == 'admin' %}
@@ -429,8 +428,8 @@
                 <div class="home-mockup-grid">
                   <div class="home-mockup-card blue">
                     <div class="icon">📋</div>
-                    <div class="title">ALUNOS</div>
-                    <div class="sub">Registrar saída · Ver histórico</div>
+                    <div class="title">REGISTRAR SAÍDA</div>
+                    <div class="sub">Buscar aluno por nome ou RA</div>
                   </div>
                   <div class="home-mockup-card yellow">
                     <div class="icon">✅</div>
@@ -456,16 +455,16 @@
         <div class="section-header">
           <div class="section-number">3</div>
           <div>
-            <div class="section-title">Alunos</div>
-            <div class="section-sub">Registrar saídas e consultar o histórico de cada aluno</div>
+            <div class="section-title">Registrar Saída</div>
+            <div class="section-sub">Buscar o aluno e registrar a saída do dia</div>
           </div>
         </div>
         <ol class="steps">
-          <li><span>No Menu Principal, clique em <strong>Alunos</strong> (ou use o link no menu lateral).</span></li>
-          <li><span>A lista de alunos aparece agrupada por série e turma. Se o aluno tiver foto cadastrada, ela aparece ao lado do nome.</span></li>
-          <li><span>Use a <strong>barra de busca</strong> no topo para filtrar pelo nome do aluno.</span></li>
-          <li><span>Para <strong>registrar uma saída</strong>, clique no botão <strong>Registrar Saída</strong> ao lado do aluno desejado.</span></li>
-          <li><span>Para <strong>ver o histórico</strong> de um aluno, clique no botão <strong>Ver Histórico</strong> ao lado do nome, ou clique diretamente no <strong>nome do aluno</strong>.</span></li>
+          <li><span>No Menu Principal, clique em <strong>Registrar Saída</strong> (ou use o link no menu lateral).</span></li>
+          <li><span>Digite o <strong>nome ou o RA</strong> do aluno no campo de busca. Os alunos vêm direto do sistema de cadastro da escola — não é preciso cadastrar ninguém aqui.</span></li>
+          <li><span>Clique no aluno correto na lista de resultados.</span></li>
+          <li><span>Preencha <strong>horário</strong>, <strong>motivo</strong>, <strong>responsável da escola</strong> e o <strong>tipo de saída</strong>.</span></li>
+          <li><span>Clique em <strong>Registrar Saída</strong>. Ela aparecerá na tela de Saídas como pendente.</span></li>
         </ol>
         <div class="tip-box">
           <strong>Tipo de saída</strong>
@@ -498,47 +497,24 @@
         <div class="section-header">
           <div class="section-number">5</div>
           <div>
-            <div class="section-title">Histórico do Aluno</div>
-            <div class="section-sub">Consultar todas as saídas de um aluno específico</div>
+            <div class="section-title">Histórico de Saídas</div>
+            <div class="section-sub">Consultar saídas já registradas</div>
           </div>
         </div>
         <ol class="steps">
-          <li><span>Acesse o histórico de duas formas: clique no <strong>nome do aluno</strong> na tela de Alunos, ou use a busca no menu.</span></li>
-          <li><span>Na busca, digite o nome do aluno e clique em <strong>Buscar</strong>.</span></li>
-          <li><span>Selecione o aluno correto e clique em <strong>Ver Histórico</strong>.</span></li>
-          <li><span>A tela mostrará os <strong>horários de saída padrão</strong> do aluno e o <strong>histórico completo</strong> de todas as saídas.</span></li>
+          <li><span>Na tela de <strong>Saídas</strong>, use o campo de <strong>data</strong> para consultar as saídas de qualquer dia.</span></li>
+          <li><span>Use o campo de <strong>busca por nome</strong> para filtrar as saídas daquele dia.</span></li>
         </ol>
+        <div class="tip-box">
+          <strong>Histórico de 30 dias</strong>
+          As saídas concluídas ficam disponíveis por 30 dias e depois são removidas automaticamente.
+        </div>
       </div>
 
       {% if session.role == 'admin' %}
-      <div class="manual-section" id="cadastrar">
-        <div class="section-header">
-          <div class="section-number">6</div>
-          <div>
-            <div class="section-title">Cadastrar Aluno</div>
-            <div class="section-sub">Adicionar alunos individualmente ou em lote</div>
-          </div>
-        </div>
-        <div class="admin-section">
-          <span class="admin-badge">Apenas administradores</span>
-          <ol class="steps">
-            <li><span>Acesse <strong>Configurações</strong> no menu lateral e clique em <strong>Cadastrar Aluno</strong>.</span></li>
-            <li><span>Preencha o <strong>Nome Completo</strong>, <strong>Série</strong> e <strong>Turma</strong>.</span></li>
-            <li><span>Ao selecionar a <strong>Série</strong>, os horários de saída são preenchidos automaticamente.</span></li>
-            <li><span><strong>Responsáveis:</strong> escreva os nomes das pessoas autorizadas a retirar o aluno.</span></li>
-            <li><span><strong>Foto do aluno:</strong> clique na área de foto e selecione uma imagem JPG ou PNG.</span></li>
-            <li><span>Clique em <strong>Cadastrar Aluno</strong>.</span></li>
-          </ol>
-          <div class="tip-box">
-            <strong>Vínculo com responsáveis</strong>
-            Não é necessário inserir o e-mail do responsável no cadastro do aluno. O vínculo é feito pelo próprio responsável no portal deles, com validação automática pelo TOTVS.
-          </div>
-        </div>
-      </div>
-
       <div class="manual-section" id="configuracoes">
         <div class="section-header">
-          <div class="section-number">7</div>
+          <div class="section-number">6</div>
           <div>
             <div class="section-title">Configurações</div>
             <div class="section-sub">Horários padrão, usuários e backup</div>
@@ -561,7 +537,7 @@
       {% if session.role == 'admin' %}
       <div class="manual-section" id="responsaveis">
         <div class="section-header">
-          <div class="section-number">8</div>
+          <div class="section-number">7</div>
           <div>
             <div class="section-title">Aprovar Responsáveis</div>
             <div class="section-sub">Gerenciar contas dos pais e responsáveis no portal</div>
@@ -581,7 +557,7 @@
           </ol>
           <div class="tip-box">
             <strong>Como o responsável é validado?</strong>
-            Após aprovação manual, o TOTVS valida automaticamente o vínculo entre o responsável e o aluno toda vez que o responsável faz login. Se o TOTVS negar, o acesso é bloqueado mesmo com conta aprovada.
+            Após aprovação manual, o sistema de cadastro da escola confirma automaticamente que a pessoa é responsável toda vez que ela faz login. Se a escola não reconhecer mais esse e-mail, o acesso é bloqueado mesmo com conta aprovada.
           </div>
           <div class="warn-box">
             <strong>Conta bloqueada vs. rejeitada</strong>
@@ -592,7 +568,7 @@
 
       <div class="manual-section" id="solicitacoes">
         <div class="section-header">
-          <div class="section-number">9</div>
+          <div class="section-number">8</div>
           <div>
             <div class="section-title">Solicitações dos Pais</div>
             <div class="section-sub">Revisar e aprovar pedidos de saída antecipada enviados pelo portal</div>

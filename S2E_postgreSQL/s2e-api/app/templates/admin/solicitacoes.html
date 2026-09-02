@@ -65,14 +65,19 @@
             </thead>
             <tbody>
               {% for s in aguardando %}
-                <tr class="linha-sol" data-busca="{{ s.aluno_nome|lower }} {{ s.responsavel_nome|lower }}" data-data="{{ s.data_solicitada }}" style="border-bottom:1px solid #f9fafb;">
+                <tr class="linha-sol" data-busca="{{ (s.aluno_nome or '')|lower }} {{ (s.responsavel_nome or '')|lower }}" data-data="{{ s.data_solicitada }}" style="border-bottom:1px solid #f9fafb;">
                   <td style="padding:12px 16px;">
                     <div style="font-size:14px; font-weight:600; color:#111827;">{{ s.aluno_nome }}</div>
                     <div style="font-size:12px; color:#9ca3af;">{{ s.serie }} — Turma {{ s.turma }}</div>
                   </td>
                   <td style="padding:12px 16px;">
-                    <div style="font-size:13px; color:#374151;">{{ s.responsavel_nome }}</div>
-                    <div style="font-size:12px; color:#9ca3af;">{{ s.responsavel_email }}</div>
+                    {% if s.responsavel_nome %}
+                      <div style="font-size:13px; color:#374151;">{{ s.responsavel_nome }}</div>
+                      <div style="font-size:12px; color:#9ca3af;">{{ s.responsavel_email }}</div>
+                    {% else %}
+                      <div style="font-size:13px; color:#9ca3af;">Responsável removido</div>
+                      <div style="font-size:12px; color:#9ca3af;">sem e-mail para notificar</div>
+                    {% endif %}
                   </td>
                   <td style="padding:12px 16px; font-size:13px; color:#374151;">
                     {{ s.data_solicitada }}
@@ -130,9 +135,9 @@
             </thead>
             <tbody>
               {% for s in historico %}
-                <tr class="linha-sol" data-busca="{{ s.aluno_nome|lower }} {{ s.responsavel_nome|lower }}" data-data="{{ s.data_solicitada }}" style="border-bottom:1px solid #f9fafb;">
+                <tr class="linha-sol" data-busca="{{ (s.aluno_nome or '')|lower }} {{ (s.responsavel_nome or '')|lower }}" data-data="{{ s.data_solicitada }}" style="border-bottom:1px solid #f9fafb;">
                   <td style="padding:12px 16px; font-size:14px; font-weight:600; color:#111827;">{{ s.aluno_nome }}</td>
-                  <td style="padding:12px 16px; font-size:13px; color:#374151;">{{ s.responsavel_nome }}</td>
+                  <td style="padding:12px 16px; font-size:13px; color:#374151;">{{ s.responsavel_nome or '—' }}</td>
                   <td style="padding:12px 16px; font-size:13px; color:#374151;">{{ s.data_solicitada }}</td>
                   <td style="padding:12px 16px;">
                     {% if s.status == 'aprovado' %}

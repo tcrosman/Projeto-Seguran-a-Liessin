@@ -26,6 +26,15 @@
           </div>
         </div>
 
+        {# Sem este bloco, os flash() de validação da rota não apareciam em lugar nenhum: a tela
+           voltava idêntica, sem dizer o que estava errado, e a mensagem só surgia depois, solta,
+           na próxima página que o usuário abrisse. #}
+        {% with messages = get_flashed_messages(with_categories=True) %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}">{{ message }}</div>
+          {% endfor %}
+        {% endwith %}
+
         <form method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="form-group">

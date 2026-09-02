@@ -11,7 +11,7 @@
   {% include 'sidebar.html' %}
   <main class="main">
     <div class="topbar">
-      <a href="/cadastro_aluno" class="back-link">
+      <a href="/saidas" class="back-link">
         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
         Voltar
       </a>
@@ -34,15 +34,15 @@
 
         <form method="POST" enctype="multipart/form-data">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <div class="form-group">
+          <div class="form-group" style="position:relative;">
             <label class="form-label">Aluno <span>*</span></label>
-            <select class="form-select" name="aluno_id" required>
-              {% for aluno in alunos %}
-                <option value="{{ aluno.id }}" {% if aluno_selecionado == aluno.id|string %}selected{% endif %}>
-                  {{ aluno.nome }} — {{ aluno.serie }} Turma {{ aluno.turma }}
-                </option>
-              {% endfor %}
-            </select>
+            <input class="form-input" type="text" id="aluno-busca" autocomplete="off"
+                   placeholder="Digite o nome ou RA do aluno..." required>
+            <input type="hidden" name="ra" id="aluno-ra" value="{{ ra_selecionado or '' }}">
+            <div id="aluno-resultados"
+                 style="border:1px solid #e5e7eb; border-radius:8px; margin-top:4px; display:none;
+                        max-height:220px; overflow-y:auto; position:absolute; background:#fff;
+                        width:100%; z-index:10; box-shadow:0 4px 12px rgba(0,0,0,0.08);"></div>
           </div>
 
           <div class="form-row form-row-2">
@@ -100,7 +100,7 @@
 
           <div class="btn-actions">
             <button class="btn btn-primary" type="submit">Registrar Saída</button>
-            <a href="/cadastro_aluno" class="btn btn-secondary">Cancelar</a>
+            <a href="/saidas" class="btn btn-secondary">Cancelar</a>
           </div>
         </form>
       </div>
@@ -120,6 +120,61 @@ function toggleAcompanhante(radio) {
     input.value = '';
   }
 }
+
+(function () {
+  var busca = document.getElementById('aluno-busca');
+  var ra = document.getElementById('aluno-ra');
+  var resultados = document.getElementById('aluno-resultados');
+  var timer = null;
+
+  function limparSelecao() {
+    ra.value = '';
+  }
+
+  function renderResultados(alunos) {
+    resultados.innerHTML = '';
+    if (!alunos.length) {
+      resultados.style.display = 'none';
+      return;
+    }
+    alunos.forEach(function (a) {
+      var item = document.createElement('div');
+      item.textContent = a.nome + ' — ' + (a.serie || '?') + ' Turma ' + (a.turma || '?');
+      item.style.padding = '8px 12px';
+      item.style.cursor = 'pointer';
+      item.addEventListener('mousedown', function (ev) {
+        ev.preventDefault();
+        busca.value = a.nome + ' — ' + (a.serie || '?') + ' Turma ' + (a.turma || '?');
+        ra.value = a.ra;
+        resultados.style.display = 'none';
+      });
+      item.addEventListener('mouseover', function () { item.style.background = '#f3f4f6'; });
+      item.addEventListener('mouseout', function () { item.style.background = '#fff'; });
+      resultados.appendChild(item);
+    });
+    resultados.style.display = 'block';
+  }
+
+  busca.addEventListener('input', function () {
+    limparSelecao();
+    var q = busca.value.trim();
+    clearTimeout(timer);
+    if (q.length < 2) {
+      resultados.style.display = 'none';
+      resultados.innerHTML = '';
+      return;
+    }
+    timer = setTimeout(function () {
+      fetch('/portaria/buscar_aluno?q=' + encodeURIComponent(q))
+        .then(function (resp) { return resp.json(); })
+        .then(renderResultados);
+    }, 250);
+  });
+
+  busca.addEventListener('blur', function () {
+    setTimeout(function () { resultados.style.display = 'none'; }, 150);
+  });
+})();
 </script>
 </body>
 </html>

@@ -53,7 +53,10 @@
     <div class="pai-nav">
       <span style="font-size:13px; color:#6b7280;">Olá, <strong>{{ nome }}</strong></span>
       <a href="/pais/minhas_solicitacoes" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">Minhas solicitações</a>
-      <a href="/pais/logout" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">Sair</a>
+      <form method="POST" action="/pais/logout" style="margin:0; display:inline;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">Sair</button>
+      </form>
     </div>
   </div>
 
@@ -65,20 +68,17 @@
       {% endfor %}
     {% endwith %}
 
-    <div style="margin-bottom:24px; display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-      <div>
-        <h1 style="font-size:22px; font-weight:800; color:#111827;">Meus filhos</h1>
-        <p style="font-size:14px; color:#6b7280; margin-top:4px;">Selecione o aluno para solicitar uma saída antecipada.</p>
-      </div>
-      <a href="/pais/vincular" class="btn btn-secondary" style="font-size:13px; padding:8px 16px; white-space:nowrap;">+ Adicionar filho</a>
+    <div style="margin-bottom:24px;">
+      <h1 style="font-size:22px; font-weight:800; color:#111827;">Meus filhos</h1>
+      <p style="font-size:14px; color:#6b7280; margin-top:4px;">Selecione o aluno para solicitar uma saída antecipada.</p>
     </div>
 
     {% if filhos %}
       <div style="display:flex; flex-direction:column; gap:12px;">
         {% for filho in filhos %}
           <div class="filho-card">
-            {% if filho.foto_path %}
-              <img class="filho-foto" src="/uploads/{{ filho.foto_path }}" alt="{{ filho.nome }}">
+            {% if filho.foto_src %}
+              <img class="filho-foto" src="{{ filho.foto_src }}" alt="{{ filho.nome }}">
             {% else %}
               <div class="filho-foto-placeholder">👤</div>
             {% endif %}
@@ -87,10 +87,10 @@
               <div class="filho-serie">{{ filho.serie }} — Turma {{ filho.turma }}</div>
             </div>
             <div style="display:flex; gap:8px;">
-              <a href="/pais/historico/{{ filho.id }}" class="btn btn-secondary" style="font-size:13px; padding:8px 16px; white-space:nowrap;">
+              <a href="/pais/historico/{{ filho.ra }}" class="btn btn-secondary" style="font-size:13px; padding:8px 16px; white-space:nowrap;">
                 Histórico
               </a>
-              <a href="/pais/solicitar/{{ filho.id }}" class="btn btn-primary" style="font-size:13px; padding:8px 18px; white-space:nowrap;">
+              <a href="/pais/solicitar/{{ filho.ra }}" class="btn btn-primary" style="font-size:13px; padding:8px 18px; white-space:nowrap;">
                 Solicitar saída
               </a>
             </div>
@@ -100,9 +100,8 @@
     {% else %}
       <div class="empty-state">
         <div style="font-size:40px; margin-bottom:12px;">🔗</div>
-        <p style="font-size:16px; font-weight:600; color:#374151; margin-bottom:8px;">Nenhum filho vinculado ainda</p>
-        <p style="font-size:13px; margin-bottom:20px;">Clique em "Adicionar filho" para buscar e vincular seu(s) filho(s) ao seu cadastro.</p>
-        <a href="/pais/vincular" class="btn btn-primary" style="display:inline-block;">+ Adicionar filho</a>
+        <p style="font-size:16px; font-weight:600; color:#374151; margin-bottom:8px;">Nenhum filho encontrado</p>
+        <p style="font-size:13px;">Não encontramos nenhum aluno vinculado ao seu e-mail no sistema da escola. Se acredita que é um erro, entre em contato com a secretaria.</p>
       </div>
     {% endif %}
   </div>

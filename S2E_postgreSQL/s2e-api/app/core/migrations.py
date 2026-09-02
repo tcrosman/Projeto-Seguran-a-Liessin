@@ -4,17 +4,10 @@ from app.core.database import get_db
 def run_migrations():
     """Aplica todas as migrações necessárias"""
     with get_db() as conn:
-        # Tabela horarios_padrao
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS horarios_padrao (
-                serie TEXT PRIMARY KEY,
-                saida_seg TEXT,
-                saida_ter TEXT,
-                saida_qua TEXT,
-                saida_qui TEXT,
-                saida_sex TEXT
-            )
-        """)
+        # A tela de "Horários Padrão" permitia configurar o horário de saída de cada série, e
+        # nenhum fluxo do sistema lia esses valores: o admin preenchia 16 séries x 5 dias e aquilo
+        # não tinha efeito nenhum. A tela foi removida e a tabela vai junto — estava vazia.
+        conn.execute("DROP TABLE IF EXISTS horarios_padrao")
 
         # Tabela reset_tokens
         conn.execute("""

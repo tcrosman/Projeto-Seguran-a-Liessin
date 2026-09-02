@@ -26,7 +26,7 @@ class Config:
     
     # Séries oficiais (mesmo do original)
     SERIES = [
-        'Berçário 1', 'Berçário 2',
+        'Maternal 1', 'Maternal 2',
         'Pré 1', 'Pré 2',
         '1º ano EF', '2º ano EF', '3º ano EF', '4º ano EF', '5º ano EF',
         '6º ano EF', '7º ano EF', '8º ano EF', '9º ano EF',
@@ -35,8 +35,12 @@ class Config:
     
     # Mapeamento de variações de série (mesmo do original)
     NORMALIZE_SERIE = {
-        'bercario 1': 'Berçário 1', 'berçario 1': 'Berçário 1', 'berçário 1': 'Berçário 1',
-        'bercario 2': 'Berçário 2', 'berçario 2': 'Berçário 2', 'berçário 2': 'Berçário 2',
+        'maternal 1': 'Maternal 1', 'maternal i': 'Maternal 1', 'mat 1': 'Maternal 1',
+        'maternal 2': 'Maternal 2', 'maternal ii': 'Maternal 2', 'mat 2': 'Maternal 2',
+        # Berçário era o nome anterior desta etapa: continua mapeado para não deixar dado antigo
+        # (ou vindo do banco da escola) cair num grupo à parte na tela de alunos.
+        'bercario 1': 'Maternal 1', 'berçario 1': 'Maternal 1', 'berçário 1': 'Maternal 1',
+        'bercario 2': 'Maternal 2', 'berçario 2': 'Maternal 2', 'berçário 2': 'Maternal 2',
         'pre 1': 'Pré 1', 'pré 1': 'Pré 1', 'pre i': 'Pré 1', 'pré i': 'Pré 1',
         'pre 2': 'Pré 2', 'pré 2': 'Pré 2', 'pre ii': 'Pré 2', 'pré ii': 'Pré 2',
         '1 ano ef': '1º ano EF', '1º ano ef': '1º ano EF', '1° ano ef': '1º ano EF',
@@ -58,8 +62,8 @@ class Config:
         '9 ano ensino fundamental': '9º ano EF',
         '1 ano ensino medio': '1º ano EM', '2 ano ensino medio': '2º ano EM', '3 ano ensino medio': '3º ano EM',
         '1 ano ensino médio': '1º ano EM', '2 ano ensino médio': '2º ano EM', '3 ano ensino médio': '3º ano EM',
-        # Berçário: numeral romano
-        'bercario i': 'Berçário 1', 'bercario ii': 'Berçário 2',
+        # Berçário: numeral romano (nome anterior do Maternal)
+        'bercario i': 'Maternal 1', 'bercario ii': 'Maternal 2',
         # EF 1-5: forma curta "X ef" e por extenso
         '1 ef': '1º ano EF', 'primeiro ano ef': '1º ano EF',
         '2 ef': '2º ano EF', 'segundo ano ef': '2º ano EF',
@@ -71,8 +75,14 @@ class Config:
         '7 ano': '7º ano EF', '7 ef': '7º ano EF', 'setimo ano': '7º ano EF',
         '8 ano': '8º ano EF', '8 ef': '8º ano EF', 'oitavo ano': '8º ano EF',
         '9 ano': '9º ano EF', '9 ef': '9º ano EF', 'nono ano': '9º ano EF',
-        # EM 1-3: "Xº ano", por extenso, "Xª série"
-        '1 ano': '1º ano EM', 'primeiro ano': '1º ano EM', '1 serie': '1º ano EM', '1 serie em': '1º ano EM',
-        '2 ano': '2º ano EM', 'segundo ano': '2º ano EM', '2 serie': '2º ano EM',
-        '3 ano': '3º ano EM', 'terceiro ano': '3º ano EM', '3 serie': '3º ano EM',
+        # "1 ano", "2 ano" e "3 ano" sem sufixo são do FUNDAMENTAL — é assim que a escola nomeia
+        # as séries (1 a 9 no fundamental; o médio vem sempre com "EM"). Antes caíam no médio, o
+        # que colocaria uma criança de 6 anos no grupo do 1º ano do ensino médio na tela.
+        '1 ano': '1º ano EF', 'primeiro ano': '1º ano EF',
+        '2 ano': '2º ano EF', 'segundo ano': '2º ano EF',
+        '3 ano': '3º ano EF', 'terceiro ano': '3º ano EF',
+        # "Xª série" e "X série em" seguem sendo do médio: é a nomenclatura antiga do EM.
+        '1 serie': '1º ano EM', '1 serie em': '1º ano EM',
+        '2 serie': '2º ano EM',
+        '3 serie': '3º ano EM',
     }

@@ -1,9 +1,14 @@
-flask>=3.0.0
-python-dotenv>=1.0.0
-psycopg2-binary>=2.9.0
-gunicorn>=21.0.0
-flask-wtf>=1.2.0
-flask-talisman>=1.1.0
-pandas>=2.0.0
-openpyxl>=3.1.0
-requests>=2.31.0
+# Tetos de versão em toda linha. Antes eram só `>=`: o build da hospedagem instalava o que
+# estivesse publicado no dia, e num projeto que fica meses sem deploy a próxima subida podia
+# trazer uma versão maior e quebrar o que estava de pé, sem ninguém ter mudado uma linha.
+# O piso é a versão mínima com que o código foi escrito; o teto, a próxima maior.
+flask>=3.0,<4
+python-dotenv>=1.0,<2
+psycopg2-binary>=2.9,<3
+gunicorn>=21.0,<24
+flask-wtf>=1.2,<2
+flask-talisman>=1.1,<2
+
+# pandas, openpyxl e requests foram removidos daqui: não aparecem em nenhum import do projeto.
+# Só o pandas, com o numpy que ele arrasta, eram dezenas de megabytes de build e de memória num
+# plano free, sem nada em troca. Se voltar a existir exportação de planilha, eles voltam junto.

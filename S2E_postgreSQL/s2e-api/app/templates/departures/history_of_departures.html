@@ -62,7 +62,6 @@
                   <th>Resp. Escola</th>
                   <th>Tipo</th>
                   <th>Status</th>
-                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -70,12 +69,12 @@
                 <tr>
                   <td>
                     <div class="student-name-cell">
-                      {% if r.foto_path %}
-                        <img src="/uploads/{{ r.foto_path }}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; margin-right:8px;">
+                      {% if r.foto_src %}
+                        <img src="{{ r.foto_src }}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; margin-right:8px;">
                       {% else %}
-                        <div class="student-avatar" style="background:#1F6EFD; width:28px; height:28px; font-size:11px;">{{ r.nome[0] }}</div>
+                        <div class="student-avatar" style="background:#1F6EFD; width:28px; height:28px; font-size:11px;">{{ (r.aluno or '?')[0] }}</div>
                       {% endif %}
-                      {{ r.nome }}
+                      {{ r.aluno }}
                     </div>
                   </td>
                   <td>{{ r.turma }}</td>
@@ -99,9 +98,6 @@
                     {% else %}
                       <span style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:2px 10px; border-radius:20px; font-size:12px; font-weight:600;">Concluída</span>
                     {% endif %}
-                  </td>
-                  <td>
-                    <a href="/historico_aluno/{{ r.id }}" class="btn btn-outline" style="padding: 4px 8px; font-size: 11px;">Detalhes</a>
                   </td>
                 </tr>
                 {% endfor %}

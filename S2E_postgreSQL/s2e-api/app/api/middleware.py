@@ -1,13 +1,16 @@
 from functools import wraps
-from flask import session, redirect, url_for, request
-from datetime import datetime
+from flask import session, redirect, request
+
+from app.core.audit_logger import log_operacao
 
 # LGPD Art. 46 (💻 App obligation) — need-to-know access control: routes forbidden to vigia role
 _VIGIA_BLOCKED_ENDPOINTS = {
-    'cadastro_aluno', 'editar_aluno', 'deletar_aluno', 'historico_aluno',
     'historico_geral', 'registrar_saida', 'editar_saida',
+    # Mesma razão do histórico geral: a lista de alunos e a ficha individual são o cadastro da
+    # escola inteira, e o porteiro só precisa das saídas do dia.
+    'lista_alunos', 'historico_do_aluno',
     'configuracoes', 'admin_backup', 'gerenciar_usuarios', 'deletar_usuario',
-    'configurar_horarios', 'cadastro_massa', 'manual', 'manual_basico', 'manual_avancado',
+    'manual', 'manual_basico', 'manual_avancado',
 }
 
 def login_required(f):
@@ -47,7 +50,6 @@ def log_access(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'username' in session:
-            with open('logs/system.log', 'a', encoding='utf-8') as log:
-                log.write(f"[{datetime.now()}] {session['username']} - ACESSOU: {request.path}\n")
+            log_operacao(session['username'], "ACESSOU", request.path, ip=request.remote_addr)
         return f(*args, **kwargs)
     return decorated_function

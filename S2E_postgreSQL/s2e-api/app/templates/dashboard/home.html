@@ -16,24 +16,22 @@
       <h1 class="home-title">Sistema de Controle de Saídas</h1>
 
       <div class="home-grid">
-        <a href="/cadastro_aluno" class="home-card blue">
+        <a href="/registrar_saida" class="home-card blue">
           <div class="home-card-icon">📋</div>
+          <div class="home-card-title">REGISTRAR SAÍDA</div>
+          <div class="home-card-sub">Buscar aluno por nome ou RA</div>
+        </a>
+        <a href="/alunos" class="home-card green">
+          <div class="home-card-icon">🎓</div>
           <div class="home-card-title">ALUNOS</div>
-          <div class="home-card-sub">Registrar saída · Ver histórico do aluno</div>
+          <div class="home-card-sub">Histórico de saídas por aluno</div>
         </a>
-        {% if session.role == 'admin' %}
-        <a href="/cadastro_massa" class="home-card green">
-          <div class="home-card-icon">👤</div>
-          <div class="home-card-title">CADASTRAR ALUNO</div>
-          <div class="home-card-sub">Adicionar alunos ao sistema</div>
-        </a>
-        {% endif %}
         <a href="/saidas" class="home-card yellow">
           <div class="home-card-icon">✅</div>
           <div class="home-card-title">SAÍDAS</div>
           <div class="home-card-sub">Ver e autorizar saídas</div>
         </a>
-        <a href="/manual" class="home-card cyan {% if session.role != 'admin' %}home-card-centered{% endif %}">
+        <a href="/manual" class="home-card cyan">
           <div class="home-card-icon">❓</div>
           <div class="home-card-title">MANUAL</div>
           <div class="home-card-sub">Guia de uso do sistema</div>

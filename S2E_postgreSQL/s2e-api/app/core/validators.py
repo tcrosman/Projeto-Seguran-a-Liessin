@@ -1,4 +1,6 @@
 import unicodedata
+from datetime import datetime
+
 from app.config import Config
 
 
@@ -21,12 +23,91 @@ def normalizar_serie(valor):
     return Config.NORMALIZE_SERIE.get(_chave_normalizada(valor_str))
 
 
+def ordem_da_serie(serie):
+    """Posição da série na ordem pedagógica (Maternal 1 → 3º ano EM).
+
+    Ordenar série por ordem alfabética colocaria "1º ano EF" antes de "Maternal 1" e "Pré 2"
+    depois do 9º ano. Séries que não estão na lista oficial vão para o fim, sem serem descartadas:
+    o banco da escola é de outra equipe e pode mandar um nome que ainda não mapeamos, e perder o
+    aluno da tela seria pior do que mostrá-lo num grupo à parte.
+    """
+    try:
+        return Config.SERIES.index(serie)
+    except ValueError:
+        return len(Config.SERIES)
+
+
+def horario_valido(valor):
+    """True se o valor é um horário HH:MM com zero à esquerda (00:00 a 23:59).
+
+    O <input type="time"> do navegador já restringe o formato, mas isso não vale nada contra um
+    POST montado à mão — e o horário vai direto para a tela da portaria e para o e-mail do
+    responsável.
+
+    O zero à esquerda não é preciosismo: horários são comparados como texto no portal dos pais
+    ("o horário informado já passou"), e "9:30" > "10:00" na ordem lexicográfica. Como
+    strptime aceita "9:30", a volta por strftime é o que de fato exige o formato canônico.
+    """
+    return _confere_formato(valor, '%H:%M')
+
+
+def data_valida(valor):
+    """True se o valor é uma data YYYY-MM-DD canônica (mesmo motivo de horario_valido)."""
+    return _confere_formato(valor, '%Y-%m-%d')
+
+
+def _confere_formato(valor, formato):
+    """Valida e exige a forma canônica: strptime aceita variações que a comparação textual quebra."""
+    if not valor:
+        return False
+    texto = str(valor).strip()
+    try:
+        return datetime.strptime(texto, formato).strftime(formato) == texto
+    except ValueError:
+        return False
+
+
+def escapar_like(termo):
+    """Neutraliza os curingas de LIKE/ILIKE num termo de busca digitado pelo usuário.
+
+    Sem isso, buscar por '%' casa com todos os alunos e '_' casa com qualquer caractere — o
+    usuário consegue listar a base inteira a partir de um campo de busca. A barra invertida vem
+    primeiro, senão ela escaparia os escapes inseridos logo depois.
+
+    Quem usa precisa declarar o caractere de escape na query (ESCAPE '\\'): o Postgres assume a
+    barra invertida por padrão, mas o SQLite não assume nenhum.
+    """
+    return (str(termo).replace('\\', '\\\\')
+                      .replace('%', '\\%')
+                      .replace('_', '\\_'))
+
+
 def allowed_file(filename):
     """Valida extensão de arquivo (primeiro filtro)"""
     if not filename or '.' not in filename:
         return False
     ext = filename.rsplit('.', 1)[1].lower()
     return ext in Config.ALLOWED_EXTENSIONS
+
+
+# Tipo MIME por extensão. Só vale porque validar_upload_documento confere os magic bytes antes:
+# a extensão já foi confrontada com o conteúdo real quando este mapa é consultado.
+_MIME_POR_EXTENSAO = {
+    'pdf': 'application/pdf',
+    'png': 'image/png',
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'gif': 'image/gif',
+}
+
+
+def mime_do_arquivo(filename):
+    """MIME do anexo, para servi-lo de volta com o tipo certo. 'application/octet-stream' se
+    desconhecido — o navegador baixa em vez de tentar interpretar."""
+    if not filename or '.' not in filename:
+        return 'application/octet-stream'
+    ext = filename.rsplit('.', 1)[1].lower()
+    return _MIME_POR_EXTENSAO.get(ext, 'application/octet-stream')
 
 
 def is_valid_image(file_stream):
