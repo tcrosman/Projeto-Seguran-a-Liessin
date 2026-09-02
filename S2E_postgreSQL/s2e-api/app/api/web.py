@@ -667,33 +667,38 @@ def register_routes(app):
                 WHERE s.id = %s AND s.status = 'pendente'
             """, (id_saida,)).fetchone()
 
-            if not saida_row:
-                flash("Saída não encontrada ou já autorizada", "error")
-                return redirect("/saidas")
+        if not saida_row:
+            flash("Saída não encontrada ou já autorizada", "error")
+            return redirect("/saidas")
 
-            saida = _resolver_dados_saidas([saida_row])[0]
+        # Fora da transação: _resolver_dados_saidas consulta o banco da escola, que é outro
+        # sistema e pode estar lento. Ler a saída e gravá-la em transações separadas é seguro
+        # porque o UPDATE mantém o filtro `status='pendente'` — é ele, e não a duração da
+        # transação, que impede editar uma saída já autorizada nesse intervalo.
+        saida = _resolver_dados_saidas([saida_row])[0]
 
-            if request.method == "POST":
-                horario = request.form.get("horario", "").strip()
-                # .strip() e obrigatoriedade como em /registrar_saida: sem isso, `motivo` chegava
-                # como None num UPDATE de coluna NOT NULL — IntegrityError e erro 500. O
-                # `required` do formulário é só do navegador e não vale para um POST montado à
-                # mão, nem para um envio com o JavaScript desligado.
-                motivo = (request.form.get("motivo") or "").strip()
-                responsavel_escola = (request.form.get("responsavel_escola") or "").strip()
-                tipo_saida = request.form.get("tipo_saida")
-                acompanhante = request.form.get("acompanhante") if tipo_saida == 'acompanhado' else None
+        if request.method == "POST":
+            horario = request.form.get("horario", "").strip()
+            # .strip() e obrigatoriedade como em /registrar_saida: sem isso, `motivo` chegava
+            # como None num UPDATE de coluna NOT NULL — IntegrityError e erro 500. O
+            # `required` do formulário é só do navegador e não vale para um POST montado à
+            # mão, nem para um envio com o JavaScript desligado.
+            motivo = (request.form.get("motivo") or "").strip()
+            responsavel_escola = (request.form.get("responsavel_escola") or "").strip()
+            tipo_saida = request.form.get("tipo_saida")
+            acompanhante = request.form.get("acompanhante") if tipo_saida == 'acompanhado' else None
 
-                if not horario or not motivo or not responsavel_escola or not tipo_saida:
-                    flash("Todos os campos são obrigatórios.", "error")
-                    return render_template("departures/edit_exits.html", saida=saida)
-                if not horario_valido(horario):
-                    flash("Horário inválido. Use o formato HH:MM.", "error")
-                    return render_template("departures/edit_exits.html", saida=saida)
-                if tipo_saida not in ('sozinho', 'acompanhado'):
-                    flash("Tipo de saída inválido.", "error")
-                    return render_template("departures/edit_exits.html", saida=saida)
+            if not horario or not motivo or not responsavel_escola or not tipo_saida:
+                flash("Todos os campos são obrigatórios.", "error")
+                return render_template("departures/edit_exits.html", saida=saida)
+            if not horario_valido(horario):
+                flash("Horário inválido. Use o formato HH:MM.", "error")
+                return render_template("departures/edit_exits.html", saida=saida)
+            if tipo_saida not in ('sozinho', 'acompanhado'):
+                flash("Tipo de saída inválido.", "error")
+                return render_template("departures/edit_exits.html", saida=saida)
 
+            with get_db() as conn:
                 conn.execute("""
                     UPDATE saidas SET horario=%s, motivo=%s, responsavel_escola=%s, tipo_saida=%s, acompanhante=%s
                     WHERE id=%s AND status='pendente'
@@ -701,10 +706,10 @@ def register_routes(app):
                 log_operacao(session.get('username'), "EDITOU SAÍDA",
                              f"ID Saída: {id_saida} | horário: {horario} | tipo: {tipo_saida}",
                              ip=request.remote_addr, conn=conn)
-                flash("Saída atualizada!", "success")
-                return redirect("/saidas")
-            
-            return render_template("departures/edit_exits.html", saida=saida)
+            flash("Saída atualizada!", "success")
+            return redirect("/saidas")
+
+        return render_template("departures/edit_exits.html", saida=saida)
 
     @app.route("/concluir_saida/<int:id_saida>", methods=["POST"])
     @login_required
@@ -752,9 +757,11 @@ def register_routes(app):
                 WHERE s.id = %s
             """, (id_saida,)).fetchone()
 
-            if saida and saida['ra']:
-                nome_aluno, emails = _nome_e_emails_para_saida(saida['ra'])
-            elif saida:
+            # Só o que sai do banco PRÓPRIO fica aqui dentro. O caminho legado é uma consulta
+            # local e não custa nada; a consulta ao banco da escola foi para fora do `with`,
+            # logo abaixo.
+            nome_aluno, emails = None, []
+            if saida and not saida['ra']:
                 nome_aluno = saida['aluno_nome_legado']
                 responsaveis = conn.execute("""
                     SELECT r.email
@@ -763,8 +770,16 @@ def register_routes(app):
                     WHERE v.aluno_id = %s
                 """, (saida['aluno_id_legado'],)).fetchall()
                 emails = [r['email'] for r in responsaveis]
-            else:
-                nome_aluno, emails = None, []
+
+        # Fora da transação, de propósito. O UPDATE acima trava a linha da saída, e
+        # _nome_e_emails_para_saida abre TRÊS conexões ao banco da escola (get_student já são
+        # duas, por causa de _emails_por_ra, mais get_guardian_emails_for_ra). Com
+        # SCHOOL_SQL_TIMEOUT_SEG=5 o pior caso é ~30s segurando ao mesmo tempo uma conexão do
+        # pool e uma thread do worker — e basta o banco da escola estar LENTO, não fora do ar.
+        # Dois seguranças clicando "liberar" juntos paravam o sistema inteiro, portaria
+        # inclusive, sem chegar ao timeout do gunicorn que dispararia o restart.
+        if saida and saida['ra']:
+            nome_aluno, emails = _nome_e_emails_para_saida(saida['ra'])
 
         if saida:
             from app.core.mailer import enviar_email_async
@@ -988,29 +1003,34 @@ def register_routes(app):
                 WHERE ss.id = %s AND ss.status = 'aguardando'
             """, (sol_id,)).fetchone()
 
-            if not sol_row:
-                flash("Solicitação não encontrada ou já revisada.", "error")
-                return redirect("/admin/solicitacoes")
+        if not sol_row:
+            flash("Solicitação não encontrada ou já revisada.", "error")
+            return redirect("/admin/solicitacoes")
 
-            sol = _resolver_solicitacoes([sol_row])[0]
+        # As duas linhas abaixo consultam o banco da escola (nome/turma do aluno e vínculo do
+        # responsável) e ficam FORA de qualquer transação nossa: são até três conexões a outro
+        # sistema, com 5s de timeout cada, e prender uma conexão do pool durante isso era o que
+        # travava o sistema inteiro quando aquele banco ficava lento.
+        sol = _resolver_solicitacoes([sol_row])[0]
 
-            # Segundo portão. A solicitação foi criada pelo responsável, que naquele momento
-            # tinha o vínculo conferido em /pais/solicitar — mas a aprovação acontece depois,
-            # às vezes dias depois, e o vínculo pode ter mudado nesse intervalo (guarda, ordem
-            # judicial, transferência) ou a conta pode ter sido bloqueada pela própria escola.
-            # Aprovar sem reconferir transforma um pedido que deixou de ser legítimo numa saída
-            # válida na tela da portaria, com o acompanhante que aquele pedido indicava.
-            #
-            # Fail-closed: banco da escola sem resposta recusa a aprovação. O admin pode tentar
-            # de novo em minutos; entregar a criança à pessoa errada não tem segunda tentativa.
-            recusa = _revalidar_vinculo_da_solicitacao(sol_row)
-            if recusa:
-                log_operacao(session.get('username'), "APROVAÇÃO RECUSADA",
-                             f"ID Solicitação: {sol_id} | RA: {sol['ra'] or '—'} | motivo: {recusa}",
-                             ip=request.remote_addr, conn=conn)
-                flash(_RECUSA_APROVACAO[recusa], "error")
-                return redirect("/admin/solicitacoes")
+        # Segundo portão. A solicitação foi criada pelo responsável, que naquele momento tinha
+        # o vínculo conferido em /pais/solicitar — mas a aprovação acontece depois, às vezes
+        # dias depois, e o vínculo pode ter mudado nesse intervalo (guarda, ordem judicial,
+        # transferência) ou a conta pode ter sido bloqueada pela própria escola. Aprovar sem
+        # reconferir transforma um pedido que deixou de ser legítimo numa saída válida na tela
+        # da portaria, com o acompanhante que aquele pedido indicava.
+        #
+        # Fail-closed: banco da escola sem resposta recusa a aprovação. O admin pode tentar de
+        # novo em minutos; entregar a criança à pessoa errada não tem segunda tentativa.
+        recusa = _revalidar_vinculo_da_solicitacao(sol_row)
+        if recusa:
+            log_operacao(session.get('username'), "APROVAÇÃO RECUSADA",
+                         f"ID Solicitação: {sol_id} | RA: {sol['ra'] or '—'} | motivo: {recusa}",
+                         ip=request.remote_addr)
+            flash(_RECUSA_APROVACAO[recusa], "error")
+            return redirect("/admin/solicitacoes")
 
+        with get_db() as conn:
             # Aprova a solicitação. O filtro por status é o que serializa duas aprovações
             # simultâneas: a segunda transação relê a linha já aprovada, casa 0 linhas e para
             # aqui, em vez de criar uma segunda saída para o mesmo aluno.
@@ -1103,12 +1123,15 @@ def register_routes(app):
                 WHERE ss.id = %s AND ss.status = 'aguardando'
             """, (sol_id,)).fetchone()
 
-            if not sol_row:
-                flash("Solicitação não encontrada ou já revisada.", "error")
-                return redirect("/admin/solicitacoes")
+        if not sol_row:
+            flash("Solicitação não encontrada ou já revisada.", "error")
+            return redirect("/admin/solicitacoes")
 
-            sol = _resolver_solicitacoes([sol_row])[0]
+        # Fora da transação: resolve nome/turma do aluno no banco da escola. Mesma razão de
+        # /concluir_saida — aquele banco é outro sistema e pode estar lento.
+        sol = _resolver_solicitacoes([sol_row])[0]
 
+        with get_db() as conn:
             conn.execute(
                 "UPDATE solicitacoes_saida SET status = 'rejeitado', revisado_por = %s, revisado_em = NOW() WHERE id = %s",
                 (session['user_id'], sol_id)
