@@ -2,7 +2,15 @@ services:
   - type: web
     name: secureedu
     env: python
-    plan: free
+    # NAO volte para `free`. O plano free hiberna apos 15 min sem trafego e leva ~50s para
+    # acordar: a primeira requisicao do dia e a portaria abrindo a tela as 14h55, e ela trava por
+    # quase um minuto com os pais ja no portao. A RAM apertada do free tambem agrava o cache do
+    # diretorio e o pool de conexoes. E o preDeployCommand (migracoes como passo de release, ver
+    # C4) so existe em plano pago.
+    #
+    # Esta e a mudanca com maior efeito sobre disponibilidade no pico, e custa dinheiro: confirme
+    # o plano no painel do Render, porque um `plan:` no blueprint nao muda a assinatura sozinho.
+    plan: starter
     rootDir: .
     buildCommand: pip install -r requirements.txt
     # Passo de release: as migracoes rodam UMA vez, antes de os workers subirem. Sem isso, os
