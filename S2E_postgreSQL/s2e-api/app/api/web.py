@@ -86,17 +86,28 @@ def _buscar_alunos_com_cache(ras):
 
 
 def _nome_e_emails_para_saida(ra):
-    """Resolve nome do aluno e e-mails dos responsáveis via school_sql_directory para notificar
-    após liberar uma saída, sem propagar falha — usada por /concluir_saida, onde a liberação
-    já foi persistida no banco e não pode ser desfeita por uma falha na consulta externa."""
+    """Resolve nome do aluno e e-mails dos responsáveis para notificar após liberar uma saída.
+
+    Devolve `(nome_aluno, emails, indisponivel)`. Não propaga falha: /concluir_saida já
+    persistiu a liberação quando chega aqui, e ela não pode ser desfeita por uma consulta
+    externa que não respondeu.
+
+    O terceiro valor é a correção A11. Antes a função engolia a exceção e devolvia `emails = []`,
+    o mesmo valor de "este aluno não tem responsável com e-mail cadastrado" — e a tela dizia
+    "Saída autorizada!" nos dois casos. Com o banco da escola fora do ar por cinco minutos
+    durante as saídas, nenhum responsável era avisado de que o filho saiu da escola, e nada na
+    tela nem na auditoria registrava isso. São duas situações com desfechos diferentes: uma a
+    secretaria resolve cadastrando o e-mail, a outra é para avisar por telefone agora.
+    """
     try:
-        info = get_school_sql_directory().get_student(ra)
-        emails = get_school_sql_directory().get_guardian_emails_for_ra(ra)
+        diretorio = get_school_sql_directory()
+        info = diretorio.get_student(ra)
+        emails = diretorio.get_guardian_emails_for_ra(ra)
     except Exception as e:
-        _log.warning(f"[SCHOOL_SQL] Erro ao concluir saída: {e}")
-        info, emails = None, []
+        _log.warning(f"[SCHOOL_SQL] Responsáveis não puderam ser notificados (RA {ra}): {e}")
+        return f"RA {ra}", [], True
     nome_aluno = info['nome'] if info else f"RA {ra}"
-    return nome_aluno, emails
+    return nome_aluno, emails, False
 
 
 # Por que a aprovação pode ser recusada. Mesma lista de motivos do portal dos pais
@@ -815,6 +826,7 @@ def register_routes(app):
             # local e não custa nada; a consulta ao banco da escola foi para fora do `with`,
             # logo abaixo.
             nome_aluno, emails = None, []
+            diretorio_indisponivel = False
             if saida and not saida['ra']:
                 nome_aluno = saida['aluno_nome_legado']
                 responsaveis = conn.execute("""
@@ -833,7 +845,7 @@ def register_routes(app):
         # Dois seguranças clicando "liberar" juntos paravam o sistema inteiro, portaria
         # inclusive, sem chegar ao timeout do gunicorn que dispararia o restart.
         if saida and saida['ra']:
-            nome_aluno, emails = _nome_e_emails_para_saida(saida['ra'])
+            nome_aluno, emails, diretorio_indisponivel = _nome_e_emails_para_saida(saida['ra'])
 
         if saida:
             from app.core.mailer import enviar_email_async
@@ -845,8 +857,22 @@ def register_routes(app):
             for email in emails:
                 enviar_email_async(email, "Saída liberada — SecureEdu", corpo)
 
-        log_operacao(session.get('username'), "CONCLUIU SAÍDA", f"ID Saída: {id_saida}")
-        flash("Saída autorizada!", "success")
+        # Quantos responsáveis foram efetivamente avisados entra na trilha. Sem esse número, a
+        # auditoria não distinguia "notifiquei os dois responsáveis" de "não notifiquei
+        # ninguém" — e é justamente a segunda que alguém vai precisar reconstruir depois.
+        log_operacao(session.get('username'), "CONCLUIU SAÍDA",
+                     f"ID Saída: {id_saida} | responsáveis notificados: {len(emails)}"
+                     + (" | cadastro da escola indisponível" if diretorio_indisponivel else ""))
+
+        if emails:
+            flash("Saída autorizada!", "success")
+        elif diretorio_indisponivel:
+            # Erro, e não sucesso: a escola precisa avisar o responsável por outro meio, agora.
+            flash("Saída autorizada, mas NÃO foi possível notificar os responsáveis: o cadastro "
+                  "da escola está indisponível. Avise a família por telefone.", "error")
+        else:
+            flash("Saída autorizada, mas nenhum responsável foi notificado: não há e-mail "
+                  "cadastrado para este aluno na escola.", "error")
         return redirect("/saidas")
     
     # ==================== ADMIN ====================
