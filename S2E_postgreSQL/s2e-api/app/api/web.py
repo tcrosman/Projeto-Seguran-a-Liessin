@@ -34,6 +34,18 @@ RAS_NO_HISTORICO = 200
 # aparece na primeira leva — o diretório da escola não tem paginação.
 ALUNOS_POR_PAGINA = 200
 
+# Piso e teto do autocomplete de /registrar_saida.
+#
+# Sem o piso, `?q=a` devolvia uma fatia alfabética do cadastro: `?q=a`, `?q=e`, `?q=202400`... e
+# em poucas dezenas de requisições sai RA, nome, turma e série de toda a escola. Três caracteres
+# ainda respondem a qualquer nome que alguém digite de verdade, e não servem para varredura.
+#
+# O teto é baixo porque este resultado é um autocomplete: ninguém rola além dos primeiros nomes,
+# e cada linha a mais é cadastro de aluno saindo do banco da escola sem necessidade. Quem
+# precisa de lista longa usa /alunos, que é outra tela e outro controle de acesso.
+MIN_CARACTERES_BUSCA = 3
+RESULTADOS_AUTOCOMPLETE = 10
+
 
 def _buscar_alunos_com_cache(ras):
     """Resolve ra -> dados do aluno via school_sql_directory, com cache curto (5 min) e fallback
@@ -501,9 +513,14 @@ def register_routes(app):
     def portaria_buscar_aluno():
         """Busca alunos por nome/RA parcial para o formulário de registrar saída.
         Dado vem direto da consulta externa — nada aqui é persistido no S2E."""
-        query = request.args.get("q", "")
+        query = request.args.get("q", "").strip()
+        # Piso antes de qualquer consulta: além de fechar a enumeração, evita a varredura da
+        # tabela de alunos (LIKE '%...%' sobre nome normalizado) a cada tecla digitada.
+        if len(query) < MIN_CARACTERES_BUSCA:
+            return jsonify([])
         try:
-            resultados = get_school_sql_directory().search_students(query)
+            resultados = get_school_sql_directory().search_students(
+                query, limite=RESULTADOS_AUTOCOMPLETE)
         except Exception as e:
             _log.warning(f"[SCHOOL_SQL] Erro ao buscar aluno na portaria: {e}")
             resultados = []

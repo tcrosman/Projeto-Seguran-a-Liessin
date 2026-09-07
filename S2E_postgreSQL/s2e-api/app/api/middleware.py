@@ -51,6 +51,11 @@ _VIGIA_BLOCKED_ENDPOINTS = {
     # Mesma razão do histórico geral: a lista de alunos e a ficha individual são o cadastro da
     # escola inteira, e o porteiro só precisa das saídas do dia.
     'lista_alunos', 'historico_do_aluno',
+    # E a busca que alimenta a tela de registrar saída, pelo mesmo motivo — ela ficava de fora
+    # da lista e entregava em JSON (ra, nome, turma, série) exatamente o cadastro que as duas
+    # linhas acima negam. Bastavam algumas dezenas de `?q=` para baixar a escola inteira. O
+    # endpoint só existe para /registrar_saida, que o vigia já não acessa.
+    'portaria_buscar_aluno',
     'configuracoes', 'admin_backup', 'gerenciar_usuarios', 'deletar_usuario',
     'manual', 'manual_basico', 'manual_avancado',
 }
