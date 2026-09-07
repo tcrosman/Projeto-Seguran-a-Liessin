@@ -25,11 +25,24 @@ _pool = None
 _vagas = None       # semáforo: quantas conexões ainda podem ser retiradas do pool
 _trava_pool = Lock()
 
+# A extensão `unaccent` existe no banco da escola? None = ainda não foi verificado.
+#
+# Ela é exigida por _expr_norm() no Postgres, e não vem instalada por padrão. Sem ela, TODA busca
+# de aluno falhava com "function unaccent(text) does not exist" — erro capturado pelo `except`
+# de cada método e transformado em lista vazia. O sintoma para quem estava na portaria era
+# "nenhum aluno encontrado", às 15h, no dia da virada do mock para o banco real.
+#
+# Verificado uma vez por processo, e não a cada busca: é uma propriedade do banco, não da
+# consulta. Enquanto for None a busca degrada para lower() puro, que é o comportamento seguro.
+_unaccent = None
+
 
 def _reiniciar_pool():
-    """Descarta o pool. Existe para os testes trocarem de configuração sem herdar o pool
-    anterior — em produção o pool vive enquanto o worker viver."""
-    global _pool, _vagas
+    """Descarta o pool e o que foi descoberto sobre o banco da escola. Existe para os testes
+    trocarem de configuração sem herdar o estado anterior — em produção isso vive enquanto o
+    worker viver."""
+    global _pool, _vagas, _unaccent
+    _unaccent = None
     with _trava_pool:
         if _pool is not None:
             try:
@@ -114,11 +127,70 @@ class SchoolSqlDirectoryClient:
         sem_acento = unicodedata.normalize('NFD', str(texto))
         return ''.join(c for c in sem_acento if unicodedata.category(c) != 'Mn').lower()
 
+    def _expr_ativo(self, coluna):
+        """Condição SQL para "está ativo", aceitando as duas formas que a escola pode usar.
+
+        As consultas comparavam `ativo = 1` direto. Isso só funciona se a coluna for numérica —
+        e `ativo` como BOOLEAN é o normal em PostgreSQL, que é o engine que o render.yaml já
+        fixa. Contra um BOOLEAN, toda consulta dava "operator does not exist: boolean = integer",
+        o erro era capturado pelo `except` de cada método e virava resultado vazio. O app subia,
+        nenhum erro além de um warning, e ninguém conseguia registrar uma saída às 15h.
+
+        No Postgres o cast resolve os dois casos de uma vez: `1::boolean` é true e
+        `true::boolean` é ele mesmo. No SQLite não existe tipo booleano — 0/1 é a única forma.
+        """
+        if self._engine == 'sqlite':
+            return f"{coluna} = 1"
+        return f"({coluna})::boolean IS TRUE"
+
+    def _tem_unaccent(self):
+        """A extensão `unaccent` está instalada no banco da escola? Verificado uma vez por processo.
+
+        Não vem instalada por padrão no PostgreSQL. Sem ela, a expressão de _expr_norm() falha e
+        a busca de aluno devolve vazio — silenciosamente, porque cada método captura a exceção.
+        Melhor descobrir e degradar do que buscar às cegas.
+        """
+        global _unaccent
+        if self._engine == 'sqlite':
+            return False        # lá a normalização é a função Python registrada na conexão
+        if _unaccent is None:
+            try:
+                linhas = self._consultar(
+                    "SELECT 1 AS ok FROM pg_extension WHERE extname = 'unaccent'")
+            except Exception as e:
+                # Sem resposta não dá para concluir nada; degrada agora e tenta de novo depois.
+                _log.warning("[SCHOOL_SQL] Não foi possível verificar a extensão unaccent: %s", e)
+                return False
+            _unaccent = bool(linhas)
+            if not _unaccent:
+                _log.warning(
+                    "[SCHOOL_SQL] Extensão `unaccent` ausente no banco da escola. A busca de "
+                    "aluno vai funcionar, mas sem ignorar acentos: 'Julia' não encontra 'Júlia'. "
+                    "Peça à instituição: CREATE EXTENSION unaccent;")
+        return _unaccent
+
     def _expr_norm(self, coluna):
-        """Expressão SQL que normaliza um texto, na sintaxe do engine em uso."""
+        """Expressão SQL que normaliza um texto, na sintaxe do engine em uso.
+
+        Sem a extensão `unaccent` o Postgres degrada para lower() puro — a busca perde a
+        insensibilidade a acento, mas continua funcionando. É melhor que o comportamento
+        anterior, em que a consulta inteira falhava e a tela dizia "nenhum aluno encontrado".
+        """
         if self._engine == 'sqlite':
             return f"norm_texto({coluna})"
-        return f"unaccent(lower({coluna}))"  # Postgres: exige a extensão unaccent
+        if self._tem_unaccent():
+            return f"unaccent(lower({coluna}))"
+        return f"lower({coluna})"
+
+    def _normalizar_termo(self, texto):
+        """Normaliza o termo buscado do MESMO jeito que _expr_norm() normaliza a coluna.
+
+        Se os dois lados discordarem a busca simplesmente não casa: tirar o acento do termo e
+        não da coluna faz 'julia' procurar por 'júlia' e não achar nada.
+        """
+        if self._engine == 'sqlite' or self._tem_unaccent():
+            return self._normalizar(texto)
+        return (texto or '').lower()
 
     def _conectar(self):
         """Abre uma conexão avulsa. Só o SQLite passa por aqui — no Postgres a conexão vem do
@@ -244,7 +316,7 @@ class SchoolSqlDirectoryClient:
         marcadores = ",".join([self._ph] * len(ras))
         linhas = self._consultar(
             f"""SELECT v.ra, v.email FROM vinculos v
-                JOIN responsaveis r ON r.email = v.email AND r.ativo = 1
+                JOIN responsaveis r ON r.email = v.email AND {self._expr_ativo('r.ativo')}
                 WHERE v.ra IN ({marcadores})""",
             tuple(ras),
         )
@@ -257,7 +329,8 @@ class SchoolSqlDirectoryClient:
         """Retorna os dados de um aluno pelo RA, ou None se não encontrado."""
         try:
             linhas = self._consultar(
-                f"SELECT ra, nome, turma, serie, foto_url FROM alunos WHERE ra = {self._ph} AND ativo = 1",
+                f"SELECT ra, nome, turma, serie, foto_url FROM alunos "
+                f"WHERE ra = {self._ph} AND {self._expr_ativo('ativo')}",
                 (ra,),
             )
             if not linhas:
@@ -275,7 +348,8 @@ class SchoolSqlDirectoryClient:
         try:
             marcadores = ",".join([self._ph] * len(ras))
             linhas = self._consultar(
-                f"SELECT ra, nome, turma, serie, foto_url FROM alunos WHERE ra IN ({marcadores}) AND ativo = 1",
+                f"SELECT ra, nome, turma, serie, foto_url FROM alunos "
+                f"WHERE ra IN ({marcadores}) AND {self._expr_ativo('ativo')}",
                 tuple(ras),
             )
             emails = self._emails_por_ra([l["ra"] for l in linhas])
@@ -291,8 +365,8 @@ class SchoolSqlDirectoryClient:
                 f"""SELECT a.ra, a.nome, a.turma, a.serie, a.foto_url
                     FROM alunos a
                     JOIN vinculos v ON v.ra = a.ra
-                    JOIN responsaveis r ON r.email = v.email AND r.ativo = 1
-                    WHERE LOWER(v.email) = {self._ph} AND a.ativo = 1
+                    JOIN responsaveis r ON r.email = v.email AND {self._expr_ativo('r.ativo')}
+                    WHERE LOWER(v.email) = {self._ph} AND {self._expr_ativo('a.ativo')}
                     ORDER BY a.nome""",
                 (email.strip().lower(),),
             )
@@ -316,7 +390,7 @@ class SchoolSqlDirectoryClient:
         try:
             linhas = self._consultar(
                 f"""SELECT ra, nome, turma, serie, foto_url FROM alunos
-                    WHERE ativo = 1 ORDER BY nome LIMIT {self._ph}""",
+                    WHERE {self._expr_ativo('ativo')} ORDER BY nome LIMIT {self._ph}""",
                 (limite,),
             )
             emails = self._emails_por_ra([l["ra"] for l in linhas])
@@ -342,10 +416,11 @@ class SchoolSqlDirectoryClient:
             # isso um '%' digitado na busca da portaria listaria a escola inteira.
             linhas = self._consultar(
                 f"""SELECT ra, nome, turma, serie, foto_url FROM alunos
-                    WHERE ativo = 1 AND ({self._expr_norm('nome')} LIKE {self._ph} ESCAPE '\\'
+                    WHERE {self._expr_ativo('ativo')}
+                      AND ({self._expr_norm('nome')} LIKE {self._ph} ESCAPE '\\'
                                          OR ra LIKE {self._ph} ESCAPE '\\')
                     ORDER BY nome LIMIT {self._ph}""",
-                (f"%{escapar_like(self._normalizar(q))}%", f"%{escapar_like(q)}%", limite),
+                (f"%{escapar_like(self._normalizar_termo(q))}%", f"%{escapar_like(q)}%", limite),
             )
             emails = self._emails_por_ra([l["ra"] for l in linhas])
             return [self._montar_aluno(l, emails.get(l["ra"], [])) for l in linhas]
@@ -373,8 +448,8 @@ class SchoolSqlDirectoryClient:
             linhas = self._consultar(
                 f"""SELECT 1 AS ok FROM responsaveis r
                     JOIN vinculos v ON v.email = r.email
-                    JOIN alunos a ON a.ra = v.ra AND a.ativo = 1
-                    WHERE LOWER(r.email) = {self._ph} AND r.ativo = 1
+                    JOIN alunos a ON a.ra = v.ra AND {self._expr_ativo('a.ativo')}
+                    WHERE LOWER(r.email) = {self._ph} AND {self._expr_ativo('r.ativo')}
                     LIMIT 1""",
                 (email.strip().lower(),),
             )
