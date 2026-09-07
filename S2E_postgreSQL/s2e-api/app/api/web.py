@@ -1129,23 +1129,52 @@ def register_routes(app):
             # solicitacao_id amarra esta saída à solicitação que a originou: é por ele que a
             # edição feita pelo responsável encontra a saída certa para remover, sem tocar nas
             # que a portaria registrou por conta própria.
-            conn.execute("""
-                INSERT INTO saidas (aluno, ra, turma, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status, solicitacao_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pendente', %s)
-            """, (
-                sol['aluno_id'],
-                sol['ra'],
-                sol['turma'],
-                sol['data_solicitada'],
-                sol['horario_solicitado'] or '',
-                sol['motivo'] or 'Solicitado pelo responsável',
-                session.get('username', 'admin'),
-                sol['tipo_saida'] or 'acompanhado',
-                sol['acompanhante'] or sol['responsavel_nome'],
-                sol_id,
-            ))
+            #
+            # O UPDATE lá em cima serializa duas aprovações DESTA solicitação, mas não impede
+            # que outra saída para o mesmo aluno e a mesma data nasça no meio do caminho: pai e
+            # mãe criam cada um a sua solicitação, dois admins aprovam ao mesmo tempo, ou um
+            # admin aprova enquanto a portaria registra em /registrar_saida. Os dois leem
+            # "nenhuma existente" logo acima e os dois inserem — que é exatamente o que o
+            # comentário da checagem diz querer evitar. Quem impede de verdade é o índice único
+            # parcial uq_saidas_pendente_por_dia (ver A8, app/core/migrations.py).
+            #
+            # SAVEPOINT: sem ele, a violação abortaria a transação inteira e levaria junto a
+            # aprovação e a auditoria já gravadas — o admin clicaria em "aprovar", veria erro, e
+            # a decisão dele sumiria. Com o savepoint, a solicitação continua aprovada e só a
+            # criação da saída duplicada é desfeita, que é o desfecho correto: a saída daquele
+            # aluno naquele dia já existe.
+            duplicada = False
+            try:
+                conn.execute("SAVEPOINT criar_saida")
+                conn.execute("""
+                    INSERT INTO saidas (aluno, ra, turma, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status, solicitacao_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pendente', %s)
+                """, (
+                    sol['aluno_id'],
+                    sol['ra'],
+                    sol['turma'],
+                    sol['data_solicitada'],
+                    sol['horario_solicitado'] or '',
+                    sol['motivo'] or 'Solicitado pelo responsável',
+                    session.get('username', 'admin'),
+                    sol['tipo_saida'] or 'acompanhado',
+                    sol['acompanhante'] or sol['responsavel_nome'],
+                    sol_id,
+                ))
+                conn.execute("RELEASE SAVEPOINT criar_saida")
+            except UniqueViolation:
+                conn.execute("ROLLBACK TO SAVEPOINT criar_saida")
+                _log.info("[SOLICITACOES] saída concorrente já existia para RA %s em %s",
+                          sol['ra'], sol['data_solicitada'])
+                duplicada = True
 
-        flash(f"Saída de {sol['aluno_nome']} aprovada e registrada.", "success")
+        if duplicada:
+            # Mesma mensagem do caminho em que a saída já existia quando conferimos: para quem
+            # está na tela, a situação é idêntica.
+            flash(f"Solicitação de {sol['aluno_nome']} aprovada. Este aluno já tinha uma saída "
+                  "pendente para esta data, então nenhuma saída nova foi criada.", "success")
+        else:
+            flash(f"Saída de {sol['aluno_nome']} aprovada e registrada.", "success")
         return redirect("/admin/solicitacoes")
 
     @app.route("/admin/solicitacoes/<int:sol_id>/rejeitar", methods=["POST"])
