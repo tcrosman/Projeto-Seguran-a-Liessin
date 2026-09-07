@@ -253,6 +253,14 @@ def register_parent_routes(app):
             if not _responsavel_reconhecido_pela_escola(email):
                 return render_template("pais/login.html", erro="Não foi possível confirmar seu vínculo com a escola. Entre em contato com a secretaria.")
 
+            # Conta trancada por erros de 2FA não ganha código novo. Sem isto, o bloqueio
+            # seria contornável pelo mesmo caminho que zerava o contador antigo — e cada
+            # tentativa ainda mandaria um e-mail para o responsável de verdade.
+            if rate_limit.esta_bloqueado(rate_limit.PAIS_2FA_CONTA, resp['id']):
+                return render_template("pais/login.html",
+                                       erro="Muitas tentativas de verificação nesta conta. "
+                                            "Tente novamente mais tarde.")
+
             # Gera e envia token 2FA — protege contra duplo-submit
             with get_db() as conn:
                 recente = conn.execute(
@@ -303,14 +311,22 @@ def register_parent_routes(app):
         if request.method == "POST":
             # Escopo próprio, separado do login: errar o código de 2FA não pode consumir o limite
             # de tentativas de senha nem trancar quem só quer entrar com a senha do mesmo IP da
-            # escola. O limite por conta aqui é o contador em tokens_2fa.tentativas, logo abaixo.
-            if rate_limit.esta_bloqueado(rate_limit.PAIS_2FA_IP, ip):
+            # escola.
+            #
+            # São dois limites, e o que segura força bruta é o por CONTA. O contador em
+            # tokens_2fa.tentativas não servia para isso: ao queimar o token ele é apagado, e o
+            # login apaga os tokens abertos antes de inserir o novo — bastava refazer o login
+            # para zerar as tentativas. Ver PAIS_2FA_CONTA em app/core/rate_limit.py.
+            pai_id = session['pai_temp_id']
+            if rate_limit.esta_bloqueado(rate_limit.PAIS_2FA_IP, ip) or \
+               rate_limit.esta_bloqueado(rate_limit.PAIS_2FA_CONTA, pai_id):
+                _limpar_sessao_temp()
                 return render_template("pais/verificar_2fa.html",
-                                       erro="Muitas tentativas. Tente novamente em 5 minutos.",
+                                       erro="Muitas tentativas de verificação. Sua conta ficou "
+                                            "temporariamente bloqueada. Tente novamente mais tarde.",
                                        expirado=True)
 
             codigo = request.form.get("codigo", "").strip()
-            pai_id = session['pai_temp_id']
 
             # Todo o acesso ao banco fica num bloco só, e o desfecho vira um rótulo tratado
             # depois. rate_limit abre a própria conexão: chamá-lo aqui dentro seguraria duas
@@ -354,6 +370,9 @@ def register_parent_routes(app):
 
             if desfecho in ('invalido', 'queimado'):
                 rate_limit.registrar_falha(rate_limit.PAIS_2FA_IP, ip)
+                # Fora do ciclo de vida do token, de propósito: é o que impede zerar o contador
+                # refazendo o login.
+                rate_limit.registrar_falha(rate_limit.PAIS_2FA_CONTA, pai_id)
             if desfecho == 'invalido':
                 return render_template("pais/verificar_2fa.html", erro="Código inválido. Verifique o email e tente novamente.")
             if desfecho == 'queimado':
@@ -367,6 +386,8 @@ def register_parent_routes(app):
                 return render_template("pais/verificar_2fa.html",
                                        erro="Este código já foi utilizado. Faça login novamente.",
                                        expirado=True)
+
+            rate_limit.limpar(rate_limit.PAIS_2FA_CONTA, pai_id)
 
             # Promove para sessão completa
             session['pai_id'] = session.pop('pai_temp_id')
