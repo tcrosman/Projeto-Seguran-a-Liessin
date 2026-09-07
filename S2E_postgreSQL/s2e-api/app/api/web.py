@@ -23,6 +23,11 @@ _log = obter()
 
 _cache_diretorio = TTLCache(ttl_seconds=300)
 
+# Resultado da checagem de saúde do banco da escola. A rota /api/v1/health é pública e cada
+# checagem custa duas consultas a um sistema de terceiro — sem cache, qualquer monitoramento
+# (ou qualquer um) vira carga sobre o banco da instituição.
+_cache_saude = TTLCache(ttl_seconds=15, maximo=4)
+
 # Tamanho máximo do anexo de uma saída. Separado do MAX_CONTENT_LENGTH da request porque o
 # documento é gravado no banco (ver saidas_documentos em app/core/database.py).
 DOCUMENTO_MAX_BYTES = int(os.getenv('DOCUMENTO_MAX_BYTES', 5 * 1024 * 1024))
@@ -206,6 +211,52 @@ def register_routes(app):
         static_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static')
         return send_from_directory(os.path.join(static_folder, 'images'), filename)
     
+    # ==================== SAÚDE ====================
+    @app.route("/api/v1/health")
+    def health():
+        """Estado dos DOIS bancos, separados.
+
+        São sistemas diferentes com donos diferentes, e o que quebra em cada um pede reação
+        diferente: o banco próprio fora do ar é chamado para quem cuida da hospedagem; o banco
+        da escola fora do ar é telefone para a secretaria, e a portaria segue liberando as saídas
+        que já estão na tela. Um health check que responde "ok" para os dois juntos apaga
+        exatamente essa distinção — era o caso antes, quando nem existia.
+
+        Sem autenticação, porque é o monitoramento externo que consome. Por isso o corpo não
+        carrega a mensagem de erro crua: ela pode conter host, usuário e nome de banco. O detalhe
+        fica no log da aplicação, e aqui vai só o veredito.
+        """
+        proprio = {'ok': False}
+        try:
+            with get_db() as conn:
+                conn.execute("SELECT 1")
+            proprio['ok'] = True
+        except Exception as e:
+            _log.warning(f"[HEALTH] Banco próprio indisponível: {e}")
+
+        # Cache curto: a rota é pública e cada checagem custa duas consultas ao banco da escola.
+        # Sem isso, um monitoramento agressivo (ou qualquer um) vira carga sobre um sistema de
+        # terceiro.
+        escola = _cache_saude.get('escola')
+        if escola is None:
+            escola = get_school_sql_directory().verificar_saude()
+            if not escola['ok']:
+                _log.warning(f"[HEALTH] Banco da escola indisponível: {escola['detalhe']}")
+            _cache_saude.set('escola', escola)
+
+        corpo = {
+            'status': 'ok' if (proprio['ok'] and escola['ok']) else 'degradado',
+            'banco_proprio': {'ok': proprio['ok']},
+            'banco_da_escola': {
+                'ok': escola['ok'],
+                'modo': escola['modo'],
+                # Vale ser visível: em modo mock as telas mostram três alunos de teste como se
+                # fossem o corpo discente.
+                'unaccent': escola['unaccent'],
+            },
+        }
+        return jsonify(corpo), (200 if corpo['status'] == 'ok' else 503)
+
     # ==================== AUTENTICAÇÃO ====================
     @app.route("/", methods=["GET", "POST"])
     def login():

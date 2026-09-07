@@ -129,11 +129,34 @@ def create_app():
     # Origem dos dados de aluno, conferida no boot e não na primeira busca da portaria: uma
     # configuração faltando tem que impedir o app de subir, não aparecer como "nenhum aluno
     # encontrado" no meio do expediente. Mesma postura da checagem de SECRET_KEY acima.
+    #
+    # A checagem antiga parava na escolha da classe, e isso não provava nada: o __init__ do
+    # client não valida configuração, e o erro por SCHOOL_SQL_HOST/DATABASE ausentes só aparecia
+    # dentro de _conectar(), no meio de uma requisição, capturado e transformado em lista vazia.
+    # Como o render.yaml marca essas variáveis como `sync: false`, esquecer uma fazia o app subir
+    # saudável, com health check verde e toda tela dizendo "nenhum aluno encontrado".
+    #
+    # Agora o boot conversa com o banco da escola de verdade e se recusa a subir se ele não
+    # responder. É fail-fast deliberado: um erro de configuração precisa aparecer no deploy, e
+    # não às 15h. O preço é que um restart durante uma indisponibilidade do banco da escola não
+    # sobe — e é preferível a um processo que atende sem saber quem são os alunos.
     from app.services.school_sql_directory import get_school_sql_directory
     _diretorio = get_school_sql_directory()
-    if type(_diretorio).__name__ == 'SchoolSqlDirectoryMock':
+    _saude = _diretorio.verificar_saude()
+    if _saude['modo'] == 'mock':
         _log.warning("[SCHOOL_SQL] MODO MOCK ativo (SCHOOL_SQL_MOCK=true): os alunos são dados "
                      "de teste, não o cadastro da escola. Não use assim em produção.")
+    elif not _saude['ok']:
+        raise RuntimeError(
+            "Banco SQL da escola não respondeu no boot: " + str(_saude['detalhe']) + "\n"
+            "Confira SCHOOL_SQL_HOST, SCHOOL_SQL_DATABASE, SCHOOL_SQL_USER e "
+            "SCHOOL_SQL_PASSWORD, e se o schema tem alunos(ra, nome, turma, serie, foto_url, "
+            "ativo), responsaveis(email, nome, ativo) e vinculos(ra, email). Subir sem isso "
+            "seria servir todas as telas de aluno vazias, sem erro nenhum."
+        )
+    elif _saude['unaccent'] is False:
+        _log.warning("[SCHOOL_SQL] Extensão `unaccent` ausente: a busca de aluno funciona, mas "
+                     "sem ignorar acentos. Peça à instituição: CREATE EXTENSION unaccent;")
 
     # Migração do schema. Idempotente (CREATE TABLE/COLUMN IF NOT EXISTS) e, desde a correção
     # C4, serializada por advisory lock — ver aplicar_migracoes() em app/core/database.py para o

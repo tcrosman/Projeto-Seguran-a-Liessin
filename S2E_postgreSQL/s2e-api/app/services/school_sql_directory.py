@@ -460,6 +460,38 @@ class SchoolSqlDirectoryClient:
                 "banco da escola indisponível ao validar responsável") from e
 
 
+    def verificar_saude(self) -> dict:
+        """Conversa de verdade com o banco da escola. Devolve um diagnóstico, nunca levanta.
+
+        Existe porque a checagem que havia era cosmética: o boot só conferia se a classe era o
+        mock. O `__init__` não valida nada, e o RuntimeError por SCHOOL_SQL_HOST/DATABASE ausentes
+        só aparecia dentro de `_conectar()`, ou seja, no meio de uma requisição — capturado pelo
+        except de cada método e transformado em lista vazia. Como render.yaml marca essas
+        variáveis como `sync: false` (preenchidas à mão no painel), esquecer uma fazia o app subir
+        saudável, health check verde, e toda tela mostrar "nenhum aluno encontrado".
+
+        São dois passos, e o segundo é o que importa. `SELECT 1` prova que dá para conectar e
+        nada mais — passa com o schema errado. `list_students(limite=1)` é uma consulta real:
+        prova que as tabelas existem, que os nomes de coluna batem e que a comparação de `ativo`
+        funciona contra o tipo que a instituição escolheu (ver A12).
+        """
+        diagnostico = {'modo': 'sql', 'engine': self._engine, 'ok': False,
+                       'detalhe': None, 'unaccent': None}
+        try:
+            self._consultar("SELECT 1 AS ok")
+        except Exception as e:
+            diagnostico['detalhe'] = f"não foi possível conectar: {e}"
+            return diagnostico
+        try:
+            self.list_students(limite=1)
+        except Exception as e:
+            diagnostico['detalhe'] = f"conectou, mas a consulta de alunos falhou: {e}"
+            return diagnostico
+        diagnostico['ok'] = True
+        diagnostico['unaccent'] = self._tem_unaccent()
+        return diagnostico
+
+
 class SchoolSqlDirectoryMock(SchoolSqlDirectoryClient):
     """Dados de teste locais, sem acessar o banco real (SCHOOL_SQL_MOCK=true, padrão em dev)."""
 
@@ -510,6 +542,12 @@ class SchoolSqlDirectoryMock(SchoolSqlDirectoryClient):
         # uma fonte só, sem risco de desalinhar entre os dois conjuntos de dados de teste.
         email_norm = email.strip().lower()
         return any(email_norm in a['responsaveis_email'] for a in self._ALUNOS.values())
+
+    def verificar_saude(self) -> dict:
+        """O mock não tem banco atrás; o que ele precisa relatar é que É um mock — quem lê o
+        health check tem de conseguir ver que os alunos são dados de teste."""
+        return {'modo': 'mock', 'engine': None, 'ok': True,
+                'detalhe': 'dados de teste (SCHOOL_SQL_MOCK=true)', 'unaccent': None}
 
 
 def aluno_vinculado_ao_responsavel(diretorio, email, ra):
