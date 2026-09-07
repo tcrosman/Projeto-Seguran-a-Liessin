@@ -630,17 +630,18 @@ def register_parent_routes(app):
                         (data_solicitada, horario, motivo, tipo_saida, acompanhante or None, sol_id)
                     )
                     if sol['status'] == 'aprovado':
-                        # Mantém a saída já aprovada em sincronia com o novo motivo
-                        if sol['ra']:
-                            conn.execute(
-                                "UPDATE saidas SET motivo=%s WHERE ra=%s AND data_saida=%s AND status='pendente'",
-                                (motivo, sol['ra'], sol['data_solicitada'])
-                            )
-                        else:
-                            conn.execute(
-                                "UPDATE saidas SET motivo=%s WHERE aluno=%s AND data_saida=%s AND status='pendente'",
-                                (motivo, sol['aluno_id'], sol['data_solicitada'])
-                            )
+                        # Mantém a saída já aprovada em sincronia com o novo motivo — SÓ a que
+                        # esta solicitação originou.
+                        #
+                        # É a mesma falha já corrigida no DELETE irmão logo acima: o filtro era
+                        # (ra, data, status='pendente'), sem amarração nenhuma com a solicitação.
+                        # O responsável editava o motivo do próprio pedido e sobrescrevia o
+                        # motivo de uma saída que a portaria tinha registrado por conta própria,
+                        # com outra justificativa e outro documento anexado.
+                        conn.execute(
+                            "UPDATE saidas SET motivo=%s WHERE solicitacao_id=%s AND status='pendente'",
+                            (motivo, sol_id)
+                        )
                     flash("Solicitação atualizada com sucesso!", "success")
 
             return redirect("/pais/minhas_solicitacoes")
