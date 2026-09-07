@@ -16,6 +16,7 @@ from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
 import os
 from app.core.logging_config import obter
+from psycopg2.errors import UniqueViolation
 
 _log = obter()
 
@@ -591,36 +592,56 @@ def register_routes(app):
                             return render_template("departures/register.html",
                                                    ra_selecionado=ra_pre_selecionado, today=hoje())
 
-                    with get_db() as conn:
-                        pendente = conn.execute(
-                            "SELECT COUNT(*) as total FROM saidas WHERE ra = %s AND data_saida = %s AND status = 'pendente'",
-                            (ra, data_saida)
-                        ).fetchone()['total']
+                    # O COUNT continua aqui porque é ele que dá a mensagem boa no caso comum
+                    # (o aluno já tem saída pendente e o usuário precisa saber disso). O que ele
+                    # NÃO faz é garantir a unicidade: entre o SELECT e o INSERT, em READ
+                    # COMMITTED, cabe outra transação inteira. Quem garante é o índice único
+                    # parcial uq_saidas_pendente_por_dia — ver app/core/migrations.py.
+                    #
+                    # O except fica FORA do `with`: a UniqueViolation aborta a transação, e
+                    # qualquer comando emitido depois dela, ainda dentro do bloco, falharia
+                    # também. Aqui a transação já terminou em rollback quando chegamos.
+                    duplicada = False
+                    try:
+                        with get_db() as conn:
+                            pendente = conn.execute(
+                                "SELECT COUNT(*) as total FROM saidas WHERE ra = %s AND data_saida = %s AND status = 'pendente'",
+                                (ra, data_saida)
+                            ).fetchone()['total']
 
-                        if pendente > 0:
-                            flash("Este aluno já tem uma saída pendente para hoje!", "error")
-                        else:
-                            id_saida = conn.execute("""
-                                INSERT INTO saidas (ra, turma, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pendente')
-                                RETURNING id
-                            """, (ra, aluno.get('turma'), data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante)).fetchone()['id']
+                            if pendente > 0:
+                                duplicada = True
+                            else:
+                                id_saida = conn.execute("""
+                                    INSERT INTO saidas (ra, turma, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pendente')
+                                    RETURNING id
+                                """, (ra, aluno.get('turma'), data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante)).fetchone()['id']
 
-                            # O anexo entra na mesma transação da saída: ou os dois existem, ou
-                            # nenhum. Antes ele era escrito em disco antes do INSERT — ficava
-                            # órfão quando o registro era barrado, e sumia de vez a cada deploy,
-                            # porque o disco da hospedagem é efêmero.
-                            if tem_anexo:
-                                conn.execute(
-                                    "INSERT INTO saidas_documentos (saida_id, nome, tipo, dados) VALUES (%s, %s, %s, %s)",
-                                    (id_saida, secure_filename(doc.filename),
-                                     mime_do_arquivo(doc.filename), doc.read())
-                                )
-                            log_operacao(session.get('username'), "REGISTROU SAÍDA",
-                                         f"RA: {ra} | data: {data_saida} | horário: {horario}",
-                                         ip=request.remote_addr, conn=conn)
-                            flash("Saída registrada!", "success")
-                            return redirect("/saidas")
+                                # O anexo entra na mesma transação da saída: ou os dois existem, ou
+                                # nenhum. Antes ele era escrito em disco antes do INSERT — ficava
+                                # órfão quando o registro era barrado, e sumia de vez a cada deploy,
+                                # porque o disco da hospedagem é efêmero.
+                                if tem_anexo:
+                                    conn.execute(
+                                        "INSERT INTO saidas_documentos (saida_id, nome, tipo, dados) VALUES (%s, %s, %s, %s)",
+                                        (id_saida, secure_filename(doc.filename),
+                                         mime_do_arquivo(doc.filename), doc.read())
+                                    )
+                                log_operacao(session.get('username'), "REGISTROU SAÍDA",
+                                             f"RA: {ra} | data: {data_saida} | horário: {horario}",
+                                             ip=request.remote_addr, conn=conn)
+                    except UniqueViolation:
+                        # A outra transação venceu a corrida. Do ponto de vista de quem está no
+                        # balcão é a mesma situação do COUNT acima, e a mensagem é a mesma.
+                        _log.info("[SAIDAS] INSERT concorrente barrado pelo índice único "
+                                  "(RA %s, data %s)", ra, data_saida)
+                        duplicada = True
+
+                    if not duplicada:
+                        flash("Saída registrada!", "success")
+                        return redirect("/saidas")
+                    flash(f"Este aluno já tem uma saída pendente para {data_saida}!", "error")
 
         return render_template("departures/register.html",
                                ra_selecionado=ra_pre_selecionado,
