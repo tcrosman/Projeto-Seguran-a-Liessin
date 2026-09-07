@@ -14,7 +14,8 @@ import os
 import pytest
 
 from app.services import school_sql_directory as diretorio
-from app.services.school_sql_directory import SchoolSqlDirectoryClient
+from app.services.school_sql_directory import (SchoolSqlDirectoryClient,
+                                                SchoolSqlIndisponivel)
 
 
 class _CursorFalso:
@@ -152,11 +153,12 @@ def test_o_pool_carrega_os_limites_de_tempo_do_banco_da_escola(cliente_postgres)
     assert kwargs['maxconn'] == diretorio.POOL_MAX
 
 
-def test_engine_desconhecido_continua_falhando_de_forma_segura(monkeypatch):
+def test_engine_desconhecido_nao_cria_pool(monkeypatch):
     monkeypatch.setenv('SCHOOL_SQL_ENGINE', 'oracle')
     monkeypatch.setenv('SCHOOL_SQL_DATABASE', 'x')
 
-    assert SchoolSqlDirectoryClient().responsavel_reconhecido("pai@teste.com") is False
+    with pytest.raises(SchoolSqlIndisponivel):
+        SchoolSqlDirectoryClient().responsavel_reconhecido("pai@teste.com")
     assert _PoolFalso.criados == []
 
 

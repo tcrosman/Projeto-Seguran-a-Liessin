@@ -39,6 +39,27 @@ def _reiniciar_pool():
         _pool, _vagas = None, None
 
 
+class SchoolSqlIndisponivel(RuntimeError):
+    """O banco da escola não respondeu: conexão recusada, timeout, configuração ausente, erro de
+    consulta.
+
+    Existe para separar duas respostas que antes chegavam iguais a quem chama: "este aluno não
+    existe" e "não consegui perguntar". Cada método capturava a falha, registrava no log e
+    devolvia None/{}/[]/False — o mesmo valor de um resultado vazio legítimo. Com isso:
+
+      * o cache servia o último valor conhecido como se a consulta tivesse dado certo e o aluno
+        tivesse sumido do cadastro, ou o contrário, sem meio de distinguir (A10);
+      * "Aluno não encontrado no cadastro da escola" aparecia na tela quando o banco estava fora
+        do ar, e a secretaria repetia a busca achando que o aluno tinha sido desligado (M7);
+      * a liberação de saída seguia sem notificar ninguém, sem distinguir "não há e-mail
+        cadastrado" de "não consegui perguntar" (A11).
+
+    Herda de RuntimeError de propósito: todo chamador já envolve estas consultas em
+    `except Exception`, então a promessa que valia antes — indisponibilidade do banco da escola
+    não derruba o S2E — continua valendo. O que muda é que agora dá para saber o que aconteceu.
+    """
+
+
 class SchoolSqlDirectoryClient:
     """Consulta dados cadastrais de aluno (RA, nome, foto, turma, série) e confirma responsáveis
     reconhecidos, direto via SQL num banco separado mantido pela instituição — alimentado a partir
@@ -57,8 +78,10 @@ class SchoolSqlDirectoryClient:
     queries já usa um placeholder neutro, então a diferença de sintaxe (`?` no SQLite vs `%s` no
     psycopg2) não exige reescrevê-las.
 
-    Nenhum método propaga exceção: falha de conexão ou de consulta vira log + retorno seguro
-    (None/{}/[]/False), para uma indisponibilidade do banco da escola não derrubar o S2E.
+    Falha de conexão ou de consulta vira log + `SchoolSqlIndisponivel`. Retorno vazio
+    (None/{}/[]/False) passa a significar exatamente uma coisa: a pergunta foi feita e a
+    resposta é "não existe". Quem chama trata as duas situações — e tem de tratar, porque elas
+    pedem telas diferentes: "aluno não encontrado" e "cadastro da escola indisponível".
     """
 
     def __init__(self):
@@ -242,7 +265,7 @@ class SchoolSqlDirectoryClient:
             return self._montar_aluno(linhas[0], self._emails_por_ra([ra]).get(ra, []))
         except Exception as e:
             _log.warning(f"[SCHOOL_SQL] Erro ao buscar aluno: {e}")
-            return None
+            raise SchoolSqlIndisponivel("banco da escola indisponível ao buscar aluno") from e
 
     def get_students_by_ras(self, ras: list) -> dict:
         """Retorna {ra: dados} para uma lista de RAs — usada em telas de lista (evita 1 consulta por linha)."""
@@ -259,7 +282,7 @@ class SchoolSqlDirectoryClient:
             return {l["ra"]: self._montar_aluno(l, emails.get(l["ra"], [])) for l in linhas}
         except Exception as e:
             _log.warning(f"[SCHOOL_SQL] Erro ao buscar alunos em lote: {e}")
-            return {}
+            raise SchoolSqlIndisponivel("banco da escola indisponível ao buscar alunos") from e
 
     def get_students_for_guardian_email(self, email: str) -> list:
         """Retorna a lista de alunos vinculados a um e-mail de responsável."""
@@ -277,7 +300,8 @@ class SchoolSqlDirectoryClient:
             return [self._montar_aluno(l, emails.get(l["ra"], [])) for l in linhas]
         except Exception as e:
             _log.warning(f"[SCHOOL_SQL] Erro ao buscar alunos do responsável: {e}")
-            return []
+            raise SchoolSqlIndisponivel(
+                "banco da escola indisponível ao buscar alunos do responsável") from e
 
     LIMITE_BUSCA_PADRAO = 20
 
@@ -299,7 +323,7 @@ class SchoolSqlDirectoryClient:
             return [self._montar_aluno(l, emails.get(l["ra"], [])) for l in linhas]
         except Exception as e:
             _log.warning(f"[SCHOOL_SQL] Erro ao listar alunos: {e}")
-            return []
+            raise SchoolSqlIndisponivel("banco da escola indisponível ao listar alunos") from e
 
     def search_students(self, query: str, limite: int = None) -> list:
         """Busca alunos por nome ou RA parcial.
@@ -327,7 +351,7 @@ class SchoolSqlDirectoryClient:
             return [self._montar_aluno(l, emails.get(l["ra"], [])) for l in linhas]
         except Exception as e:
             _log.warning(f"[SCHOOL_SQL] Erro ao buscar alunos: {e}")
-            return []
+            raise SchoolSqlIndisponivel("banco da escola indisponível na busca de alunos") from e
 
     def get_guardian_emails_for_ra(self, ra: str) -> list:
         """Retorna os e-mails dos responsáveis vinculados a um RA — usada para notificar após liberar a saída."""
@@ -335,7 +359,8 @@ class SchoolSqlDirectoryClient:
             return self._emails_por_ra([ra]).get(ra, [])
         except Exception as e:
             _log.warning(f"[SCHOOL_SQL] Erro ao buscar responsáveis: {e}")
-            return []
+            raise SchoolSqlIndisponivel(
+                "banco da escola indisponível ao buscar responsáveis") from e
 
     def responsavel_reconhecido(self, email: str) -> bool:
         """Retorna True se o e-mail corresponde a um responsável reconhecido pela escola —
@@ -356,7 +381,8 @@ class SchoolSqlDirectoryClient:
             return bool(linhas)
         except Exception as e:
             _log.warning(f"[SCHOOL_SQL] Erro ao validar responsável: {e}")
-            return False
+            raise SchoolSqlIndisponivel(
+                "banco da escola indisponível ao validar responsável") from e
 
 
 class SchoolSqlDirectoryMock(SchoolSqlDirectoryClient):

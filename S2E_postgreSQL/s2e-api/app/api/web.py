@@ -50,20 +50,36 @@ RESULTADOS_AUTOCOMPLETE = 10
 
 def _buscar_alunos_com_cache(ras):
     """Resolve ra -> dados do aluno via school_sql_directory, com cache curto (5 min) e fallback
-    para o último dado conhecido se a consulta externa estiver indisponível no momento."""
+    para o último dado conhecido SE — e somente se — a consulta externa falhou agora.
+
+    O "somente se" é a correção A10. Antes o stale era aplicado no caminho de sucesso também:
+    quando o TTL expirava e o diretório respondia sem aquele RA (aluno com ativo = 0,
+    transferido, vínculo revogado), `set()` nunca era chamado e `get_stale()` devolvia o valor
+    antigo — indefinidamente. Um aluno desligado continuava aparecendo nas telas, e o e-mail de
+    "saída liberada" podia ir para um responsável que a escola já descredenciou. É problema de
+    LGPD, não de cache.
+
+    A distinção só é possível porque o cliente do diretório passou a levantar
+    SchoolSqlIndisponivel em vez de devolver dicionário vazio: resposta vazia agora quer dizer
+    "perguntei e não existe", e é justamente esse caso que NÃO pode cair no stale.
+    """
     if not ras:
         return {}
     faltando = [ra for ra in set(ras) if _cache_diretorio.get(ra) is None]
+    consulta_falhou = False
     if faltando:
         try:
             frescos = get_school_sql_directory().get_students_by_ras(faltando)
             for ra, info in frescos.items():
                 _cache_diretorio.set(ra, info)
         except Exception as e:
+            consulta_falhou = True
             _log.warning(f"[SCHOOL_SQL] Consulta indisponível, usando cache: {e}")
     resultado = {}
     for ra in set(ras):
-        info = _cache_diretorio.get(ra) or _cache_diretorio.get_stale(ra)
+        info = _cache_diretorio.get(ra)
+        if info is None and consulta_falhou:
+            info = _cache_diretorio.get_stale(ra)
         if info:
             resultado[ra] = info
     return resultado

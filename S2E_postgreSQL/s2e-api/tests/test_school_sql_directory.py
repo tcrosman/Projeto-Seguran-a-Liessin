@@ -15,6 +15,7 @@ import pytest
 from app.services.school_sql_directory import (
     SchoolSqlDirectoryClient,
     SchoolSqlDirectoryMock,
+    SchoolSqlIndisponivel,
     get_school_sql_directory,
 )
 
@@ -96,10 +97,13 @@ class TestListagem:
         """Quem consome as duas listas não pode precisar saber de qual veio."""
         assert set(client.list_students(limite=1)[0]) == set(client.search_students("Ana")[0])
 
-    def test_banco_fora_do_ar_devolve_lista_vazia(self, monkeypatch):
+    def test_banco_fora_do_ar_avisa_em_vez_de_devolver_lista_vazia(self, monkeypatch):
+        """Lista vazia dizia "a escola não tem alunos" para um banco fora do ar. Agora as duas
+        situações são distinguíveis por quem chama — ver SchoolSqlIndisponivel (A10)."""
         monkeypatch.setenv("SCHOOL_SQL_ENGINE", "sqlite")
         monkeypatch.delenv("SCHOOL_SQL_DATABASE", raising=False)
-        assert SchoolSqlDirectoryClient().list_students() == []
+        with pytest.raises(SchoolSqlIndisponivel):
+            SchoolSqlDirectoryClient().list_students()
 
 
 class TestBusca:
@@ -164,7 +168,17 @@ class TestResponsavelReconhecido:
 
 
 class TestBancoIndisponivel:
-    """Banco fora do ar / mal configurado não pode propagar exceção nem liberar acesso."""
+    """Banco fora do ar / mal configurado não pode ser confundido com resposta vazia.
+
+    A promessa antiga era "nenhum método propaga exceção", e o preço dela era alto: None, {} e
+    [] queriam dizer ao mesmo tempo "não existe" e "não consegui perguntar". O cache servia dado
+    de aluno desligado para sempre, a tela dizia "aluno não encontrado" com o banco fora do ar, e
+    a saída era liberada sem notificar ninguém — tudo sem nada distinguir os casos.
+
+    A promessa agora é outra, e mais estreita: indisponibilidade do banco da escola não derruba o
+    S2E. SchoolSqlIndisponivel herda de RuntimeError e todo chamador já a captura; o que mudou é
+    que agora dá para saber o que aconteceu.
+    """
 
     @pytest.fixture
     def quebrado(self, monkeypatch):
@@ -172,20 +186,45 @@ class TestBancoIndisponivel:
         monkeypatch.delenv("SCHOOL_SQL_DATABASE", raising=False)
         return SchoolSqlDirectoryClient()
 
-    def test_retornos_seguros(self, quebrado):
-        assert quebrado.get_student("2024001") is None
-        assert quebrado.get_students_by_ras(["2024001"]) == {}
-        assert quebrado.get_students_for_guardian_email("pai@teste.com") == []
-        assert quebrado.search_students("Ana") == []
-        assert quebrado.get_guardian_emails_for_ra("2024001") == []
+    def test_a_indisponibilidade_e_distinguivel_de_resultado_vazio(self, quebrado):
+        for chamada in (lambda: quebrado.get_student("2024001"),
+                        lambda: quebrado.get_students_by_ras(["2024001"]),
+                        lambda: quebrado.get_students_for_guardian_email("pai@teste.com"),
+                        lambda: quebrado.search_students("Ana"),
+                        lambda: quebrado.get_guardian_emails_for_ra("2024001"),
+                        lambda: quebrado.responsavel_reconhecido("pai@teste.com")):
+            with pytest.raises(SchoolSqlIndisponivel):
+                chamada()
 
-    def test_responsavel_reconhecido_falha_fechado(self, quebrado):
-        assert quebrado.responsavel_reconhecido("pai@teste.com") is False
+    def test_continua_sendo_capturavel_como_qualquer_falha(self, quebrado):
+        """Todo chamador envolve estas consultas em `except Exception`; a mudança não pode ter
+        transformado indisponibilidade do banco da escola em erro 500 no S2E."""
+        assert issubclass(SchoolSqlIndisponivel, RuntimeError)
+        try:
+            quebrado.get_student("2024001")
+        except Exception:
+            pass
+        else:
+            raise AssertionError("deveria ter levantado")
 
-    def test_engine_desconhecido_nao_propaga(self, monkeypatch):
+    def test_responsavel_reconhecido_continua_falhando_fechado(self):
+        """Quem decide o acesso é _responsavel_reconhecido_pela_escola, e ele trata a exceção
+        como "não reconhecido" — nunca como liberação."""
+        from app.api.pais import _responsavel_reconhecido_pela_escola
+        from unittest.mock import patch
+
+        class _Quebrado:
+            def responsavel_reconhecido(self, email):
+                raise SchoolSqlIndisponivel("fora do ar")
+
+        with patch("app.api.pais.get_school_sql_directory", return_value=_Quebrado()):
+            assert _responsavel_reconhecido_pela_escola("pai@teste.com") is False
+
+    def test_engine_desconhecido_tambem_avisa(self, monkeypatch):
         monkeypatch.setenv("SCHOOL_SQL_ENGINE", "oracle")
         monkeypatch.setenv("SCHOOL_SQL_DATABASE", "x")
-        assert SchoolSqlDirectoryClient().responsavel_reconhecido("pai@teste.com") is False
+        with pytest.raises(SchoolSqlIndisponivel):
+            SchoolSqlDirectoryClient().responsavel_reconhecido("pai@teste.com")
 
 
 class TestMock:
