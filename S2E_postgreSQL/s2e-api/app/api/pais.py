@@ -684,7 +684,7 @@ def register_parent_routes(app):
         with get_db() as conn:
             rows = conn.execute(
                 """SELECT ss.id, ss.data_solicitada, ss.horario_solicitado, ss.motivo,
-                          ss.status, ss.criado_em, ss.ra,
+                          ss.status, ss.criado_em, ss.ra, ss.aluno_id,
                           a.nome AS nome_legado, a.turma AS turma_legado, a.serie AS serie_legado,
                           s.status AS saida_status
                    FROM solicitacoes_saida ss
@@ -702,8 +702,39 @@ def register_parent_routes(app):
                    ORDER BY ss.criado_em DESC""",
                 (session['pai_id'],)
             ).fetchall()
+        # A consulta acima filtra por `responsavel_id`, e isso responde "quem pediu" — não
+        # "sobre quem ainda se pode pedir". Sem o segundo filtro, quem perdeu o vínculo com um
+        # filho e manteve o de outro continuava vendo nome, série e turma da primeira criança
+        # nesta tela; e é daqui que sai o `sol_id` usado na edição, que é o C1. A revalidação da
+        # edição já recusa a ação, mas o dado pessoal já teria sido exibido.
+        #
+        # Fora de qualquer transação nossa (A2): é consulta ao banco da escola.
+        try:
+            filhos = {f['ra'] for f in
+                      get_school_sql_directory().get_students_for_guardian_email(session['pai_email'])}
+        except Exception as e:
+            # Fail-closed. Sem confirmar os vínculos não se mostra dado de aluno nenhum — a tela
+            # avisa que está indisponível, em vez de fingir que o responsável não tem pedidos.
+            _log.warning(f"[SCHOOL_SQL] Vínculos não confirmados em /pais/minhas_solicitacoes: {e}")
+            return render_template("pais/minhas_solicitacoes.html", solicitacoes=[],
+                                   indisponivel=True, nome=session['pai_nome'])
+
+        # Linhas legadas (sem RA) não têm identidade que o banco da escola reconheça; para elas o
+        # vínculo mora na tabela local. Uma consulta só, e apenas quando existirem.
+        legados = set()
+        if any(r['ra'] is None for r in rows):
+            with get_db() as conn:
+                legados = {v['aluno_id'] for v in conn.execute(
+                    "SELECT aluno_id FROM vinculos_pais_alunos WHERE responsavel_id = %s",
+                    (session['pai_id'],)
+                ).fetchall()}
+
+        rows = [r for r in rows
+                if (r['ra'] in filhos if r['ra'] else r['aluno_id'] in legados)]
+
         solicitacoes = _resolver_dados_solicitacoes(rows)
-        return render_template("pais/minhas_solicitacoes.html", solicitacoes=solicitacoes, nome=session['pai_nome'])
+        return render_template("pais/minhas_solicitacoes.html", solicitacoes=solicitacoes,
+                               indisponivel=False, nome=session['pai_nome'])
 
     # ==================== ESQUECI A SENHA ====================
 
