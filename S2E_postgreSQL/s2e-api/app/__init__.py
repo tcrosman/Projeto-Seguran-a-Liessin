@@ -32,7 +32,15 @@ def create_app():
     # loop de redirect. x_host fica de fora de propósito: nada aqui depende de request.host (os
     # links de e-mail vêm de BASE_URL), e confiar em X-Forwarded-Host permitiria envenenar o
     # destino do redirect de HTTPS.
-    if os.getenv('TRUST_PROXY', 'true').lower() == 'true':
+    #
+    # O padrão é FALSE, e precisa continuar sendo. ProxyFix sem proxy à frente não corrige nada:
+    # ele passa a acreditar no X-Forwarded-For que o próprio cliente enviou. Num deploy fora do
+    # Render (docker local, VM, servidor da escola), isso significa (a) todo limite por IP caindo
+    # com um cabeçalho diferente a cada requisição — inclusive o que segura a força bruta do 2FA
+    # — e (b) o `ip` gravado na auditoria virando texto escolhido pelo atacante, contaminando a
+    # trilha de quem pediu a saída de uma criança. Ligue só onde o proxy é conhecido: o
+    # render.yaml declara TRUST_PROXY=true porque lá ele existe.
+    if os.getenv('TRUST_PROXY', 'false').strip().lower() == 'true':
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
     # Configurações
