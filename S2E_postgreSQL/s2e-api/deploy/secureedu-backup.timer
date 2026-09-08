@@ -1,0 +1,18 @@
+[Unit]
+Description=Backup diario do banco do SecureEdu
+
+[Timer]
+; 03:20, madrugada — fora do horario de uso da escola.
+OnCalendar=*-*-* 03:20:00
+
+; Se o VPS estiver desligado no horario, roda assim que voltar, em vez de simplesmente
+; pular o dia. Um backup atrasado vale muito mais do que um backup inexistente.
+Persistent=true
+
+; Espalha o disparo em ate 10 minutos. Irrelevante numa maquina so, mas evita que
+; varias instancias batam no mesmo servidor de backup no mesmo segundo se um dia
+; houver mais de uma.
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

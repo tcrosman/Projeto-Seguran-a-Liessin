@@ -1,0 +1,36 @@
+; Executa um backup do banco. Disparado por secureedu-backup.timer.
+;
+; Instalação:
+;   sudo install -d -o secureedu -g secureedu -m 700 /var/backups/secureedu
+;   sudo cp deploy/secureedu-backup.service deploy/secureedu-backup.timer /etc/systemd/system/
+;   sudo systemctl daemon-reload
+;   sudo systemctl enable --now secureedu-backup.timer
+;
+; O install -d vem PRIMEIRO de propósito: com ProtectSystem=strict, um caminho em
+; ReadWritePaths que ainda não existe faz o systemd recusar a unit inteira.
+;
+; Rodar agora, sem esperar o horário:  sudo systemctl start secureedu-backup.service
+; Ver o resultado:                     journalctl -u secureedu-backup -n 40
+; Ver o próximo disparo:               systemctl list-timers secureedu-backup
+
+[Unit]
+Description=Backup do banco do SecureEdu
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=secureedu
+Group=secureedu
+WorkingDirectory=/opt/secureedu/S2E_postgreSQL/s2e-api
+ExecStart=/usr/bin/env bash /opt/secureedu/S2E_postgreSQL/s2e-api/deploy/backup.sh
+
+; O script cria e escreve em /var/backups/secureedu; o resto do disco fica
+; somente-leitura para ele.
+ProtectSystem=strict
+ReadWritePaths=/var/backups/secureedu
+PrivateTmp=yes
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=multi-user.target

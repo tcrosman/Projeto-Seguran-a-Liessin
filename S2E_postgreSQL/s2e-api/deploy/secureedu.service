@@ -1,0 +1,98 @@
+; Unit systemd do SecureEdu.
+;
+; Instalação:
+;   sudo cp deploy/secureedu.service /etc/systemd/system/
+;   sudo systemctl daemon-reload
+;   sudo systemctl enable --now secureedu
+;
+; Logs:    journalctl -u secureedu -f
+; Estado:  systemctl status secureedu
+
+[Unit]
+Description=SecureEdu (S2E) - controle de saida de alunos
+Documentation=file:///opt/secureedu/S2E_postgreSQL/s2e-api/deploy/DEPLOY.md
+; network-online (e nao so network) porque o pool do banco resolve o host na
+; primeira request; com Postgres local isso e indiferente, mas mantem o unit
+; correto se a DATABASE_URL passar a apontar para fora (Supabase, por exemplo).
+After=network-online.target postgresql.service
+Wants=network-online.target
+; Requires nao: se o Postgres cair, a app continua de pe e devolve a tela
+; errors/db_unavailable.html (app/__init__.py trata OperationalError com 503).
+; Derrubar o processo inteiro so trocaria uma pagina de erro por um 502 do nginx.
+
+; Se reiniciar 5 vezes em 60s, para de tentar e deixa o servico em estado "failed",
+; em vez de mascarar um erro de configuracao com um loop de restart infinito.
+; (Estas duas chaves ficam em [Unit], nao em [Service], desde o systemd 230.)
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+; O gunicorn avisa o systemd quando os workers estao prontos (protocolo sd_notify).
+; Com isso, "systemctl start" so retorna quando a app realmente aceita conexao, e o
+; deploy.sh pode confiar no codigo de saida.
+Type=notify
+NotifyAccess=main
+
+User=secureedu
+Group=secureedu
+
+; PRECISA ser o diretorio s2e-api/: "run:app" e importado a partir daqui, o
+; load_dotenv() de app/__init__.py e de app/config.py procura o .env no diretorio de
+; trabalho, e app/__init__.py faz os.makedirs('logs') com caminho relativo.
+WorkingDirectory=/opt/secureedu/S2E_postgreSQL/s2e-api
+
+; O .env tambem e lido pelo proprio python-dotenv da aplicacao. Declarar aqui torna a
+; configuracao visivel para o systemd (systemctl show -p Environment) e faz as
+; variaveis existirem de verdade no ambiente do processo — que tem precedencia,
+; porque nenhum load_dotenv() do projeto usa override=True.
+;
+; ATENCAO ao formato: o systemd NAO aceita comentario no fim da linha de um valor.
+; Use "CHAVE=valor" e deixe os comentarios em linhas proprias. Valores com espaco,
+; "#" ou aspas devem vir entre aspas duplas — o dotenv le do mesmo jeito.
+EnvironmentFile=/opt/secureedu/S2E_postgreSQL/s2e-api/.env
+
+ExecStart=/opt/secureedu/S2E_postgreSQL/s2e-api/.venv/bin/gunicorn \
+    --config /opt/secureedu/S2E_postgreSQL/s2e-api/deploy/gunicorn.conf.py \
+    run:app
+
+; Recarrega o codigo sem derrubar o servico (troca os workers um a um).
+ExecReload=/bin/kill -s HUP $MAINPID
+
+Restart=always
+RestartSec=5s
+
+; ---------------------------------------------------------------- isolamento
+; A aplicacao lida com dados de menores de idade e recebe upload de arquivos. Se um
+; dia houver execucao de codigo arbitrario por ali, estas diretivas limitam o alcance.
+
+NoNewPrivileges=yes
+; Todo o sistema de arquivos fica somente-leitura, exceto o que estiver em
+; ReadWritePaths abaixo.
+ProtectSystem=strict
+; /home, /root e /run/user ficam invisiveis para o processo.
+ProtectHome=yes
+; /tmp proprio, isolado do resto da maquina.
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+; So IPv4/IPv6/unix — sem sockets exoticos.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+; Os unicos diretorios que a aplicacao precisa escrever:
+;   logs/    -> app/core/logging_config.py, rotacao de 5MB x 5
+;   storage/ -> UPLOAD_FOLDER; fotos legadas. Os anexos de saida NAO ficam aqui,
+;               vao para a coluna BYTEA de saidas_documentos no Postgres.
+ReadWritePaths=/opt/secureedu/S2E_postgreSQL/s2e-api/logs
+ReadWritePaths=/opt/secureedu/S2E_postgreSQL/s2e-api/storage
+
+; ETAPA A apenas: base provisoria de alunos em SQLite. O SQLite quer permissao de
+; escrita no diretorio do arquivo para o journal de rollback, mesmo em consulta.
+; Na ETAPA B (banco real da escola, via rede) esta linha pode sair.
+ReadWritePaths=/opt/secureedu/S2E_postgreSQL/escola_provisoria
+
+[Install]
+WantedBy=multi-user.target

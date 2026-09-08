@@ -1,0 +1,18 @@
+# Permite que o usuário da aplicação reinicie o próprio serviço — e só isso.
+#
+# Sem esta regra, deploy/deploy.sh precisaria rodar como root inteiro, o que daria a
+# um script de deploy poder de fazer qualquer coisa na máquina. Aqui ele ganha
+# exatamente as três operações de que precisa, sem senha.
+#
+# Instalação (visudo -c valida a sintaxe antes de gravar; um sudoers quebrado pode
+# trancar o sudo da máquina inteira, então NÃO copie direto com cp):
+#
+#   sudo cp deploy/sudoers-secureedu /etc/sudoers.d/secureedu
+#   sudo chmod 440 /etc/sudoers.d/secureedu
+#   sudo visudo -c
+#
+# O nome do arquivo em sudoers.d não pode ter ponto nem til, senão é ignorado.
+
+secureedu ALL=(root) NOPASSWD: /usr/bin/systemctl restart secureedu
+secureedu ALL=(root) NOPASSWD: /usr/bin/systemctl reload secureedu
+secureedu ALL=(root) NOPASSWD: /usr/bin/systemctl status secureedu
