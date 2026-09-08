@@ -22,7 +22,11 @@ class Config:
     
     # Sistema
     BASE_URL = os.getenv('BASE_URL', 'http://localhost:8002')
-    SESSION_TIMEOUT = int(os.getenv('SESSION_TIMEOUT', 3600))
+
+    # SESSION_TIMEOUT ficava aqui e não era lida em lugar nenhum. Quem controla a sessão é
+    # app/__init__.py, com dois limites fixos: 30 minutos de inatividade
+    # (_SESSION_IDLE_MINUTES) e 8 horas de duração máxima (PERMANENT_SESSION_LIFETIME).
+    # A variável só dava a impressão de que o tempo de sessão era ajustável pelo .env.
     
     # Séries oficiais (mesmo do original)
     SERIES = [
