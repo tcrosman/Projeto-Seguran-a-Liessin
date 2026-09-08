@@ -85,4 +85,19 @@ def reset_database():
             )
         """)
 
-    run_migrations()
+    # Aqui havia uma chamada a run_migrations(), e ela tornava `setup_db.py --reset`
+    # impossível de rodar num banco vazio — ou seja, não havia caminho nenhum para
+    # preparar uma instalação nova.
+    #
+    # A ordem certa é: reset_database() cria as três tabelas base, migrate_database()
+    # cria as demais (logs_alunos, consentimentos, tokens_2fa, auditoria...) e só então
+    # run_migrations() indexa. Mas run_migrations() chamada daqui rodava ANTES de
+    # migrate_database(), e a linha
+    #     CREATE INDEX idx_logs_aluno ON logs_alunos(aluno_id)
+    # estourava com relation "logs_alunos" does not exist — tabela que este mesmo
+    # reset acabara de dropar no início da função.
+    #
+    # setup_db.py já executa a sequência inteira na ordem correta logo depois de
+    # chamar reset_database(), e é o único lugar que a chama. Então esta linha era, ao
+    # mesmo tempo, redundante e a causa da falha.
+
