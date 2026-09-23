@@ -35,6 +35,8 @@ NotifyAccess=main
 
 User=secureedu
 Group=secureedu
+# Logs, uploads e quaisquer arquivos temporários nascem legíveis apenas pelo dono.
+UMask=0077
 
 ; PRECISA ser o diretorio s2e-api/: "run:app" e importado a partir daqui, o
 ; load_dotenv() de app/__init__.py e de app/config.py procura o .env no diretorio de
