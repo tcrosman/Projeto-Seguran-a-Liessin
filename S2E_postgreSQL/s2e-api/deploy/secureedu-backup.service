@@ -29,7 +29,10 @@ ExecStart=/usr/bin/env bash /opt/secureedu/S2E_postgreSQL/s2e-api/deploy/backup.
 ; somente-leitura para ele.
 ProtectSystem=strict
 ReadWritePaths=/var/backups/secureedu
+ProtectHome=yes
 PrivateTmp=yes
+# Evita que a libpq tente abrir ~/.postgresql dentro de /home, que está oculto.
+Environment=HOME=/tmp
 NoNewPrivileges=yes
 
 [Install]
