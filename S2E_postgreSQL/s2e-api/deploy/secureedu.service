@@ -73,6 +73,11 @@ ProtectSystem=strict
 ProtectHome=yes
 ; /tmp proprio, isolado do resto da maquina.
 PrivateTmp=yes
+# A libpq procura por padrão um certificado opcional em ~/.postgresql. Como
+# ProtectHome=yes torna /home deliberadamente inacessível, apontamos HOME para o
+# /tmp privado desta unit: a ausência do certificado passa a ser ENOENT (normal
+# com sslmode=require) em vez de EACCES, sem liberar nenhum diretório pessoal.
+Environment=HOME=/tmp
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes
