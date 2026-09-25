@@ -8,7 +8,8 @@ from app.core import rate_limit
 from app.core.passwords import senha_confere, verificar_forca
 from app.core.validators import horario_valido, data_valida
 from app.core.tempo import hoje, hora, agora_utc
-from app.services.school_sql_directory import get_school_sql_directory
+from app.services.school_sql_directory import (get_school_sql_directory,
+                                                 aluno_vinculado_ao_responsavel)
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
 import secrets
@@ -35,6 +36,52 @@ def _responsavel_reconhecido_pela_escola(email):
     except Exception as e:
         _log.warning(f"[SCHOOL_SQL] Erro ao validar responsável: {e}")
         return False
+
+
+# Motivos pelos quais uma ação do responsável sobre a própria solicitação é recusada. Texto
+# separado do código porque os três caminham juntos: todos recusam, e o que muda é só o que a
+# pessoa precisa fazer a seguir.
+_MOTIVO_RECUSA = {
+    'conta_inativa': ("Sua conta não está ativa no portal de responsáveis. "
+                      "Entre em contato com a secretaria da escola."),
+    'sem_vinculo': ("Você não consta mais como responsável por este aluno no cadastro da escola. "
+                    "Entre em contato com a secretaria."),
+    'indisponivel': ("Não foi possível confirmar seu vínculo com este aluno agora — o cadastro da "
+                     "escola está indisponível. Tente novamente em alguns minutos."),
+}
+
+
+def _autorizacao_sobre_solicitacao(sol_row):
+    """Reconfere, no momento da ação, o direito do responsável logado sobre esta solicitação.
+
+    Devolve 'ok', 'conta_inativa', 'sem_vinculo' ou 'indisponivel'.
+
+    O `responsavel_id` da consulta diz quem CRIOU a solicitação; não diz que essa pessoa ainda
+    pode agir sobre ela hoje. São duas perguntas diferentes, e só a segunda autoriza mudar quem
+    busca a criança no portão.
+    """
+    if sol_row['responsavel_status'] != 'aprovado':
+        return 'conta_inativa'
+    if sol_row['ra']:
+        return aluno_vinculado_ao_responsavel(
+            get_school_sql_directory(), session['pai_email'], sol_row['ra'])
+    # Solicitação anterior à migração para RA: não há RA para perguntar ao banco da escola, e o
+    # vínculo dessas linhas só existe na tabela local que o fluxo antigo alimentava. Continua
+    # sendo uma checagem de vínculo, na única fonte que responde por elas.
+    with get_db() as conn:
+        local = conn.execute(
+            "SELECT 1 FROM vinculos_pais_alunos WHERE responsavel_id = %s AND aluno_id = %s",
+            (session['pai_id'], sol_row['aluno_id'])
+        ).fetchone()
+    return 'ok' if local else 'sem_vinculo'
+
+
+def _recusar_acao_do_responsavel(estado, alvo):
+    """Recusa fail-closed e auditada. A tentativa fica registrada: uma recusa por vínculo perdido
+    é exatamente o evento que a escola precisa conseguir reconstruir depois."""
+    log_operacao(_autor(), "ACESSO NEGADO A SOLICITAÇÃO", f"{alvo} | motivo: {estado}",
+                 ip=request.remote_addr)
+    return _MOTIVO_RECUSA[estado], 403
 
 
 def _resolver_dados_solicitacoes(rows):
@@ -206,6 +253,14 @@ def register_parent_routes(app):
             if not _responsavel_reconhecido_pela_escola(email):
                 return render_template("pais/login.html", erro="Não foi possível confirmar seu vínculo com a escola. Entre em contato com a secretaria.")
 
+            # Conta trancada por erros de 2FA não ganha código novo. Sem isto, o bloqueio
+            # seria contornável pelo mesmo caminho que zerava o contador antigo — e cada
+            # tentativa ainda mandaria um e-mail para o responsável de verdade.
+            if rate_limit.esta_bloqueado(rate_limit.PAIS_2FA_CONTA, resp['id']):
+                return render_template("pais/login.html",
+                                       erro="Muitas tentativas de verificação nesta conta. "
+                                            "Tente novamente mais tarde.")
+
             # Gera e envia token 2FA — protege contra duplo-submit
             with get_db() as conn:
                 recente = conn.execute(
@@ -256,14 +311,22 @@ def register_parent_routes(app):
         if request.method == "POST":
             # Escopo próprio, separado do login: errar o código de 2FA não pode consumir o limite
             # de tentativas de senha nem trancar quem só quer entrar com a senha do mesmo IP da
-            # escola. O limite por conta aqui é o contador em tokens_2fa.tentativas, logo abaixo.
-            if rate_limit.esta_bloqueado(rate_limit.PAIS_2FA_IP, ip):
+            # escola.
+            #
+            # São dois limites, e o que segura força bruta é o por CONTA. O contador em
+            # tokens_2fa.tentativas não servia para isso: ao queimar o token ele é apagado, e o
+            # login apaga os tokens abertos antes de inserir o novo — bastava refazer o login
+            # para zerar as tentativas. Ver PAIS_2FA_CONTA em app/core/rate_limit.py.
+            pai_id = session['pai_temp_id']
+            if rate_limit.esta_bloqueado(rate_limit.PAIS_2FA_IP, ip) or \
+               rate_limit.esta_bloqueado(rate_limit.PAIS_2FA_CONTA, pai_id):
+                _limpar_sessao_temp()
                 return render_template("pais/verificar_2fa.html",
-                                       erro="Muitas tentativas. Tente novamente em 5 minutos.",
+                                       erro="Muitas tentativas de verificação. Sua conta ficou "
+                                            "temporariamente bloqueada. Tente novamente mais tarde.",
                                        expirado=True)
 
             codigo = request.form.get("codigo", "").strip()
-            pai_id = session['pai_temp_id']
 
             # Todo o acesso ao banco fica num bloco só, e o desfecho vira um rótulo tratado
             # depois. rate_limit abre a própria conexão: chamá-lo aqui dentro seguraria duas
@@ -307,6 +370,9 @@ def register_parent_routes(app):
 
             if desfecho in ('invalido', 'queimado'):
                 rate_limit.registrar_falha(rate_limit.PAIS_2FA_IP, ip)
+                # Fora do ciclo de vida do token, de propósito: é o que impede zerar o contador
+                # refazendo o login.
+                rate_limit.registrar_falha(rate_limit.PAIS_2FA_CONTA, pai_id)
             if desfecho == 'invalido':
                 return render_template("pais/verificar_2fa.html", erro="Código inválido. Verifique o email e tente novamente.")
             if desfecho == 'queimado':
@@ -320,6 +386,8 @@ def register_parent_routes(app):
                 return render_template("pais/verificar_2fa.html",
                                        erro="Este código já foi utilizado. Faça login novamente.",
                                        expirado=True)
+
+            rate_limit.limpar(rate_limit.PAIS_2FA_CONTA, pai_id)
 
             # Promove para sessão completa
             session['pai_id'] = session.pop('pai_temp_id')
@@ -429,9 +497,13 @@ def register_parent_routes(app):
         with get_db() as conn:
             sol_row = conn.execute(
                 """SELECT ss.*, a.nome AS nome_legado, a.turma AS turma_legado, a.serie AS serie_legado,
-                          s.status AS saida_status
+                          r.status AS responsavel_status, s.status AS saida_status
                    FROM solicitacoes_saida ss
                    LEFT JOIN alunos a ON a.id = ss.aluno_id
+                   -- O status do responsável vem na mesma consulta: bloquear a conta precisa
+                   -- valer para as solicitações que ela já criou, e não só no próximo login.
+                   -- Sem query extra, que é o que importa no pico das 15h.
+                   LEFT JOIN responsaveis r ON r.id = ss.responsavel_id
                    LEFT JOIN LATERAL (
                        SELECT s2.status
                        FROM saidas s2
@@ -448,6 +520,19 @@ def register_parent_routes(app):
         if not sol_row:
             flash("Solicitação não encontrada.", "error")
             return redirect("/pais/minhas_solicitacoes")
+
+        # Segundo portão, além do `responsavel_id` da consulta acima. A solicitação pode ter sido
+        # criada semanas antes, e o vínculo pai↔aluno muda no meio do caminho — guarda, ordem
+        # judicial, transferência de escola. A solicitação antiga continua na base porque a
+        # manutenção só remove as já revisadas; as que ficaram em `aguardando` nunca são podadas.
+        #
+        # O login não cobre isso: `responsavel_reconhecido()` se satisfaz com UM vínculo ativo
+        # qualquer, então quem perdeu o vínculo com um filho e mantém o de outro entra
+        # normalmente. Sem esta checagem ele chegaria à solicitação do primeiro e trocaria data,
+        # horário, tipo de saída e acompanhante — isto é, quem busca a criança.
+        estado = _autorizacao_sobre_solicitacao(sol_row)
+        if estado != 'ok':
+            return _recusar_acao_do_responsavel(estado, f"ID Solicitação: {sol_id}")
 
         sol = _resolver_dados_solicitacoes([sol_row])[0]
 
@@ -545,17 +630,18 @@ def register_parent_routes(app):
                         (data_solicitada, horario, motivo, tipo_saida, acompanhante or None, sol_id)
                     )
                     if sol['status'] == 'aprovado':
-                        # Mantém a saída já aprovada em sincronia com o novo motivo
-                        if sol['ra']:
-                            conn.execute(
-                                "UPDATE saidas SET motivo=%s WHERE ra=%s AND data_saida=%s AND status='pendente'",
-                                (motivo, sol['ra'], sol['data_solicitada'])
-                            )
-                        else:
-                            conn.execute(
-                                "UPDATE saidas SET motivo=%s WHERE aluno=%s AND data_saida=%s AND status='pendente'",
-                                (motivo, sol['aluno_id'], sol['data_solicitada'])
-                            )
+                        # Mantém a saída já aprovada em sincronia com o novo motivo — SÓ a que
+                        # esta solicitação originou.
+                        #
+                        # É a mesma falha já corrigida no DELETE irmão logo acima: o filtro era
+                        # (ra, data, status='pendente'), sem amarração nenhuma com a solicitação.
+                        # O responsável editava o motivo do próprio pedido e sobrescrevia o
+                        # motivo de uma saída que a portaria tinha registrado por conta própria,
+                        # com outra justificativa e outro documento anexado.
+                        conn.execute(
+                            "UPDATE saidas SET motivo=%s WHERE solicitacao_id=%s AND status='pendente'",
+                            (motivo, sol_id)
+                        )
                     flash("Solicitação atualizada com sucesso!", "success")
 
             return redirect("/pais/minhas_solicitacoes")
@@ -598,7 +684,7 @@ def register_parent_routes(app):
         with get_db() as conn:
             rows = conn.execute(
                 """SELECT ss.id, ss.data_solicitada, ss.horario_solicitado, ss.motivo,
-                          ss.status, ss.criado_em, ss.ra,
+                          ss.status, ss.criado_em, ss.ra, ss.aluno_id,
                           a.nome AS nome_legado, a.turma AS turma_legado, a.serie AS serie_legado,
                           s.status AS saida_status
                    FROM solicitacoes_saida ss
@@ -616,8 +702,39 @@ def register_parent_routes(app):
                    ORDER BY ss.criado_em DESC""",
                 (session['pai_id'],)
             ).fetchall()
+        # A consulta acima filtra por `responsavel_id`, e isso responde "quem pediu" — não
+        # "sobre quem ainda se pode pedir". Sem o segundo filtro, quem perdeu o vínculo com um
+        # filho e manteve o de outro continuava vendo nome, série e turma da primeira criança
+        # nesta tela; e é daqui que sai o `sol_id` usado na edição, que é o C1. A revalidação da
+        # edição já recusa a ação, mas o dado pessoal já teria sido exibido.
+        #
+        # Fora de qualquer transação nossa (A2): é consulta ao banco da escola.
+        try:
+            filhos = {f['ra'] for f in
+                      get_school_sql_directory().get_students_for_guardian_email(session['pai_email'])}
+        except Exception as e:
+            # Fail-closed. Sem confirmar os vínculos não se mostra dado de aluno nenhum — a tela
+            # avisa que está indisponível, em vez de fingir que o responsável não tem pedidos.
+            _log.warning(f"[SCHOOL_SQL] Vínculos não confirmados em /pais/minhas_solicitacoes: {e}")
+            return render_template("pais/minhas_solicitacoes.html", solicitacoes=[],
+                                   indisponivel=True, nome=session['pai_nome'])
+
+        # Linhas legadas (sem RA) não têm identidade que o banco da escola reconheça; para elas o
+        # vínculo mora na tabela local. Uma consulta só, e apenas quando existirem.
+        legados = set()
+        if any(r['ra'] is None for r in rows):
+            with get_db() as conn:
+                legados = {v['aluno_id'] for v in conn.execute(
+                    "SELECT aluno_id FROM vinculos_pais_alunos WHERE responsavel_id = %s",
+                    (session['pai_id'],)
+                ).fetchall()}
+
+        rows = [r for r in rows
+                if (r['ra'] in filhos if r['ra'] else r['aluno_id'] in legados)]
+
         solicitacoes = _resolver_dados_solicitacoes(rows)
-        return render_template("pais/minhas_solicitacoes.html", solicitacoes=solicitacoes, nome=session['pai_nome'])
+        return render_template("pais/minhas_solicitacoes.html", solicitacoes=solicitacoes,
+                               indisponivel=False, nome=session['pai_nome'])
 
     # ==================== ESQUECI A SENHA ====================
 

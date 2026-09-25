@@ -25,7 +25,7 @@ _vagas = None       # semáforo: quantas conexões ainda podem ser retiradas do 
 _pool_lock = Lock()
 
 # Quanto uma request espera por uma conexão livre antes de desistir. Menor que o timeout do
-# gunicorn (120s) para o usuário receber a página de indisponibilidade em vez de um socket morto.
+# gunicorn (30s) para o usuário receber a página de indisponibilidade em vez de um socket morto.
 ESPERA_CONEXAO_SEG = int(os.getenv('DB_POOL_TIMEOUT_SEG', 10))
 
 
@@ -126,6 +126,56 @@ def get_db():
         vagas.release()
 
 
+# Chave do advisory lock que serializa as migrações. Diferente da chave da manutenção
+# (app/core/maintenance.py): são exclusões mútuas independentes, e compartilhar a chave faria uma
+# esperar pela outra sem motivo.
+_LOCK_MIGRACOES = 8021978
+
+
+@contextmanager
+def _conexao(conn):
+    """Reaproveita a conexão recebida, ou abre uma própria quando não veio nenhuma.
+
+    Cada etapa de migração passou a aceitar `conn` justamente para as três poderem rodar dentro
+    de UMA transação — é o que permite proteger o conjunto inteiro com um advisory lock de
+    transação. Sem o parâmetro, cada função continua funcionando isolada (setup_db.py, testes).
+    """
+    if conn is not None:
+        yield conn
+    else:
+        with get_db() as propria:
+            yield propria
+
+
+def aplicar_migracoes():
+    """Aplica o schema inteiro — tabelas, índices e chaves estrangeiras — sob advisory lock.
+
+    Antes as três etapas eram chamadas soltas de create_app(). Como o gunicorn roda sem
+    `--preload`, cada worker importa run.py DEPOIS do fork e os dois executavam ~34 comandos DDL
+    ao mesmo tempo. No PostgreSQL isso não é seguro nem com IF NOT EXISTS: dois CREATE TABLE IF
+    NOT EXISTS concorrentes dão "duplicate key value violates unique constraint
+    pg_type_typname_nsp_index", e dois ALTER TABLE na mesma tabela deadlockam. A exceção matava o
+    worker, o Render reiniciava, e o ciclo se repetia — no cold start do primeiro acesso do dia,
+    ou num deploy às 14h50.
+
+    Lock de TRANSAÇÃO, e não de sessão, pela mesma razão documentada em maintenance.py: o
+    Postgres o solta sozinho no commit e no rollback, então um erro no meio não deixa o lock
+    preso numa conexão que volta para o pool.
+
+    Lock que ESPERA (pg_advisory_xact_lock), e não pg_try_advisory_xact_lock: quem chega depois
+    precisa encontrar o schema pronto antes de começar a atender. Desistir na hora deixaria o
+    segundo worker servindo requisições sobre um schema pela metade — que é justamente a falha
+    que se quer evitar. O DDL é idempotente, então repetir depois de esperar não custa nada.
+    """
+    from app.core.migrations import run_migrations
+    with get_db() as conn:
+        conn.execute("SELECT pg_advisory_xact_lock(%s)", (_LOCK_MIGRACOES,))
+        migrate_database(conn)
+        run_migrations(conn)
+        # Por último: as chaves estrangeiras precisam de todas as tabelas já criadas.
+        aplicar_chaves_estrangeiras(conn)
+
+
 def _col_exists(conn, table, column):
     row = conn.execute(
         "SELECT 1 FROM information_schema.columns WHERE table_name=%s AND column_name=%s",
@@ -140,9 +190,13 @@ def init_db(app):
         migrate_database()
 
 
-def migrate_database():
-    """Migrações automáticas — verifica information_schema antes de ALTER TABLE."""
-    with get_db() as conn:
+def migrate_database(conn=None):
+    """Migrações automáticas — verifica information_schema antes de ALTER TABLE.
+
+    `conn` é passado por aplicar_migracoes(), para esta etapa entrar na mesma transação — e no
+    mesmo advisory lock — das demais.
+    """
+    with _conexao(conn) as conn:
         # Colunas extras na tabela alunos
         for col in ['telefone', 'email_responsavel', 'data_nascimento', 'alergias', 'observacoes']:
             if not _col_exists(conn, 'alunos', col):
@@ -374,14 +428,16 @@ def _constraint_existe(conn, nome):
     ).fetchone() is not None
 
 
-def aplicar_chaves_estrangeiras():
+def aplicar_chaves_estrangeiras(conn=None):
     """Cria as chaves estrangeiras que faltavam no schema. Idempotente.
 
     Roda depois de migrate_database() e run_migrations(), quando todas as tabelas já existem.
     Cada chave é criada isoladamente: se uma falhar por dado inconsistente, as outras entram
     assim mesmo, e o motivo fica no log em vez de derrubar a subida do app.
+
+    `conn` é passado por aplicar_migracoes() — ver migrate_database().
     """
-    with get_db() as conn:
+    with _conexao(conn) as conn:
         # Antes das chaves, o dado precisa parar de contradizê-las. Solicitações apontando para
         # responsáveis que não existem mais são anteriores a esta migração — a coluna passa a
         # aceitar nulo e elas ficam com o vínculo em branco, que é o que a tela já mostra

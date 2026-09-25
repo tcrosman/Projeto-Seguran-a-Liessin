@@ -32,7 +32,15 @@ def create_app():
     # loop de redirect. x_host fica de fora de propósito: nada aqui depende de request.host (os
     # links de e-mail vêm de BASE_URL), e confiar em X-Forwarded-Host permitiria envenenar o
     # destino do redirect de HTTPS.
-    if os.getenv('TRUST_PROXY', 'true').lower() == 'true':
+    #
+    # O padrão é FALSE, e precisa continuar sendo. ProxyFix sem proxy à frente não corrige nada:
+    # ele passa a acreditar no X-Forwarded-For que o próprio cliente enviou. Num deploy fora do
+    # Render (docker local, VM, servidor da escola), isso significa (a) todo limite por IP caindo
+    # com um cabeçalho diferente a cada requisição — inclusive o que segura a força bruta do 2FA
+    # — e (b) o `ip` gravado na auditoria virando texto escolhido pelo atacante, contaminando a
+    # trilha de quem pediu a saída de uma criança. Ligue só onde o proxy é conhecido: o
+    # render.yaml declara TRUST_PROXY=true porque lá ele existe.
+    if os.getenv('TRUST_PROXY', 'false').strip().lower() == 'true':
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
     # Configurações
@@ -121,21 +129,50 @@ def create_app():
     # Origem dos dados de aluno, conferida no boot e não na primeira busca da portaria: uma
     # configuração faltando tem que impedir o app de subir, não aparecer como "nenhum aluno
     # encontrado" no meio do expediente. Mesma postura da checagem de SECRET_KEY acima.
+    #
+    # A checagem antiga parava na escolha da classe, e isso não provava nada: o __init__ do
+    # client não valida configuração, e o erro por SCHOOL_SQL_HOST/DATABASE ausentes só aparecia
+    # dentro de _conectar(), no meio de uma requisição, capturado e transformado em lista vazia.
+    # Como o render.yaml marca essas variáveis como `sync: false`, esquecer uma fazia o app subir
+    # saudável, com health check verde e toda tela dizendo "nenhum aluno encontrado".
+    #
+    # Agora o boot conversa com o banco da escola de verdade e se recusa a subir se ele não
+    # responder. É fail-fast deliberado: um erro de configuração precisa aparecer no deploy, e
+    # não às 15h. O preço é que um restart durante uma indisponibilidade do banco da escola não
+    # sobe — e é preferível a um processo que atende sem saber quem são os alunos.
     from app.services.school_sql_directory import get_school_sql_directory
     _diretorio = get_school_sql_directory()
-    if type(_diretorio).__name__ == 'SchoolSqlDirectoryMock':
+    _saude = _diretorio.verificar_saude()
+    if _saude['modo'] == 'mock':
         _log.warning("[SCHOOL_SQL] MODO MOCK ativo (SCHOOL_SQL_MOCK=true): os alunos são dados "
                      "de teste, não o cadastro da escola. Não use assim em produção.")
+    elif not _saude['ok']:
+        raise RuntimeError(
+            "Banco SQL da escola não respondeu no boot: " + str(_saude['detalhe']) + "\n"
+            "Confira SCHOOL_SQL_HOST, SCHOOL_SQL_DATABASE, SCHOOL_SQL_USER e "
+            "SCHOOL_SQL_PASSWORD, e se o schema tem alunos(ra, nome, turma, serie, foto_url, "
+            "ativo), responsaveis(email, nome, ativo) e vinculos(ra, email). Subir sem isso "
+            "seria servir todas as telas de aluno vazias, sem erro nenhum."
+        )
+    elif _saude['unaccent'] is False:
+        _log.warning("[SCHOOL_SQL] Extensão `unaccent` ausente: a busca de aluno funciona, mas "
+                     "sem ignorar acentos. Peça à instituição: CREATE EXTENSION unaccent;")
 
-    # Migração automática — idempotente (usa CREATE TABLE/COLUMN IF NOT EXISTS). Uma falha
-    # precisa abortar o boot: continuar serviria um processo aparentemente saudável sobre um
-    # schema incompleto, que só revelaria o problema nas primeiras requisições.
-    from app.core.database import migrate_database, aplicar_chaves_estrangeiras
-    from app.core.migrations import run_migrations
-    migrate_database()
-    run_migrations()
-    # Por último: as chaves estrangeiras precisam de todas as tabelas já criadas.
-    aplicar_chaves_estrangeiras()
+    # Migração do schema. Idempotente (CREATE TABLE/COLUMN IF NOT EXISTS) e, desde a correção
+    # C4, serializada por advisory lock — ver aplicar_migracoes() em app/core/database.py para o
+    # porquê. Uma falha precisa abortar o boot: continuar serviria um processo aparentemente
+    # saudável sobre um schema incompleto, que só revelaria o problema nas primeiras requisições.
+    #
+    # MIGRACOES_NO_BOOT=false desliga esta etapa para quem roda as migrações como passo de
+    # release (`python run_migrations.py` antes do deploy). O padrão continua ligado de
+    # propósito: um ambiente sem o passo de release configurado precisa subir com o schema
+    # aplicado, não sem schema nenhum.
+    if os.getenv('MIGRACOES_NO_BOOT', 'true').strip().lower() == 'true':
+        from app.core.database import aplicar_migracoes
+        aplicar_migracoes()
+    else:
+        _log.info("[SCHEMA] MIGRACOES_NO_BOOT=false: migrações não rodam no boot; devem vir do "
+                  "passo de release (python run_migrations.py).")
 
     # Limpeza/expiração periódica em thread de fundo — antes essas escritas rodavam dentro das
     # rotas GET de listagem. Desligue com MANUTENCAO_AUTOMATICA=false se preferir só o cron

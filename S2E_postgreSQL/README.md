@@ -143,6 +143,17 @@ dado verdadeiro é o pior tipo de falha.
 Ver **[s2e-api/deploy/DEPLOY.md](s2e-api/deploy/DEPLOY.md)** — instalação num VPS do
 zero, operação, backup, restauração e diagnóstico.
 
+### Checklist de implantação
+
+- Use infraestrutura que permaneça ativa, sem hibernação de plano gratuito, e com
+  capacidade compatível com os picos da portaria.
+- Defina `SCHOOL_SQL_MOCK=false` e configure explicitamente o diretório escolar real.
+- Ative `TRUST_PROXY=true` somente atrás do nginx configurado pelo projeto.
+- Gere uma `SECRET_KEY` exclusiva para cada instituição.
+- Mantenha `MAILER_FALLBACK_LOG=false` para não registrar códigos 2FA nem links de
+  redefinição quando o provedor de e-mail falhar.
+- Use banco, credenciais, backups, domínio e remetente separados por instituição.
+
 Resumo: nginx com TLS na frente, gunicorn em `127.0.0.1:8002` sob systemd, PostgreSQL
 local. Um comando (`deploy/deploy.sh`) para atualizar, com reversão automática se o
 healthcheck falhar.

@@ -2,10 +2,36 @@ services:
   - type: web
     name: secureedu
     env: python
-    plan: free
+    # NAO volte para `free`. O plano free hiberna apos 15 min sem trafego e leva ~50s para
+    # acordar: a primeira requisicao do dia e a portaria abrindo a tela as 14h55, e ela trava por
+    # quase um minuto com os pais ja no portao. A RAM apertada do free tambem agrava o cache do
+    # diretorio e o pool de conexoes. E o preDeployCommand (migracoes como passo de release, ver
+    # C4) so existe em plano pago.
+    #
+    # Esta e a mudanca com maior efeito sobre disponibilidade no pico, e custa dinheiro: confirme
+    # o plano no painel do Render, porque um `plan:` no blueprint nao muda a assinatura sozinho.
+    plan: starter
     rootDir: .
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 run:app
+    # Passo de release: as migracoes rodam UMA vez, antes de os workers subirem. Sem isso, os
+    # dois workers do gunicorn executam ~34 comandos DDL ao mesmo tempo (o gunicorn importa
+    # run.py depois do fork, sem --preload) e colidem: CREATE TABLE IF NOT EXISTS concorrente
+    # nao e atomico no PostgreSQL, e dois ALTER TABLE na mesma tabela deadlockam.
+    #
+    # preDeployCommand exige plano pago (ver A3). No plano free ele e ignorado -- por isso as
+    # migracoes do boot continuam ligadas por padrao, agora sob advisory lock. Com o passo de
+    # release garantido, da para acrescentar MIGRACOES_NO_BOOT=false aqui.
+    preDeployCommand: python run_migrations.py
+    # --threads 4: com worker sync e sem threads, cada processo atende UMA requisicao por
+    # vez -- 2 requisicoes simultaneas em toda a escola. A portaria carregando /saidas mais
+    # um pai no portal ja enchia a capacidade, e o terceiro acesso ficava na fila. A carga
+    # aqui e espera de rede (Supabase, banco da escola, SMTP), nao CPU, entao thread custa
+    # memoria proxima de zero e multiplica a capacidade por 4.
+    #
+    # --timeout 30 no lugar de 120: uma requisicao travada devolvia o worker so depois de
+    # dois minutos, com metade da escola parada nesse intervalo. Com os timeouts do banco da
+    # escola em 5s e do pool em 10s, nada legitimo chega perto de 30s.
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 30 run:app
     envVars:
       - key: DATABASE_URL
         sync: false
@@ -28,8 +54,12 @@ services:
       # Render põe um proxy na frente: sem isso, o rate limit veria o IP do proxy para todos.
       - key: TRUST_PROXY
         value: "true"
+      # Conexoes por WORKER (o pool e criado depois do fork, um por processo). O teto util e
+      # o numero de threads do worker: com --threads 4 nunca ha mais de 4 requisicoes
+      # simultaneas pedindo conexao ali. 6 deixa folga para as rotas que abrem dois blocos
+      # em sequencia. Total contra o Supabase = 6 x 2 workers = 12.
       - key: DB_POOL_MAX
-        value: "5"
+        value: "6"
       # Origem dos dados de aluno. Sem estas variáveis o app se recusa a subir, de propósito:
       # antes o padrão silencioso era o mock, e um deploy sem elas servia três alunos de teste
       # como se fossem o cadastro da escola.

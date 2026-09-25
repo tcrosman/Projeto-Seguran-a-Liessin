@@ -13,6 +13,7 @@ def _sol(**extra):
         'horario_solicitado': '13:00', 'motivo': 'Consulta', 'tipo_saida': 'sozinho',
         'acompanhante': None, 'status': 'aguardando', 'turma': 'A',
         'responsavel_nome': 'Maria Souza', 'responsavel_email': 'mae@teste.com',
+        'responsavel_status': 'aprovado',
         'nome_legado': None, 'turma_legado': None, 'serie_legado': None,
     }
     linha.update(extra)

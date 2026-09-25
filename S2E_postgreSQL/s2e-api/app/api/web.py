@@ -9,17 +9,24 @@ from app.core.passwords import senha_confere
 from app.core.validators import (escapar_like, horario_valido, data_valida,
                                  normalizar_serie, ordem_da_serie)
 from app.core.tempo import hoje, agora_utc
-from app.services.school_sql_directory import get_school_sql_directory
+from app.services.school_sql_directory import (get_school_sql_directory,
+                                               aluno_vinculado_ao_responsavel)
 from app.config import Config
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
 import os
 from app.core.logging_config import obter
+from psycopg2.errors import UniqueViolation
 
 _log = obter()
 
 
 _cache_diretorio = TTLCache(ttl_seconds=300)
+
+# Resultado da checagem de saúde do banco da escola. A rota /api/v1/health é pública e cada
+# checagem custa duas consultas a um sistema de terceiro — sem cache, qualquer monitoramento
+# (ou qualquer um) vira carga sobre o banco da instituição.
+_cache_saude = TTLCache(ttl_seconds=15, maximo=4)
 
 # Tamanho máximo do anexo de uma saída. Separado do MAX_CONTENT_LENGTH da request porque o
 # documento é gravado no banco (ver saidas_documentos em app/core/database.py).
@@ -33,40 +40,110 @@ RAS_NO_HISTORICO = 200
 # aparece na primeira leva — o diretório da escola não tem paginação.
 ALUNOS_POR_PAGINA = 200
 
+# Piso e teto do autocomplete de /registrar_saida.
+#
+# Sem o piso, `?q=a` devolvia uma fatia alfabética do cadastro: `?q=a`, `?q=e`, `?q=202400`... e
+# em poucas dezenas de requisições sai RA, nome, turma e série de toda a escola. Três caracteres
+# ainda respondem a qualquer nome que alguém digite de verdade, e não servem para varredura.
+#
+# O teto é baixo porque este resultado é um autocomplete: ninguém rola além dos primeiros nomes,
+# e cada linha a mais é cadastro de aluno saindo do banco da escola sem necessidade. Quem
+# precisa de lista longa usa /alunos, que é outra tela e outro controle de acesso.
+MIN_CARACTERES_BUSCA = 3
+RESULTADOS_AUTOCOMPLETE = 10
+
 
 def _buscar_alunos_com_cache(ras):
     """Resolve ra -> dados do aluno via school_sql_directory, com cache curto (5 min) e fallback
-    para o último dado conhecido se a consulta externa estiver indisponível no momento."""
+    para o último dado conhecido SE — e somente se — a consulta externa falhou agora.
+
+    O "somente se" é a correção A10. Antes o stale era aplicado no caminho de sucesso também:
+    quando o TTL expirava e o diretório respondia sem aquele RA (aluno com ativo = 0,
+    transferido, vínculo revogado), `set()` nunca era chamado e `get_stale()` devolvia o valor
+    antigo — indefinidamente. Um aluno desligado continuava aparecendo nas telas, e o e-mail de
+    "saída liberada" podia ir para um responsável que a escola já descredenciou. É problema de
+    LGPD, não de cache.
+
+    A distinção só é possível porque o cliente do diretório passou a levantar
+    SchoolSqlIndisponivel em vez de devolver dicionário vazio: resposta vazia agora quer dizer
+    "perguntei e não existe", e é justamente esse caso que NÃO pode cair no stale.
+    """
     if not ras:
         return {}
     faltando = [ra for ra in set(ras) if _cache_diretorio.get(ra) is None]
+    consulta_falhou = False
     if faltando:
         try:
             frescos = get_school_sql_directory().get_students_by_ras(faltando)
             for ra, info in frescos.items():
                 _cache_diretorio.set(ra, info)
         except Exception as e:
+            consulta_falhou = True
             _log.warning(f"[SCHOOL_SQL] Consulta indisponível, usando cache: {e}")
     resultado = {}
     for ra in set(ras):
-        info = _cache_diretorio.get(ra) or _cache_diretorio.get_stale(ra)
+        info = _cache_diretorio.get(ra)
+        if info is None and consulta_falhou:
+            info = _cache_diretorio.get_stale(ra)
         if info:
             resultado[ra] = info
     return resultado
 
 
 def _nome_e_emails_para_saida(ra):
-    """Resolve nome do aluno e e-mails dos responsáveis via school_sql_directory para notificar
-    após liberar uma saída, sem propagar falha — usada por /concluir_saida, onde a liberação
-    já foi persistida no banco e não pode ser desfeita por uma falha na consulta externa."""
+    """Resolve nome do aluno e e-mails dos responsáveis para notificar após liberar uma saída.
+
+    Devolve `(nome_aluno, emails, indisponivel)`. Não propaga falha: /concluir_saida já
+    persistiu a liberação quando chega aqui, e ela não pode ser desfeita por uma consulta
+    externa que não respondeu.
+
+    O terceiro valor é a correção A11. Antes a função engolia a exceção e devolvia `emails = []`,
+    o mesmo valor de "este aluno não tem responsável com e-mail cadastrado" — e a tela dizia
+    "Saída autorizada!" nos dois casos. Com o banco da escola fora do ar por cinco minutos
+    durante as saídas, nenhum responsável era avisado de que o filho saiu da escola, e nada na
+    tela nem na auditoria registrava isso. São duas situações com desfechos diferentes: uma a
+    secretaria resolve cadastrando o e-mail, a outra é para avisar por telefone agora.
+    """
     try:
-        info = get_school_sql_directory().get_student(ra)
-        emails = get_school_sql_directory().get_guardian_emails_for_ra(ra)
+        diretorio = get_school_sql_directory()
+        info = diretorio.get_student(ra)
+        emails = diretorio.get_guardian_emails_for_ra(ra)
     except Exception as e:
-        _log.warning(f"[SCHOOL_SQL] Erro ao concluir saída: {e}")
-        info, emails = None, []
+        _log.warning(f"[SCHOOL_SQL] Responsáveis não puderam ser notificados (RA {ra}): {e}")
+        return f"RA {ra}", [], True
     nome_aluno = info['nome'] if info else f"RA {ra}"
-    return nome_aluno, emails
+    return nome_aluno, emails, False
+
+
+# Por que a aprovação pode ser recusada. Mesma lista de motivos do portal dos pais
+# (app/api/pais.py), com o texto endereçado a quem está do lado da escola.
+_RECUSA_APROVACAO = {
+    'conta_inativa': ("Solicitação não aprovada: a conta do responsável não está ativa "
+                      "(pendente ou bloqueada). Regularize o cadastro antes de aprovar."),
+    'sem_vinculo': ("Solicitação NÃO aprovada: quem pediu não consta mais como responsável por "
+                    "este aluno no cadastro da escola. Confirme com a secretaria antes de "
+                    "liberar a saída."),
+    'indisponivel': ("Solicitação não aprovada: o cadastro da escola está indisponível e o "
+                     "vínculo do responsável com o aluno não pôde ser confirmado. Tente de novo "
+                     "em alguns minutos."),
+}
+
+
+def _revalidar_vinculo_da_solicitacao(sol_row):
+    """Reconfere o direito de quem pediu, no momento da aprovação. Devolve None quando está tudo
+    certo, ou a chave do motivo da recusa em `_RECUSA_APROVACAO`.
+
+    Só o fluxo por RA é reconferível aqui: as linhas legadas (sem RA) não têm identidade que o
+    banco da escola reconheça, e para elas o portão que resta é o status da conta, verificado
+    logo acima.
+    """
+    if sol_row['responsavel_status'] != 'aprovado':
+        return 'conta_inativa'
+    if not sol_row['ra']:
+        return None
+    estado = aluno_vinculado_ao_responsavel(
+        get_school_sql_directory(), sol_row['responsavel_email'], sol_row['ra'])
+    return None if estado == 'ok' else estado
 
 
 def _resolver_solicitacoes(rows):
@@ -145,6 +222,52 @@ def register_routes(app):
             max_age=604800,
         )
     
+    # ==================== SAÚDE ====================
+    @app.route("/api/v1/health")
+    def health():
+        """Estado dos DOIS bancos, separados.
+
+        São sistemas diferentes com donos diferentes, e o que quebra em cada um pede reação
+        diferente: o banco próprio fora do ar é chamado para quem cuida da hospedagem; o banco
+        da escola fora do ar é telefone para a secretaria, e a portaria segue liberando as saídas
+        que já estão na tela. Um health check que responde "ok" para os dois juntos apaga
+        exatamente essa distinção — era o caso antes, quando nem existia.
+
+        Sem autenticação, porque é o monitoramento externo que consome. Por isso o corpo não
+        carrega a mensagem de erro crua: ela pode conter host, usuário e nome de banco. O detalhe
+        fica no log da aplicação, e aqui vai só o veredito.
+        """
+        proprio = {'ok': False}
+        try:
+            with get_db() as conn:
+                conn.execute("SELECT 1")
+            proprio['ok'] = True
+        except Exception as e:
+            _log.warning(f"[HEALTH] Banco próprio indisponível: {e}")
+
+        # Cache curto: a rota é pública e cada checagem custa duas consultas ao banco da escola.
+        # Sem isso, um monitoramento agressivo (ou qualquer um) vira carga sobre um sistema de
+        # terceiro.
+        escola = _cache_saude.get('escola')
+        if escola is None:
+            escola = get_school_sql_directory().verificar_saude()
+            if not escola['ok']:
+                _log.warning(f"[HEALTH] Banco da escola indisponível: {escola['detalhe']}")
+            _cache_saude.set('escola', escola)
+
+        corpo = {
+            'status': 'ok' if (proprio['ok'] and escola['ok']) else 'degradado',
+            'banco_proprio': {'ok': proprio['ok']},
+            'banco_da_escola': {
+                'ok': escola['ok'],
+                'modo': escola['modo'],
+                # Vale ser visível: em modo mock as telas mostram três alunos de teste como se
+                # fossem o corpo discente.
+                'unaccent': escola['unaccent'],
+            },
+        }
+        return jsonify(corpo), (200 if corpo['status'] == 'ok' else 503)
+
     # ==================== AUTENTICAÇÃO ====================
     @app.route("/", methods=["GET", "POST"])
     def login():
@@ -480,9 +603,14 @@ def register_routes(app):
     def portaria_buscar_aluno():
         """Busca alunos por nome/RA parcial para o formulário de registrar saída.
         Dado vem direto da consulta externa — nada aqui é persistido no S2E."""
-        query = request.args.get("q", "")
+        query = request.args.get("q", "").strip()
+        # Piso antes de qualquer consulta: além de fechar a enumeração, evita a varredura da
+        # tabela de alunos (LIKE '%...%' sobre nome normalizado) a cada tecla digitada.
+        if len(query) < MIN_CARACTERES_BUSCA:
+            return jsonify([])
         try:
-            resultados = get_school_sql_directory().search_students(query)
+            resultados = get_school_sql_directory().search_students(
+                query, limite=RESULTADOS_AUTOCOMPLETE)
         except Exception as e:
             _log.warning(f"[SCHOOL_SQL] Erro ao buscar aluno na portaria: {e}")
             resultados = []
@@ -553,36 +681,56 @@ def register_routes(app):
                             return render_template("departures/register.html",
                                                    ra_selecionado=ra_pre_selecionado, today=hoje())
 
-                    with get_db() as conn:
-                        pendente = conn.execute(
-                            "SELECT COUNT(*) as total FROM saidas WHERE ra = %s AND data_saida = %s AND status = 'pendente'",
-                            (ra, data_saida)
-                        ).fetchone()['total']
+                    # O COUNT continua aqui porque é ele que dá a mensagem boa no caso comum
+                    # (o aluno já tem saída pendente e o usuário precisa saber disso). O que ele
+                    # NÃO faz é garantir a unicidade: entre o SELECT e o INSERT, em READ
+                    # COMMITTED, cabe outra transação inteira. Quem garante é o índice único
+                    # parcial uq_saidas_pendente_por_dia — ver app/core/migrations.py.
+                    #
+                    # O except fica FORA do `with`: a UniqueViolation aborta a transação, e
+                    # qualquer comando emitido depois dela, ainda dentro do bloco, falharia
+                    # também. Aqui a transação já terminou em rollback quando chegamos.
+                    duplicada = False
+                    try:
+                        with get_db() as conn:
+                            pendente = conn.execute(
+                                "SELECT COUNT(*) as total FROM saidas WHERE ra = %s AND data_saida = %s AND status = 'pendente'",
+                                (ra, data_saida)
+                            ).fetchone()['total']
 
-                        if pendente > 0:
-                            flash("Este aluno já tem uma saída pendente para hoje!", "error")
-                        else:
-                            id_saida = conn.execute("""
-                                INSERT INTO saidas (ra, turma, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pendente')
-                                RETURNING id
-                            """, (ra, aluno.get('turma'), data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante)).fetchone()['id']
+                            if pendente > 0:
+                                duplicada = True
+                            else:
+                                id_saida = conn.execute("""
+                                    INSERT INTO saidas (ra, turma, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pendente')
+                                    RETURNING id
+                                """, (ra, aluno.get('turma'), data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante)).fetchone()['id']
 
-                            # O anexo entra na mesma transação da saída: ou os dois existem, ou
-                            # nenhum. Antes ele era escrito em disco antes do INSERT — ficava
-                            # órfão quando o registro era barrado, e sumia de vez a cada deploy,
-                            # porque o disco da hospedagem é efêmero.
-                            if tem_anexo:
-                                conn.execute(
-                                    "INSERT INTO saidas_documentos (saida_id, nome, tipo, dados) VALUES (%s, %s, %s, %s)",
-                                    (id_saida, secure_filename(doc.filename),
-                                     mime_do_arquivo(doc.filename), doc.read())
-                                )
-                            log_operacao(session.get('username'), "REGISTROU SAÍDA",
-                                         f"RA: {ra} | data: {data_saida} | horário: {horario}",
-                                         ip=request.remote_addr, conn=conn)
-                            flash("Saída registrada!", "success")
-                            return redirect("/saidas")
+                                # O anexo entra na mesma transação da saída: ou os dois existem, ou
+                                # nenhum. Antes ele era escrito em disco antes do INSERT — ficava
+                                # órfão quando o registro era barrado, e sumia de vez a cada deploy,
+                                # porque o disco da hospedagem é efêmero.
+                                if tem_anexo:
+                                    conn.execute(
+                                        "INSERT INTO saidas_documentos (saida_id, nome, tipo, dados) VALUES (%s, %s, %s, %s)",
+                                        (id_saida, secure_filename(doc.filename),
+                                         mime_do_arquivo(doc.filename), doc.read())
+                                    )
+                                log_operacao(session.get('username'), "REGISTROU SAÍDA",
+                                             f"RA: {ra} | data: {data_saida} | horário: {horario}",
+                                             ip=request.remote_addr, conn=conn)
+                    except UniqueViolation:
+                        # A outra transação venceu a corrida. Do ponto de vista de quem está no
+                        # balcão é a mesma situação do COUNT acima, e a mensagem é a mesma.
+                        _log.info("[SAIDAS] INSERT concorrente barrado pelo índice único "
+                                  "(RA %s, data %s)", ra, data_saida)
+                        duplicada = True
+
+                    if not duplicada:
+                        flash("Saída registrada!", "success")
+                        return redirect("/saidas")
+                    flash(f"Este aluno já tem uma saída pendente para {data_saida}!", "error")
 
         return render_template("departures/register.html",
                                ra_selecionado=ra_pre_selecionado,
@@ -625,6 +773,10 @@ def register_routes(app):
                                concluidas=concluidas,
                                nao_realizadas=nao_realizadas,
                                data_selecionada=data_selecionada,
+                               # Só no dia da saída o botão de liberar faz sentido. A checagem
+                               # que vale é a de concluir_saida; esta evita oferecer na tela uma
+                               # ação que o servidor vai recusar.
+                               hoje_local=hoje(),
                                busca=busca)
     
     @app.route("/editar_saida/<int:id_saida>", methods=["GET", "POST"])
@@ -642,33 +794,38 @@ def register_routes(app):
                 WHERE s.id = %s AND s.status = 'pendente'
             """, (id_saida,)).fetchone()
 
-            if not saida_row:
-                flash("Saída não encontrada ou já autorizada", "error")
-                return redirect("/saidas")
+        if not saida_row:
+            flash("Saída não encontrada ou já autorizada", "error")
+            return redirect("/saidas")
 
-            saida = _resolver_dados_saidas([saida_row])[0]
+        # Fora da transação: _resolver_dados_saidas consulta o banco da escola, que é outro
+        # sistema e pode estar lento. Ler a saída e gravá-la em transações separadas é seguro
+        # porque o UPDATE mantém o filtro `status='pendente'` — é ele, e não a duração da
+        # transação, que impede editar uma saída já autorizada nesse intervalo.
+        saida = _resolver_dados_saidas([saida_row])[0]
 
-            if request.method == "POST":
-                horario = request.form.get("horario", "").strip()
-                # .strip() e obrigatoriedade como em /registrar_saida: sem isso, `motivo` chegava
-                # como None num UPDATE de coluna NOT NULL — IntegrityError e erro 500. O
-                # `required` do formulário é só do navegador e não vale para um POST montado à
-                # mão, nem para um envio com o JavaScript desligado.
-                motivo = (request.form.get("motivo") or "").strip()
-                responsavel_escola = (request.form.get("responsavel_escola") or "").strip()
-                tipo_saida = request.form.get("tipo_saida")
-                acompanhante = request.form.get("acompanhante") if tipo_saida == 'acompanhado' else None
+        if request.method == "POST":
+            horario = request.form.get("horario", "").strip()
+            # .strip() e obrigatoriedade como em /registrar_saida: sem isso, `motivo` chegava
+            # como None num UPDATE de coluna NOT NULL — IntegrityError e erro 500. O
+            # `required` do formulário é só do navegador e não vale para um POST montado à
+            # mão, nem para um envio com o JavaScript desligado.
+            motivo = (request.form.get("motivo") or "").strip()
+            responsavel_escola = (request.form.get("responsavel_escola") or "").strip()
+            tipo_saida = request.form.get("tipo_saida")
+            acompanhante = request.form.get("acompanhante") if tipo_saida == 'acompanhado' else None
 
-                if not horario or not motivo or not responsavel_escola or not tipo_saida:
-                    flash("Todos os campos são obrigatórios.", "error")
-                    return render_template("departures/edit_exits.html", saida=saida)
-                if not horario_valido(horario):
-                    flash("Horário inválido. Use o formato HH:MM.", "error")
-                    return render_template("departures/edit_exits.html", saida=saida)
-                if tipo_saida not in ('sozinho', 'acompanhado'):
-                    flash("Tipo de saída inválido.", "error")
-                    return render_template("departures/edit_exits.html", saida=saida)
+            if not horario or not motivo or not responsavel_escola or not tipo_saida:
+                flash("Todos os campos são obrigatórios.", "error")
+                return render_template("departures/edit_exits.html", saida=saida)
+            if not horario_valido(horario):
+                flash("Horário inválido. Use o formato HH:MM.", "error")
+                return render_template("departures/edit_exits.html", saida=saida)
+            if tipo_saida not in ('sozinho', 'acompanhado'):
+                flash("Tipo de saída inválido.", "error")
+                return render_template("departures/edit_exits.html", saida=saida)
 
+            with get_db() as conn:
                 conn.execute("""
                     UPDATE saidas SET horario=%s, motivo=%s, responsavel_escola=%s, tipo_saida=%s, acompanhante=%s
                     WHERE id=%s AND status='pendente'
@@ -676,10 +833,10 @@ def register_routes(app):
                 log_operacao(session.get('username'), "EDITOU SAÍDA",
                              f"ID Saída: {id_saida} | horário: {horario} | tipo: {tipo_saida}",
                              ip=request.remote_addr, conn=conn)
-                flash("Saída atualizada!", "success")
-                return redirect("/saidas")
-            
-            return render_template("departures/edit_exits.html", saida=saida)
+            flash("Saída atualizada!", "success")
+            return redirect("/saidas")
+
+        return render_template("departures/edit_exits.html", saida=saida)
 
     @app.route("/concluir_saida/<int:id_saida>", methods=["POST"])
     @login_required
@@ -687,14 +844,37 @@ def register_routes(app):
         with get_db() as conn:
             # Só a transição pendente -> concluída conta. Sem o filtro de status, um duplo-clique
             # (ou POST repetido) reescrevia liberado_em e reenviava o e-mail aos responsáveis.
+            #
+            # E só no dia da própria saída. /saidas aceita ?data= qualquer e desenha a lista
+            # daquele dia; sem esta condição, mudar o seletor de data para amanhã e clicar em
+            # "Liberar" entregava hoje uma criança autorizada para outro dia — pela interface
+            # normal, sem POST forjado, e com o e-mail ao responsável dizendo "hoje às 12:00".
+            #
+            # A comparação vai dentro do UPDATE, e não num SELECT antes dele, para não abrir
+            # janela entre conferir e gravar: continua sendo um único comando atômico.
+            hoje_local = hoje()
             liberou = conn.execute(
                 """UPDATE saidas SET status = 'concluida', usuario_autorizou = %s, liberado_em = NOW()
-                   WHERE id = %s AND status = 'pendente'""",
-                (session['user_id'], id_saida)
+                   WHERE id = %s AND status = 'pendente' AND data_saida = %s""",
+                (session['user_id'], id_saida, hoje_local)
             ).rowcount
 
             if not liberou:
-                flash("Esta saída já havia sido autorizada.", "error")
+                # rowcount 0 tem duas causas com desfechos muito diferentes para quem está no
+                # portão: já autorizada, ou agendada para outro dia. Vale a consulta extra —
+                # ela só acontece no caminho de recusa.
+                atual = conn.execute(
+                    "SELECT status, data_saida FROM saidas WHERE id = %s", (id_saida,)
+                ).fetchone()
+                if atual and atual['status'] == 'pendente':
+                    log_operacao(session.get('username'), "LIBERAÇÃO RECUSADA (data)",
+                                 f"ID Saída: {id_saida} | agendada para {atual['data_saida']} | "
+                                 f"hoje é {hoje_local}",
+                                 ip=request.remote_addr, conn=conn)
+                    flash(f"Esta saída está agendada para {atual['data_saida']}, "
+                          "não pode ser liberada hoje.", "error")
+                else:
+                    flash("Esta saída já havia sido autorizada.", "error")
                 return redirect("/saidas")
 
             saida = conn.execute("""
@@ -704,9 +884,12 @@ def register_routes(app):
                 WHERE s.id = %s
             """, (id_saida,)).fetchone()
 
-            if saida and saida['ra']:
-                nome_aluno, emails = _nome_e_emails_para_saida(saida['ra'])
-            elif saida:
+            # Só o que sai do banco PRÓPRIO fica aqui dentro. O caminho legado é uma consulta
+            # local e não custa nada; a consulta ao banco da escola foi para fora do `with`,
+            # logo abaixo.
+            nome_aluno, emails = None, []
+            diretorio_indisponivel = False
+            if saida and not saida['ra']:
                 nome_aluno = saida['aluno_nome_legado']
                 responsaveis = conn.execute("""
                     SELECT r.email
@@ -715,8 +898,16 @@ def register_routes(app):
                     WHERE v.aluno_id = %s
                 """, (saida['aluno_id_legado'],)).fetchall()
                 emails = [r['email'] for r in responsaveis]
-            else:
-                nome_aluno, emails = None, []
+
+        # Fora da transação, de propósito. O UPDATE acima trava a linha da saída, e
+        # _nome_e_emails_para_saida abre TRÊS conexões ao banco da escola (get_student já são
+        # duas, por causa de _emails_por_ra, mais get_guardian_emails_for_ra). Com
+        # SCHOOL_SQL_TIMEOUT_SEG=5 o pior caso é ~30s segurando ao mesmo tempo uma conexão do
+        # pool e uma thread do worker — e basta o banco da escola estar LENTO, não fora do ar.
+        # Dois seguranças clicando "liberar" juntos paravam o sistema inteiro, portaria
+        # inclusive, sem chegar ao timeout do gunicorn que dispararia o restart.
+        if saida and saida['ra']:
+            nome_aluno, emails, diretorio_indisponivel = _nome_e_emails_para_saida(saida['ra'])
 
         if saida:
             from app.core.mailer import enviar_email_async
@@ -728,8 +919,22 @@ def register_routes(app):
             for email in emails:
                 enviar_email_async(email, "Saída liberada — SecureEdu", corpo)
 
-        log_operacao(session.get('username'), "CONCLUIU SAÍDA", f"ID Saída: {id_saida}")
-        flash("Saída autorizada!", "success")
+        # Quantos responsáveis foram efetivamente avisados entra na trilha. Sem esse número, a
+        # auditoria não distinguia "notifiquei os dois responsáveis" de "não notifiquei
+        # ninguém" — e é justamente a segunda que alguém vai precisar reconstruir depois.
+        log_operacao(session.get('username'), "CONCLUIU SAÍDA",
+                     f"ID Saída: {id_saida} | responsáveis notificados: {len(emails)}"
+                     + (" | cadastro da escola indisponível" if diretorio_indisponivel else ""))
+
+        if emails:
+            flash("Saída autorizada!", "success")
+        elif diretorio_indisponivel:
+            # Erro, e não sucesso: a escola precisa avisar o responsável por outro meio, agora.
+            flash("Saída autorizada, mas NÃO foi possível notificar os responsáveis: o cadastro "
+                  "da escola está indisponível. Avise a família por telefone.", "error")
+        else:
+            flash("Saída autorizada, mas nenhum responsável foi notificado: não há e-mail "
+                  "cadastrado para este aluno na escola.", "error")
         return redirect("/saidas")
     
     # ==================== ADMIN ====================
@@ -932,6 +1137,7 @@ def register_routes(app):
                 SELECT ss.aluno_id, ss.ra, ss.data_solicitada, ss.horario_solicitado, ss.motivo,
                        ss.tipo_saida, ss.acompanhante, ss.status,
                        r.nome AS responsavel_nome, r.email AS responsavel_email,
+                       r.status AS responsavel_status,
                        a.nome AS nome_legado, a.turma AS turma_legado, a.serie AS serie_legado
                 FROM solicitacoes_saida ss
                 LEFT JOIN responsaveis r ON r.id = ss.responsavel_id
@@ -939,12 +1145,34 @@ def register_routes(app):
                 WHERE ss.id = %s AND ss.status = 'aguardando'
             """, (sol_id,)).fetchone()
 
-            if not sol_row:
-                flash("Solicitação não encontrada ou já revisada.", "error")
-                return redirect("/admin/solicitacoes")
+        if not sol_row:
+            flash("Solicitação não encontrada ou já revisada.", "error")
+            return redirect("/admin/solicitacoes")
 
-            sol = _resolver_solicitacoes([sol_row])[0]
+        # As duas linhas abaixo consultam o banco da escola (nome/turma do aluno e vínculo do
+        # responsável) e ficam FORA de qualquer transação nossa: são até três conexões a outro
+        # sistema, com 5s de timeout cada, e prender uma conexão do pool durante isso era o que
+        # travava o sistema inteiro quando aquele banco ficava lento.
+        sol = _resolver_solicitacoes([sol_row])[0]
 
+        # Segundo portão. A solicitação foi criada pelo responsável, que naquele momento tinha
+        # o vínculo conferido em /pais/solicitar — mas a aprovação acontece depois, às vezes
+        # dias depois, e o vínculo pode ter mudado nesse intervalo (guarda, ordem judicial,
+        # transferência) ou a conta pode ter sido bloqueada pela própria escola. Aprovar sem
+        # reconferir transforma um pedido que deixou de ser legítimo numa saída válida na tela
+        # da portaria, com o acompanhante que aquele pedido indicava.
+        #
+        # Fail-closed: banco da escola sem resposta recusa a aprovação. O admin pode tentar de
+        # novo em minutos; entregar a criança à pessoa errada não tem segunda tentativa.
+        recusa = _revalidar_vinculo_da_solicitacao(sol_row)
+        if recusa:
+            log_operacao(session.get('username'), "APROVAÇÃO RECUSADA",
+                         f"ID Solicitação: {sol_id} | RA: {sol['ra'] or '—'} | motivo: {recusa}",
+                         ip=request.remote_addr)
+            flash(_RECUSA_APROVACAO[recusa], "error")
+            return redirect("/admin/solicitacoes")
+
+        with get_db() as conn:
             # Aprova a solicitação. O filtro por status é o que serializa duas aprovações
             # simultâneas: a segunda transação relê a linha já aprovada, casa 0 linhas e para
             # aqui, em vez de criar uma segunda saída para o mesmo aluno.
@@ -1005,23 +1233,52 @@ def register_routes(app):
             # solicitacao_id amarra esta saída à solicitação que a originou: é por ele que a
             # edição feita pelo responsável encontra a saída certa para remover, sem tocar nas
             # que a portaria registrou por conta própria.
-            conn.execute("""
-                INSERT INTO saidas (aluno, ra, turma, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status, solicitacao_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pendente', %s)
-            """, (
-                sol['aluno_id'],
-                sol['ra'],
-                sol['turma'],
-                sol['data_solicitada'],
-                sol['horario_solicitado'] or '',
-                sol['motivo'] or 'Solicitado pelo responsável',
-                session.get('username', 'admin'),
-                sol['tipo_saida'] or 'acompanhado',
-                sol['acompanhante'] or sol['responsavel_nome'],
-                sol_id,
-            ))
+            #
+            # O UPDATE lá em cima serializa duas aprovações DESTA solicitação, mas não impede
+            # que outra saída para o mesmo aluno e a mesma data nasça no meio do caminho: pai e
+            # mãe criam cada um a sua solicitação, dois admins aprovam ao mesmo tempo, ou um
+            # admin aprova enquanto a portaria registra em /registrar_saida. Os dois leem
+            # "nenhuma existente" logo acima e os dois inserem — que é exatamente o que o
+            # comentário da checagem diz querer evitar. Quem impede de verdade é o índice único
+            # parcial uq_saidas_pendente_por_dia (ver A8, app/core/migrations.py).
+            #
+            # SAVEPOINT: sem ele, a violação abortaria a transação inteira e levaria junto a
+            # aprovação e a auditoria já gravadas — o admin clicaria em "aprovar", veria erro, e
+            # a decisão dele sumiria. Com o savepoint, a solicitação continua aprovada e só a
+            # criação da saída duplicada é desfeita, que é o desfecho correto: a saída daquele
+            # aluno naquele dia já existe.
+            duplicada = False
+            try:
+                conn.execute("SAVEPOINT criar_saida")
+                conn.execute("""
+                    INSERT INTO saidas (aluno, ra, turma, data_saida, horario, motivo, responsavel_escola, tipo_saida, acompanhante, status, solicitacao_id)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'pendente', %s)
+                """, (
+                    sol['aluno_id'],
+                    sol['ra'],
+                    sol['turma'],
+                    sol['data_solicitada'],
+                    sol['horario_solicitado'] or '',
+                    sol['motivo'] or 'Solicitado pelo responsável',
+                    session.get('username', 'admin'),
+                    sol['tipo_saida'] or 'acompanhado',
+                    sol['acompanhante'] or sol['responsavel_nome'],
+                    sol_id,
+                ))
+                conn.execute("RELEASE SAVEPOINT criar_saida")
+            except UniqueViolation:
+                conn.execute("ROLLBACK TO SAVEPOINT criar_saida")
+                _log.info("[SOLICITACOES] saída concorrente já existia para RA %s em %s",
+                          sol['ra'], sol['data_solicitada'])
+                duplicada = True
 
-        flash(f"Saída de {sol['aluno_nome']} aprovada e registrada.", "success")
+        if duplicada:
+            # Mesma mensagem do caminho em que a saída já existia quando conferimos: para quem
+            # está na tela, a situação é idêntica.
+            flash(f"Solicitação de {sol['aluno_nome']} aprovada. Este aluno já tinha uma saída "
+                  "pendente para esta data, então nenhuma saída nova foi criada.", "success")
+        else:
+            flash(f"Saída de {sol['aluno_nome']} aprovada e registrada.", "success")
         return redirect("/admin/solicitacoes")
 
     @app.route("/admin/solicitacoes/<int:sol_id>/rejeitar", methods=["POST"])
@@ -1037,12 +1294,15 @@ def register_routes(app):
                 WHERE ss.id = %s AND ss.status = 'aguardando'
             """, (sol_id,)).fetchone()
 
-            if not sol_row:
-                flash("Solicitação não encontrada ou já revisada.", "error")
-                return redirect("/admin/solicitacoes")
+        if not sol_row:
+            flash("Solicitação não encontrada ou já revisada.", "error")
+            return redirect("/admin/solicitacoes")
 
-            sol = _resolver_solicitacoes([sol_row])[0]
+        # Fora da transação: resolve nome/turma do aluno no banco da escola. Mesma razão de
+        # /concluir_saida — aquele banco é outro sistema e pode estar lento.
+        sol = _resolver_solicitacoes([sol_row])[0]
 
+        with get_db() as conn:
             conn.execute(
                 "UPDATE solicitacoes_saida SET status = 'rejeitado', revisado_por = %s, revisado_em = NOW() WHERE id = %s",
                 (session['user_id'], sol_id)

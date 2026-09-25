@@ -159,7 +159,12 @@ function toggleAcompanhante(radio) {
     limparSelecao();
     var q = busca.value.trim();
     clearTimeout(timer);
-    if (q.length < 2) {
+    // Mínimo de 3 caracteres e 300 ms de espera. Cada busca custa DUAS conexões ao banco da
+    // escola e um LIKE '%...%' sobre nome normalizado, que nenhum índice B-tree comum atende --
+    // ou seja, varredura da tabela de alunos. Com 2 caracteres e 250 ms, digitar um nome
+    // disparava essa varredura várias vezes por segundo, por porteiro. O servidor aplica o
+    // mesmo mínimo: esta checagem é conforto, não limite.
+    if (q.length < 3) {
       resultados.style.display = 'none';
       resultados.innerHTML = '';
       return;
@@ -168,7 +173,7 @@ function toggleAcompanhante(radio) {
       fetch('/portaria/buscar_aluno?q=' + encodeURIComponent(q))
         .then(function (resp) { return resp.json(); })
         .then(renderResultados);
-    }, 250);
+    }, 300);
   });
 
   busca.addEventListener('blur', function () {

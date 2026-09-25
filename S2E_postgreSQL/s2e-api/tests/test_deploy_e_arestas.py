@@ -128,7 +128,7 @@ def test_setup_db_nao_apaga_banco_por_padrao():
 
 def test_falha_de_migracao_nao_e_engolida():
     codigo = _ler('app', '__init__.py')
-    bloco = codigo[codigo.index('# Migração automática'):codigo.index('# Limpeza/expiração periódica')]
+    bloco = codigo[codigo.index('# Migração do schema'):codigo.index('# Limpeza/expiração periódica')]
 
     assert 'except Exception' not in bloco
 
@@ -180,15 +180,23 @@ def test_historico_pede_um_limite_maior_que_o_da_portaria(sessao_admin, banco):
 
 
 def test_a_portaria_continua_com_o_limite_curto(sessao_admin, banco):
-    """O autocomplete não deve trazer a escola inteira a cada tecla."""
+    """O autocomplete não deve trazer a escola inteira a cada tecla.
+
+    O limite passou a ser explícito na rota (RESULTADOS_AUTOCOMPLETE), e não mais o padrão do
+    client: ele é o teto de quanto cadastro sai por requisição, e por isso precisa estar onde a
+    decisão é tomada — ver A7.
+    """
     from unittest.mock import patch
     from tests.apoio import DiretorioFalso
+    from app.api.web import RESULTADOS_AUTOCOMPLETE
+    from app.services.school_sql_directory import SchoolSqlDirectoryClient
 
     escola = DiretorioFalso({})
     with patch("app.api.web.get_school_sql_directory", return_value=escola):
         sessao_admin.get("/portaria/buscar_aluno?q=Silva")
 
-    assert escola.limites == [None]   # usa o padrão do client
+    assert escola.limites == [RESULTADOS_AUTOCOMPLETE]
+    assert RESULTADOS_AUTOCOMPLETE <= SchoolSqlDirectoryClient.LIMITE_BUSCA_PADRAO
 
 
 def test_o_mock_respeita_o_limite_como_o_client_real():

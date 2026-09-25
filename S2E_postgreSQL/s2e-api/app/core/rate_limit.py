@@ -29,9 +29,21 @@ LOGIN_CONTA = ('login_conta', 5, 15, 5)
 LOGIN_IP = ('login_ip', 30, 15, 5)
 PAIS_LOGIN_CONTA = ('pais_login_conta', 5, 15, 5)
 PAIS_LOGIN_IP = ('pais_login_ip', 30, 15, 5)
-# 2FA tem escopo próprio: o contador por token (tokens_2fa.tentativas) já limita a força bruta
-# por conta, então aqui só resta a rede de segurança por IP.
+# 2FA por IP: rede de segurança contra varredura distribuída, larga por causa da rede NAT.
 PAIS_2FA_IP = ('pais_2fa_ip', 30, 15, 5)
+
+# 2FA por CONTA. `tokens_2fa.tentativas` sozinho não segurava força bruta: ao queimar o token
+# depois de 5 erros a linha é APAGADA, e o login apaga os tokens abertos antes de inserir o
+# novo — então não existia contador por conta que sobrevivesse à regeneração. Quem já tem a
+# senha (vazamento, reúso) fazia login, 5 palpites, login de novo, mais 5, indefinidamente. O
+# único freio restante era o limite por IP, que não vale nada com IPs rotativos — ou com um
+# único /64 de IPv6, onde "por IP" não significa nada.
+#
+# Este contador vive fora do ciclo de vida do token: 10 erros acumulados em 1h trancam a conta
+# por 30 min. Isso põe o teto em algumas centenas de palpites por dia contra um espaço de 10^6,
+# e só quem já passou pela senha consegue somar falhas aqui — não dá para trancar a conta de um
+# responsável sem tê-la.
+PAIS_2FA_CONTA = ('pais_2fa_conta', 10, 60, 30)
 
 # Fluxos sem senha para errar: recuperação e autocadastro. Aqui não existe "tentativa falha" —
 # cada request já dispara um e-mail e, no autocadastro, uma consulta ao banco da escola. Então o
