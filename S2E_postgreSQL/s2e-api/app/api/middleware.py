@@ -65,7 +65,7 @@ def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            return redirect('/')
+            return redirect('/colaboradores')
         # LGPD Art. 46 (💻 App obligation) — block vigia from non-operational routes
         if session.get('role') == 'vigia' and f.__name__ in _VIGIA_BLOCKED_ENDPOINTS:
             return "Acesso negado: porteiros só podem acessar a lista de saídas.", 403
@@ -77,7 +77,7 @@ def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
-            return redirect('/')
+            return redirect('/colaboradores')
         if session.get('role') != 'admin':
             return "Acesso negado", 403
         return f(*args, **kwargs)

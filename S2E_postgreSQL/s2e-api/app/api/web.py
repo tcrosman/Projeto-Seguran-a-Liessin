@@ -269,7 +269,15 @@ def register_routes(app):
         return jsonify(corpo), (200 if corpo['status'] == 'ok' else 503)
 
     # ==================== AUTENTICAÇÃO ====================
-    @app.route("/", methods=["GET", "POST"])
+    @app.get("/")
+    def portal_principal():
+        """A entrada pública prioriza quem mais usa o sistema: pais e responsáveis."""
+        return redirect("/pais")
+
+    # O POST em "/" é mantido temporariamente para formulários/favoritos antigos. Novos
+    # acessos de funcionários usam a URL explícita, que evita confundir os dois portais.
+    @app.route("/", methods=["POST"])
+    @app.route("/colaboradores", methods=["GET", "POST"])
     def login():
         ip = request.remote_addr
 
@@ -333,7 +341,7 @@ def register_routes(app):
     def logout():
         log_operacao(session.get('username', 'desconhecido'), "LOGOUT", "", ip=request.remote_addr)
         session.clear()
-        return redirect("/")
+        return redirect("/colaboradores")
     
     @app.route("/esqueci_senha", methods=["GET", "POST"])
     def esqueci_senha():

@@ -197,7 +197,7 @@ def test_sem_sessao_nao_ha_acesso(cliente, escola, rota):
     r = _abrir(cliente, escola, rota)
 
     assert r.status_code == 302
-    assert r.headers['Location'].endswith('/')
+    assert r.headers['Location'].endswith('/colaboradores')
 
 
 def test_ficha_nao_abre_conexao_aninhada(sessao_admin, banco, escola):
