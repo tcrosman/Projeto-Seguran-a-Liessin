@@ -162,3 +162,4 @@ healthcheck falhar.
 
 - [Plano de homologação para diretor e TI](docs/PLANO_HOMOLOGACAO.md)
 - [Arquitetura para múltiplas instituições](docs/ARQUITETURA_MULTIINSTITUICAO.md)
+- [Pacote de revisão de segurança da TI](docs/REVISAO_SEGURANCA_TI.md)
