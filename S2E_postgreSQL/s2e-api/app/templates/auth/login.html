@@ -29,20 +29,27 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label class="form-label">Usuário</label>
-        <input class="form-input" name="u" placeholder="Digite seu usuário" required autocomplete="username">
+        <input class="form-input" name="u" placeholder="Digite seu usuário" required autofocus autocomplete="username">
       </div>
       <div class="form-group">
         <label class="form-label">Senha</label>
         <input class="form-input" name="s" type="password" placeholder="Digite sua senha" required autocomplete="current-password">
         <a href="/esqueci_senha" class="login-forgot">Esqueci minha senha</a>
       </div>
-      <button class="btn btn-primary btn-full" type="submit">Entrar</button>
+      <button class="btn btn-primary btn-full" type="submit" id="btn-entrar">Entrar</button>
     </form>
 
-    <hr style="border:none; border-top:1px solid #f3f4f6; margin:24px 0 20px;">
-    <div style="text-align:center;">
-      <p style="font-size:13px; color:#6b7280; margin-bottom:10px;">É pai ou responsável de um aluno?</p>
-      <a href="/pais" class="btn btn-secondary btn-full" style="display:block;">
+    <script>
+      document.querySelector('form').addEventListener('submit', function() {
+        const btn = document.getElementById('btn-entrar');
+        btn.disabled = true;
+        btn.textContent = 'Entrando...';
+      });
+    </script>
+
+    <div class="login-portal-switch">
+      <p>É pai ou responsável de um aluno?</p>
+      <a href="/pais" class="btn btn-outline btn-full" style="display:flex;">
         Acessar Portal dos Responsáveis
       </a>
     </div>

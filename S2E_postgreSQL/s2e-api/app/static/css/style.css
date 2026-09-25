@@ -6,6 +6,11 @@ body {
   color: #111827;
 }
 
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.45);
+  outline-offset: 2px;
+}
+
 /* ── Layout ── */
 .layout { display: flex; min-height: 100vh; }
 
@@ -270,6 +275,7 @@ body {
   border: 1.5px solid #d1d5db;
 }
 .btn-outline:hover { background: #f9fafb; }
+.btn:disabled { cursor: wait; opacity: 0.65; }
 
 .btn-full { width: 100%; }
 
@@ -668,6 +674,19 @@ body {
   box-shadow: 0 4px 20px rgba(0,0,0,0.1);
 }
 
+.login-portal-switch {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #f3f4f6;
+  text-align: center;
+}
+
+.login-portal-switch p {
+  margin-bottom: 10px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
 .login-logo {
   display: flex;
   align-items: center;
@@ -988,4 +1007,15 @@ body {
 @media (max-width: 400px) {
   .home-grid { grid-template-columns: 1fr; }
   .horarios-grid { grid-template-columns: repeat(2, 1fr); }
+  .login-wrap { padding: 12px; }
+  .login-card { border-radius: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
