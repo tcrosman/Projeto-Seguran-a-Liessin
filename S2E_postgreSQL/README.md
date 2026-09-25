@@ -42,7 +42,7 @@ S2E_postgreSQL/
     ├── setup_db.py        cria o schema e o primeiro administrador
     ├── .env.example       todas as variáveis, comentadas
     ├── deploy/            infraestrutura de produção — ver DEPLOY.md
-    ├── tests/             256 testes, sem precisar de banco real
+    ├── tests/             mais de 400 testes, sem precisar de banco real
     └── app/
         ├── api/           web.py (equipe), pais.py (portal), middleware.py (RBAC)
         ├── core/          banco, migrações, e-mail, rate limit, senhas, auditoria
@@ -157,3 +157,8 @@ zero, operação, backup, restauração e diagnóstico.
 Resumo: nginx com TLS na frente, gunicorn em `127.0.0.1:8002` sob systemd, PostgreSQL
 local. Um comando (`deploy/deploy.sh`) para atualizar, com reversão automática se o
 healthcheck falhar.
+
+## Homologação e expansão
+
+- [Plano de homologação para diretor e TI](docs/PLANO_HOMOLOGACAO.md)
+- [Arquitetura para múltiplas instituições](docs/ARQUITETURA_MULTIINSTITUICAO.md)
