@@ -23,6 +23,18 @@ def create_app():
     from app.config import Config
     app.config.from_object(Config)
 
+    # Disponibiliza a identidade da instalação em todos os templates. O dicionário é
+    # pequeno e contém somente configuração pública; credenciais nunca entram no contexto.
+    @app.context_processor
+    def inject_installation_identity():
+        return {
+            'app_name': app.config['APP_NAME'],
+            'institution_id': app.config['INSTITUTION_ID'],
+            'institution_name': app.config['INSTITUTION_NAME'],
+            'institution_short_name': app.config['INSTITUTION_SHORT_NAME'],
+            'institution_support_email': app.config['INSTITUTION_SUPPORT_EMAIL'],
+        }
+
     # Atrás do proxy do Render, request.remote_addr é o IP do proxy, igual para todos os
     # visitantes — o que tornava o rate limit por IP ou inócuo ou capaz de trancar todo mundo de
     # uma vez. Com ProxyFix, remote_addr passa a ser o IP real, lido de X-Forwarded-For.

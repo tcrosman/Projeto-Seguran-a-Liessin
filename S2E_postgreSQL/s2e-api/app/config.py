@@ -5,6 +5,17 @@ load_dotenv()
 
 class Config:
     """Configurações centralizadas da aplicação"""
+
+    # Identidade da instalação. Uma escola nova deve trocar estes valores no .env, sem
+    # criar uma cópia divergente do código. INSTITUTION_ID é interno e estável; não use
+    # nome, CNPJ ou outro dado pessoal nele.
+    APP_NAME = os.getenv('APP_NAME', 'SecureEdu').strip() or 'SecureEdu'
+    INSTITUTION_ID = os.getenv('INSTITUTION_ID', 'secureedu-demo').strip() or 'secureedu-demo'
+    INSTITUTION_NAME = os.getenv('INSTITUTION_NAME', 'Escola').strip() or 'Escola'
+    INSTITUTION_SHORT_NAME = (
+        os.getenv('INSTITUTION_SHORT_NAME', INSTITUTION_NAME).strip() or INSTITUTION_NAME
+    )
+    INSTITUTION_SUPPORT_EMAIL = os.getenv('INSTITUTION_SUPPORT_EMAIL', '').strip()
     
     # Flask
     SECRET_KEY = os.getenv('SECRET_KEY', 'troque-esta-chave-em-producao')
@@ -20,7 +31,7 @@ class Config:
     SMTP_USER = os.getenv('SMTP_USER', '')
     SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
     SMTP_FROM = os.getenv('SMTP_FROM', SMTP_USER)
-    SMTP_FROM_NAME = os.getenv('SMTP_FROM_NAME', 'SecureEdu')
+    SMTP_FROM_NAME = os.getenv('SMTP_FROM_NAME', APP_NAME)
     SMTP_REPLY_TO = os.getenv('SMTP_REPLY_TO', '')
     
     # Sistema
