@@ -91,6 +91,18 @@ def test_producao_continua_subindo_por_gunicorn():
     assert 'gunicorn' in _ler('render.yaml')
 
 
+def test_tokens_de_reset_nao_entram_nos_access_logs():
+    gunicorn = _ler('deploy', 'gunicorn.conf.py')
+    nginx = _ler('deploy', 'nginx-secureedu.conf')
+
+    assert 'accesslog = None' in gunicorn
+
+    inicio = nginx.index('location ~ ^/(esqueci_senha|resetar_senha/')
+    fim = nginx.index('\n    }', inicio)
+    bloco_sensivel = nginx[inicio:fim]
+    assert 'access_log off;' in bloco_sensivel
+
+
 def test_config_do_flask_recebe_base_url_do_ambiente(monkeypatch):
     """Os links de reset consultam app.config, não os.getenv diretamente."""
     monkeypatch.setenv('BASE_URL', 'https://secureedu.escola.br')

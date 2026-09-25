@@ -48,16 +48,13 @@ keepalive = 75
 max_requests = 1000
 max_requests_jitter = 100
 
-# Log no stdout/stderr para o journald recolher (journalctl -u secureedu).
-# O log de auditoria da aplicação é outro e continua indo para logs/system.log e para
-# a tabela `auditoria` — ver app/core/audit_logger.py.
-accesslog = '-'
+# O nginx mantém o access log das rotas comuns. Não duplique o log de acesso no
+# gunicorn: URLs de redefinição carregam um token de uso único no caminho e acabariam
+# registradas no journald. O log de auditoria da aplicação continua em
+# logs/system.log e na tabela `auditoria` — ver app/core/audit_logger.py.
+accesslog = None
 errorlog = '-'
 loglevel = os.getenv('GUNICORN_LOG_LEVEL', 'info')
-
-# %({x-forwarded-for}i)s no lugar de %(h)s: com o nginx à frente, %(h)s seria sempre
-# 127.0.0.1 e o log de acesso não serviria para nada.
-access_log_format = '%({x-forwarded-for}i)s "%(r)s" %(s)s %(b)s %(M)sms "%(a)s"'
 
 # Nome que aparece em `ps` e no journald, em vez de "gunicorn: master".
 proc_name = 'secureedu'

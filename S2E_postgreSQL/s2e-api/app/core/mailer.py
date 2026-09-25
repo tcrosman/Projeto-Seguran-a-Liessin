@@ -2,6 +2,7 @@ import smtplib
 from concurrent.futures import ThreadPoolExecutor
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -33,6 +34,9 @@ def enviar_email(destinatario, assunto, corpo_html):
     smtp_port = int(os.getenv('SMTP_PORT', 465))
     smtp_user = os.getenv('SMTP_USER', '')
     smtp_password = os.getenv('SMTP_PASSWORD', '')
+    smtp_from = os.getenv('SMTP_FROM', smtp_user).strip()
+    smtp_from_name = os.getenv('SMTP_FROM_NAME', 'SecureEdu').strip()
+    smtp_reply_to = os.getenv('SMTP_REPLY_TO', '').strip()
 
     if smtp_user in _PLACEHOLDERS or smtp_password in _PLACEHOLDERS:
         _log.warning("[MAILER] ERRO: Credenciais SMTP não configuradas no .env "
@@ -42,7 +46,13 @@ def enviar_email(destinatario, assunto, corpo_html):
     try:
         msg = MIMEMultipart('alternative')
         msg['Subject'] = assunto
-        msg['From'] = smtp_user
+        # O identificador de login do provedor não precisa ser um endereço de e-mail. No
+        # ZeptoMail/Zoho CPaaS, por exemplo, ele pode ser "emailapikey". Separar autenticação
+        # e remetente evita publicar esse identificador no cabeçalho From e permite usar uma
+        # caixa humana distinta para respostas.
+        msg['From'] = formataddr((smtp_from_name, smtp_from)) if smtp_from_name else smtp_from
+        if smtp_reply_to:
+            msg['Reply-To'] = smtp_reply_to
         msg['To'] = destinatario
         msg.attach(MIMEText(corpo_html, 'html', 'utf-8'))
 

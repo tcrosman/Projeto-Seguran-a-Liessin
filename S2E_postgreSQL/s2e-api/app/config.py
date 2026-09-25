@@ -19,6 +19,9 @@ class Config:
     SMTP_PORT = int(os.getenv('SMTP_PORT', 465))
     SMTP_USER = os.getenv('SMTP_USER', '')
     SMTP_PASSWORD = os.getenv('SMTP_PASSWORD', '')
+    SMTP_FROM = os.getenv('SMTP_FROM', SMTP_USER)
+    SMTP_FROM_NAME = os.getenv('SMTP_FROM_NAME', 'SecureEdu')
+    SMTP_REPLY_TO = os.getenv('SMTP_REPLY_TO', '')
     
     # Sistema
     BASE_URL = os.getenv('BASE_URL', 'http://localhost:8002')

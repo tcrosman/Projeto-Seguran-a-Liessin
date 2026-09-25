@@ -133,6 +133,17 @@ def register_routes(app):
     def serve_images(filename):
         static_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static')
         return send_from_directory(os.path.join(static_folder, 'images'), filename)
+
+    @app.route('/favicon.ico')
+    def serve_favicon():
+        """Expõe o ícone da aba sem duplicar o arquivo de identidade visual."""
+        static_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static')
+        return send_from_directory(
+            os.path.join(static_folder, 'images'),
+            'logo-dark.png',
+            mimetype='image/png',
+            max_age=604800,
+        )
     
     # ==================== AUTENTICAÇÃO ====================
     @app.route("/", methods=["GET", "POST"])
