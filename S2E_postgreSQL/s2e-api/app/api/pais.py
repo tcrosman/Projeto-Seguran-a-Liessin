@@ -432,7 +432,7 @@ def register_parent_routes(app):
             return redirect("/pais/dashboard")
 
         if request.method == "POST":
-            data_solicitada = request.form.get("data_solicitada", "")
+            data_solicitada = request.form.get("data_solicitada", "").strip()
             horario = request.form.get("horario", "").strip()
             motivo = request.form.get("motivo", "").strip()
             tipo_saida = request.form.get("tipo_saida", "").strip()
@@ -548,7 +548,7 @@ def register_parent_routes(app):
         today = hoje()
 
         if request.method == "POST":
-            data_solicitada = request.form.get("data_solicitada", "")
+            data_solicitada = request.form.get("data_solicitada", "").strip()
             horario = request.form.get("horario", "").strip()
             motivo = request.form.get("motivo", "").strip()
             tipo_saida = request.form.get("tipo_saida", "").strip()

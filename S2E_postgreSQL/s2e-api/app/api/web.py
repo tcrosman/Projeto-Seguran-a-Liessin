@@ -622,16 +622,19 @@ def register_routes(app):
     @app.route("/registrar_saida", methods=["GET", "POST"])
     @login_required
     def registrar_saida():
-        ra_pre_selecionado = request.args.get("ra")
+        ra_pre_selecionado = request.args.get("ra", "").strip() or None
 
         if request.method == "POST":
             ra = request.form.get("ra", "").strip()
             data_saida = request.form.get("data_saida", "").strip() or hoje()
             horario = request.form.get("horario", "").strip()
-            motivo = request.form.get("motivo")
-            responsavel_escola = request.form.get("responsavel_escola")
-            tipo_saida = request.form.get("tipo_saida")
-            acompanhante = request.form.get("acompanhante") if tipo_saida == 'acompanhado' else None
+            motivo = request.form.get("motivo", "").strip()
+            responsavel_escola = request.form.get("responsavel_escola", "").strip()
+            tipo_saida = request.form.get("tipo_saida", "").strip()
+            acompanhante = (
+                request.form.get("acompanhante", "").strip()
+                if tipo_saida == 'acompanhado' else None
+            )
 
             if not ra or not horario or not motivo or not responsavel_escola or not tipo_saida:
                 flash("Todos os campos são obrigatórios, incluindo a seleção do aluno na busca!", "error")
@@ -812,8 +815,11 @@ def register_routes(app):
             # mão, nem para um envio com o JavaScript desligado.
             motivo = (request.form.get("motivo") or "").strip()
             responsavel_escola = (request.form.get("responsavel_escola") or "").strip()
-            tipo_saida = request.form.get("tipo_saida")
-            acompanhante = request.form.get("acompanhante") if tipo_saida == 'acompanhado' else None
+            tipo_saida = request.form.get("tipo_saida", "").strip()
+            acompanhante = (
+                request.form.get("acompanhante", "").strip()
+                if tipo_saida == 'acompanhado' else None
+            )
 
             if not horario or not motivo or not responsavel_escola or not tipo_saida:
                 flash("Todos os campos são obrigatórios.", "error")
