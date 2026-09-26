@@ -347,6 +347,7 @@
         <ul>
           <li><a href="#login">Login</a></li>
           <li><a href="#menu">Menu Principal</a></li>
+          <li><a href="#alunos">Alunos</a></li>
           <li><a href="#registrar">Registrar Saída</a></li>
           <li><a href="#saidas">Saídas</a></li>
           <li><a href="#historico">Histórico de Saídas</a></li>
@@ -369,7 +370,7 @@
             <div class="mockup-dot red"></div>
             <div class="mockup-dot yellow"></div>
             <div class="mockup-dot green"></div>
-            <div class="mockup-url">secureedu / login</div>
+            <div class="mockup-url">secureedu / colaboradores</div>
           </div>
           <div class="mockup-body">
             <div class="login-mockup">
@@ -384,14 +385,19 @@
           </div>
         </div>
         <ol class="steps">
-          <li><span>Abra o sistema no navegador. A tela de login será exibida automaticamente.</span></li>
+          <li><span>Abra o endereço do sistema no navegador. Você cai no <strong>Portal dos Responsáveis</strong> — essa é a entrada padrão, porque quem mais usa o sistema são os pais.</span></li>
+          <li><span>Clique em <strong>Acessar Portal dos Colaboradores</strong>, no rodapé da tela. Você também pode ir direto pelo endereço terminado em <strong>/colaboradores</strong> e salvá-lo nos favoritos.</span></li>
           <li><span>No campo <strong>Usuário</strong>, digite o nome de usuário que foi criado para você.</span></li>
           <li><span>No campo <strong>Senha</strong>, digite sua senha.</span></li>
           <li><span>Clique no botão <strong>Entrar</strong>. Você será redirecionado ao Menu Principal.</span></li>
         </ol>
+        <div class="warn-box">
+          <strong>São dois portais diferentes</strong>
+          O Portal dos Responsáveis (pais) e o Portal dos Colaboradores (funcionários da escola) são telas separadas, com contas separadas. Seu usuário de funcionário não entra no portal dos pais, e a conta de um responsável não entra aqui.
+        </div>
         <div class="tip-box">
           <strong>Esqueceu a senha?</strong>
-          Clique em "Esqueceu a senha?" na tela de login. Informe o e-mail cadastrado e você receberá um link para criar uma nova senha.
+          Clique em "Esqueceu a senha?" na tela de login dos colaboradores. Informe o e-mail cadastrado e você receberá um link para criar uma nova senha.
         </div>
       </div>
 
@@ -415,8 +421,10 @@
               <div class="mockup-sidebar">
                 <div class="mockup-sidebar-logo"><span>SecureEdu</span></div>
                 <div class="mockup-nav-item active">Menu Principal</div>
+                <div class="mockup-nav-item">Alunos</div>
                 <div class="mockup-nav-item">Registrar Saída</div>
                 <div class="mockup-nav-item">Saídas</div>
+                <div class="mockup-nav-item">Solicitações dos Pais</div>
                 <div class="mockup-nav-item">Configurações</div>
                 <div class="mockup-nav-item">Manual</div>
               </div>
@@ -427,6 +435,11 @@
                     <div class="icon">📋</div>
                     <div class="title">REGISTRAR SAÍDA</div>
                     <div class="sub">Buscar aluno por nome ou RA</div>
+                  </div>
+                  <div class="home-mockup-card green">
+                    <div class="icon">🎓</div>
+                    <div class="title">ALUNOS</div>
+                    <div class="sub">Histórico de saídas por aluno</div>
                   </div>
                   <div class="home-mockup-card yellow">
                     <div class="icon">✅</div>
@@ -448,9 +461,29 @@
         </p>
       </div>
 
-      <div class="manual-section" id="registrar">
+      <div class="manual-section" id="alunos">
         <div class="section-header">
           <div class="section-number">3</div>
+          <div>
+            <div class="section-title">Alunos</div>
+            <div class="section-sub">Consultar a ficha e o histórico de um aluno</div>
+          </div>
+        </div>
+        <ol class="steps">
+          <li><span>No menu lateral, clique em <strong>Alunos</strong> (ou no card <strong>ALUNOS</strong> do Menu Principal).</span></li>
+          <li><span>Os alunos vêm do cadastro da escola. Use a <strong>busca por nome ou RA</strong>, ou os filtros de <strong>Série</strong> e <strong>Turma</strong>, para encontrar quem você procura.</span></li>
+          <li><span>Clique no aluno para abrir a ficha dele: nome, RA, série, turma e foto.</span></li>
+          <li><span>Abaixo da ficha fica o <strong>Histórico de saídas</strong> daquele aluno, com data, horário, motivo, tipo de saída, responsável da escola, status e o documento anexado, quando houver.</span></li>
+        </ol>
+        <div class="tip-box">
+          <strong>Os alunos não são cadastrados aqui</strong>
+          O SecureEdu não tem cadastro próprio de alunos: ele consulta o sistema da escola a cada acesso. Isso significa que matrículas, transferências e trocas de turma aparecem sozinhas, sem ninguém precisar digitar nada — e também que não há como criar ou apagar um aluno por aqui.
+        </div>
+      </div>
+
+      <div class="manual-section" id="registrar">
+        <div class="section-header">
+          <div class="section-number">4</div>
           <div>
             <div class="section-title">Registrar Saída</div>
             <div class="section-sub">Buscar o aluno e registrar a saída do dia</div>
@@ -465,15 +498,11 @@
           <strong>Formulário de Registro de Saída</strong>
           Ao clicar em <b>Registrar Saída</b>, preencha: <b>Data</b>, <b>Horário</b>, <b>Motivo</b> (ex: consulta médica) e <b>Responsável da escola</b> (funcionário que autorizou a saída). Em seguida, selecione o <b>Tipo de Saída</b>: se for <b>acompanhado</b>, um campo aparecerá para informar o nome do acompanhante. Opcionalmente, você pode anexar um <b>documento do responsável</b> pela retirada (RG, CNH, etc.).
         </div>
-        <div class="warn-box">
-          <strong>Remover aluno</strong>
-          Como administrador, você verá um ícone de <b>lixeira</b> ao lado de cada aluno. A remoção só é permitida se o aluno não tiver saídas pendentes. A ação é irreversível — o sistema pedirá confirmação antes de excluir.
-        </div>
       </div>
 
       <div class="manual-section" id="saidas">
         <div class="section-header">
-          <div class="section-number">4</div>
+          <div class="section-number">5</div>
           <div>
             <div class="section-title">Saídas</div>
             <div class="section-sub">Visualizar e autorizar saídas do dia</div>
@@ -482,11 +511,15 @@
         <ol class="steps">
           <li><span>No menu lateral, clique em <strong>Saídas</strong>.</span></li>
           <li><span>Por padrão, o sistema mostra as saídas do <strong>dia atual</strong>. Use o campo de data para consultar outros dias.</span></li>
-          <li><span>A seção <strong>Saídas Pendentes</strong> exibe um card por aluno com foto, horário, motivo e responsável.</span></li>
-          <li><span>Quando o aluno estiver pronto para sair, clique em <strong>Autorizar Saída</strong>.</span></li>
+          <li><span>A seção <strong>Pendentes</strong> exibe um card por aluno com foto, horário, motivo e responsável.</span></li>
+          <li><span>Quando o aluno estiver pronto para sair, clique em <strong>LIBERAR SAÍDA</strong>.</span></li>
           <li><span>A saída passa para a seção <strong>Concluídas</strong>.</span></li>
-          <li><span>Para corrigir dados de uma saída ainda pendente, clique em <strong>Editar</strong> ao lado do botão de autorização.</span></li>
+          <li><span>Para corrigir dados de uma saída ainda pendente, clique em <strong>Editar</strong>, ao lado do botão de liberação.</span></li>
         </ol>
+        <div class="warn-box">
+          <strong>A liberação só vale no dia da saída</strong>
+          Se você consultar outro dia, o botão <strong>LIBERAR SAÍDA</strong> não aparece — no lugar dele o sistema mostra em que data aquela saída poderá ser liberada. Isso evita dar baixa numa saída que ainda não chegou, ou que já passou.
+        </div>
         <div class="tip-box">
           <strong>Histórico de 30 dias</strong>
           O sistema mantém o registro das saídas por 30 dias. Saídas com mais de 30 dias são removidas automaticamente.
@@ -495,7 +528,7 @@
 
       <div class="manual-section" id="historico">
         <div class="section-header">
-          <div class="section-number">5</div>
+          <div class="section-number">6</div>
           <div>
             <div class="section-title">Histórico de Saídas</div>
             <div class="section-sub">Consultar saídas já registradas</div>
@@ -504,23 +537,23 @@
         <ol class="steps">
           <li><span>Na tela de <strong>Saídas</strong>, use o campo de <strong>data</strong> para consultar as saídas de qualquer dia.</span></li>
           <li><span>Use o campo de <strong>busca por nome</strong> para filtrar as saídas daquele dia.</span></li>
+          <li><span>Para ver todas as saídas de um aluno específico, ao longo do tempo, use a tela <strong>Alunos</strong> (seção 3) e abra a ficha dele.</span></li>
         </ol>
       </div>
 
       <div class="manual-section" id="configuracoes">
         <div class="section-header">
-          <div class="section-number">6</div>
+          <div class="section-number">7</div>
           <div>
             <div class="section-title">Configurações</div>
-            <div class="section-sub">Horários padrão, usuários e backup</div>
+            <div class="section-sub">Usuários, responsáveis e backup</div>
           </div>
         </div>
         <div class="admin-section">
           <span class="admin-badge">Apenas administradores</span>
           <p style="margin-bottom: 12px;"><strong>👤 Usuários:</strong> Cria e gerencia os acessos dos funcionários ao sistema.</p>
-          <p style="margin-bottom: 12px;"><strong>🕐 Horários Padrão:</strong> Define automaticamente o horário de saída ao cadastrar um novo aluno.</p>
           <p style="margin-bottom: 12px;"><strong>👨‍👩‍👧 Responsáveis:</strong> Aprova, bloqueia e busca contas de pais e responsáveis. Veja a seção 8 para detalhes.</p>
-          <p style="margin-bottom: 12px;"><strong>💾 Backup:</strong> Salva uma cópia completa do banco de dados.</p>
+          <p style="margin-bottom: 12px;"><strong>💾 Backup:</strong> O banco é copiado automaticamente pelo servidor, várias vezes ao dia, sem nenhuma ação sua. Para restaurar uma cópia ou exportar os dados, fale com o responsável técnico pelo servidor.</p>
           <div class="warn-box">
             <strong>Atenção</strong>
             Você não pode excluir a própria conta. O sistema impede que o último administrador seja removido.
@@ -530,7 +563,7 @@
 
       <div class="manual-section" id="responsaveis">
         <div class="section-header">
-          <div class="section-number">7</div>
+          <div class="section-number">8</div>
           <div>
             <div class="section-title">Aprovar Responsáveis</div>
             <div class="section-sub">Gerenciar contas dos pais no portal</div>
@@ -561,7 +594,7 @@
 
       <div class="manual-section" id="solicitacoes">
         <div class="section-header">
-          <div class="section-number">8</div>
+          <div class="section-number">9</div>
           <div>
             <div class="section-title">Solicitações dos Pais</div>
             <div class="section-sub">Revisar pedidos de saída antecipada enviados pelo portal</div>
