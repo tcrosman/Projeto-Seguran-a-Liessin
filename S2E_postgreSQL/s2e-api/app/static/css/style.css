@@ -355,6 +355,25 @@ body {
 
 .search-input::placeholder { color: #9ca3af; }
 
+/* Barra de filtro (busca + data + botão) usada em /saidas. Em telas largas os três ficam
+   numa linha só; em telas estreitas, cada um vira bloco cheio e empilhado — de propósito,
+   não por acaso. Depender só de flex-wrap aqui quebrava de formas diferentes em cada
+   navegador: o <input type="date"> nativo do Safari/iOS renderiza bem mais largo que no
+   Chrome, e o botão "Filtrar" acabava sobrando sozinho numa terceira linha, torto. */
+.filtro-saidas-form {
+  display: flex;
+  gap: 10px;
+  align-items: stretch;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .filtro-saidas-form { flex-direction: column; }
+  .filtro-saidas-form input[type="date"],
+  .filtro-saidas-form .btn { width: 100%; }
+}
+
 .search-empty {
   background: #f9fafb;
   border-radius: 10px;
