@@ -1,6 +1,6 @@
 """Hora local da escola e hora UTC, separadas de propósito.
 
-O servidor roda em UTC (é o padrão do Render) e o Postgres do Supabase também. Mas pais,
+O servidor roda em UTC (padrão da instalação Linux) e o Postgres também. Mas pais,
 portaria e secretaria digitam e leem horários no relógio de Brasília. Usar `datetime.now()` para
 tudo misturava as duas referências e produzia dois defeitos reais:
 

@@ -14,8 +14,9 @@ load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / '.env')
 
 _log = obter()
 
-# Pool de conexões. Antes, cada `with get_db()` abria TCP + TLS + autenticação contra o pooler do
-# Supabase, e várias rotas abrem 2-4 blocos por request — o handshake dominava a latência.
+# Pool de conexões. Sem ele, cada `with get_db()` abre TCP + TLS + autenticação do zero, e várias
+# rotas abrem 2-4 blocos por request — o handshake dominava a latência. Isso pesava mais quando o
+# banco era remoto; com o Postgres no próprio servidor o custo caiu, mas continua valendo a pena.
 #
 # Criado sob demanda (nunca no import): o gunicorn faz fork dos workers, e um pool criado antes do
 # fork teria seus sockets compartilhados entre processos. Como a primeira chamada acontece dentro
@@ -49,8 +50,10 @@ def _get_pool():
                     user=p.username,
                     password=p.password,
                     sslmode='require',
-                    # Sem keepalives, o Supabase derruba a conexão ociosa e o pool só descobre
-                    # na próxima query, já dentro de uma request.
+                    # Herdado de quando o banco era remoto: um pooler/firewall no caminho derruba
+                    # a conexão ociosa e o pool só descobre na próxima query, já dentro de uma
+                    # request. Com o Postgres local isso não acontece, mas manter custa nada e
+                    # protege de novo se o banco voltar a ficar em outra máquina.
                     keepalives=1,
                     keepalives_idle=30,
                     keepalives_interval=10,
@@ -155,8 +158,8 @@ def aplicar_migracoes():
     ao mesmo tempo. No PostgreSQL isso não é seguro nem com IF NOT EXISTS: dois CREATE TABLE IF
     NOT EXISTS concorrentes dão "duplicate key value violates unique constraint
     pg_type_typname_nsp_index", e dois ALTER TABLE na mesma tabela deadlockam. A exceção matava o
-    worker, o Render reiniciava, e o ciclo se repetia — no cold start do primeiro acesso do dia,
-    ou num deploy às 14h50.
+    worker, o gunicorn subia outro no lugar, e o ciclo se repetia — no cold start do primeiro
+    acesso do dia, ou num deploy às 14h50.
 
     Lock de TRANSAÇÃO, e não de sessão, pela mesma razão documentada em maintenance.py: o
     Postgres o solta sozinho no commit e no rollback, então um erro no meio não deixa o lock
@@ -340,11 +343,15 @@ def migrate_database(conn=None):
         )
 
         # Documentos anexados às saídas (atestados, autorizações). Ficam no banco, e não em
-        # arquivo, porque o disco da hospedagem é efêmero: no plano free do Render tudo em
-        # storage/ some a cada deploy, enquanto saidas.documento_path continuava apontando para
-        # os arquivos — o link da portaria virava 404 justamente quando alguém ia conferir a
-        # justificativa de uma saída antiga. Aqui o anexo dura exatamente o que dura o registro
-        # que o referencia.
+        # arquivo. A origem da decisão foi uma hospedagem de disco efêmero, onde tudo em storage/
+        # sumia a cada deploy enquanto saidas.documento_path seguia apontando para os arquivos —
+        # o link da portaria virava 404 justamente quando alguém ia conferir a justificativa de
+        # uma saída antiga.
+        #
+        # O disco do servidor atual é persistente, mas a decisão continua valendo, por outro
+        # motivo: no banco o anexo entra automaticamente na cópia de backup (deploy/backup.sh) e
+        # dura exatamente o que dura o registro que o referencia. Movê-lo de volta para disco
+        # deixaria os anexos de fora do backup sem ninguém perceber.
         #
         # Tabela separada de propósito: `SELECT s.*` em `saidas` é usado em várias rotas e
         # traria o binário inteiro para a memória sem necessidade.
@@ -363,9 +370,10 @@ def migrate_database(conn=None):
         """)
 
         # Trilha de auditoria (ver app/core/audit_logger.py). Fica no banco, e não só no arquivo
-        # rotacionado, porque em disco efêmero (Render) `logs/system.log` some a cada deploy — e o
-        # registro de quem aprovou a saída de um aluno precisa sobreviver a isso e à remoção da
-        # própria solicitação pela manutenção.
+        # rotacionado: o registro de quem aprovou a saída de um aluno precisa sobreviver à
+        # rotação do log, à remoção da própria solicitação pela manutenção e a uma eventual
+        # perda do disco. No banco ele ainda entra nas cópias de backup; em `logs/system.log`,
+        # não.
         conn.execute("""
             CREATE TABLE IF NOT EXISTS auditoria (
                 id        SERIAL PRIMARY KEY,
@@ -479,7 +487,7 @@ def expirar_saidas_nao_liberadas(conn):
     pela segurança. Devolve quantas linhas mudaram.
 
     A data de corte vem do fuso da escola, não do CURRENT_DATE do banco: `data_saida` guarda a
-    data que o usuário escolheu no relógio de Brasília, e o Postgres do Supabase está em UTC —
+    data que o usuário escolheu no relógio de Brasília, e o Postgres do servidor está em UTC —
     entre 21h e meia-noite as duas divergem em um dia.
 
     Chamada pela manutenção periódica (app/core/maintenance.py). Não deve voltar para as rotas de

@@ -19,7 +19,7 @@ def create_app():
 
     # Centraliza no Flask as configurações lidas do ambiente. As rotas de recuperação de
     # senha consultam app.config['BASE_URL']; sem carregar Config, elas ignoravam a BASE_URL do
-    # Render e enviavam links apontando para http://localhost:8002.
+    # ambiente e enviavam links apontando para http://localhost:8002.
     from app.config import Config
     app.config.from_object(Config)
 
@@ -35,23 +35,27 @@ def create_app():
             'institution_support_email': app.config['INSTITUTION_SUPPORT_EMAIL'],
         }
 
-    # Atrás do proxy do Render, request.remote_addr é o IP do proxy, igual para todos os
-    # visitantes — o que tornava o rate limit por IP ou inócuo ou capaz de trancar todo mundo de
-    # uma vez. Com ProxyFix, remote_addr passa a ser o IP real, lido de X-Forwarded-For.
-    # x_for=1: confia em exatamente um proxy à frente (o do Render). Aumentar esse número sem ter
-    # os proxies correspondentes deixaria o cliente forjar o próprio IP no cabeçalho.
+    # Atrás de um proxy reverso (hoje o nginx do VPS), request.remote_addr é o IP do proxy, igual
+    # para todos os visitantes — o que tornava o rate limit por IP ou inócuo ou capaz de trancar
+    # todo mundo de uma vez. Com ProxyFix, remote_addr passa a ser o IP real, lido de
+    # X-Forwarded-For.
+    # x_for=1: confia em exatamente UM proxy à frente. Aumentar esse número sem ter os proxies
+    # correspondentes deixaria o cliente forjar o próprio IP no cabeçalho.
     # x_proto=1 é necessário para o Talisman saber que a request chegou por HTTPS e não entrar em
     # loop de redirect. x_host fica de fora de propósito: nada aqui depende de request.host (os
     # links de e-mail vêm de BASE_URL), e confiar em X-Forwarded-Host permitiria envenenar o
     # destino do redirect de HTTPS.
     #
     # O padrão é FALSE, e precisa continuar sendo. ProxyFix sem proxy à frente não corrige nada:
-    # ele passa a acreditar no X-Forwarded-For que o próprio cliente enviou. Num deploy fora do
-    # Render (docker local, VM, servidor da escola), isso significa (a) todo limite por IP caindo
-    # com um cabeçalho diferente a cada requisição — inclusive o que segura a força bruta do 2FA
-    # — e (b) o `ip` gravado na auditoria virando texto escolhido pelo atacante, contaminando a
-    # trilha de quem pediu a saída de uma criança. Ligue só onde o proxy é conhecido: o
-    # render.yaml declara TRUST_PROXY=true porque lá ele existe.
+    # ele passa a acreditar no X-Forwarded-For que o próprio cliente enviou. Num deploy sem proxy
+    # (docker local, VM, servidor da escola), isso significa (a) todo limite por IP caindo com um
+    # cabeçalho diferente a cada requisição — inclusive o que segura a força bruta do 2FA — e
+    # (b) o `ip` gravado na auditoria virando texto escolhido pelo atacante, contaminando a
+    # trilha de quem pediu a saída de uma criança.
+    #
+    # Ligue só onde o proxy é conhecido E o gunicorn não é alcançável direto. No VPS as duas
+    # condições valem: o nginx está à frente e a porta 8002 escuta apenas em 127.0.0.1, fechada
+    # no firewall (ver deploy/DEPLOY.md). Por isso o .env de produção traz TRUST_PROXY=true.
     if os.getenv('TRUST_PROXY', 'false').strip().lower() == 'true':
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 

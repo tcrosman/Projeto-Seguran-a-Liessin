@@ -12,7 +12,8 @@ audit_logger. Três problemas com o que havia antes:
 Dois loggers, com finalidades diferentes:
 
   `s2e`       — operação da aplicação (falhas de e-mail, banco da escola indisponível,
-                manutenção). Vai para stdout, que é onde o Render coleta.
+                manutenção). Vai para stdout, que é de onde o systemd coleta
+                (`journalctl -u secureedu`).
   `s2e.audit` — trilha de auditoria (login, saída registrada/liberada). Vai para
                 `logs/system.log` com rotação, além de stdout.
 

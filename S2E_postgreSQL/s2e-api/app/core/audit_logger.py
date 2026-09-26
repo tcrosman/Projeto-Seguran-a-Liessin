@@ -24,9 +24,11 @@ def _persistir(conn, usuario, acao, detalhes, ip):
 def log_operacao(usuario, acao, detalhes, ip=None, conn=None):
     """Registra uma ação na trilha de auditoria: arquivo rotacionado, stdout e tabela `auditoria`.
 
-    O arquivo sozinho não bastava. Em hospedagem com disco efêmero (Render), `logs/system.log`
-    desaparece a cada deploy ou restart do container — e a trilha de quem autorizou a saída de um
-    menor é justamente o que precisa sobreviver a isso. Por isso a linha também vai para o banco.
+    O arquivo sozinho não basta: `logs/system.log` é rotatado, fica fora das cópias de backup do
+    banco e some junto com o disco se a máquina for perdida — e a trilha de quem autorizou a saída
+    de um menor é justamente o que precisa sobreviver a isso. Por isso a linha também vai para o
+    banco. (A decisão nasceu numa hospedagem de disco efêmero, onde o arquivo sumia a cada deploy;
+    o servidor atual tem disco persistente, mas as outras razões continuam de pé.)
 
     `conn` é obrigatório quando quem chama já está dentro de um `with get_db()`: sem ele, esta
     função pediria uma segunda conexão ao pool enquanto a primeira ainda está retida e, com
