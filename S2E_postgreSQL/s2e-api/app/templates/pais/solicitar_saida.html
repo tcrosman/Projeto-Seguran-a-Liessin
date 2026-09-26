@@ -79,6 +79,9 @@
             <label class="form-label">Horário <span>*</span></label>
             <input class="form-input" type="time" name="horario" id="horario-input" required
                    value="{{ sol.horario_solicitado if sol else '' }}">
+            <small id="aviso-horario-passado" style="display:none; color:#b45309;">
+              O horário anterior já passou. Escolha um novo horário.
+            </small>
           </div>
         </div>
 
@@ -126,17 +129,24 @@
     function atualizarMinHorario() {
       const dataInput = document.getElementById('data-input');
       const horarioInput = document.getElementById('horario-input');
+      const aviso = document.getElementById('aviso-horario-passado');
       if (dataInput.value === TODAY) {
         const agora = new Date();
         const hh = String(agora.getHours()).padStart(2, '0');
         const mm = String(agora.getMinutes()).padStart(2, '0');
         horarioInput.min = hh + ':' + mm;
-        // Limpa valor se já estiver no passado
+        // Limpa valor se já estiver no passado — mas avisa antes de apagar, senão o campo
+        // fica vazio sem explicação (ex: pai reabre para editar o motivo horas depois e
+        // o horário que ele mesmo escolheu simplesmente some da tela).
         if (horarioInput.value && horarioInput.value <= hh + ':' + mm) {
           horarioInput.value = '';
+          aviso.style.display = '';
+        } else {
+          aviso.style.display = 'none';
         }
       } else {
         horarioInput.min = '';
+        aviso.style.display = 'none';
       }
     }
 
