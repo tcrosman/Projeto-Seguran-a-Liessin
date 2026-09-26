@@ -15,7 +15,10 @@ Estado em 25/09/2026: `[x]` concluído na branch de homologação, `[ ]` pendent
 - [x] validar no código uploads, auditoria, migrações concorrentes e rollback operacional;
 - [H] repetir no VPS a restauração e conferir o backup imediatamente anterior ao deploy;
 - [H] verificar HTTPS, cookies, serviços, portas e logs na versão candidata implantada;
-- [ ] marcar a versão candidata com commit/tag imutável após o gate interno.
+- [ ] marcar a versão candidata com commit/tag imutável após o gate interno;
+- [x] confirmar que o conteúdo publicado corresponde ao commit candidato (`c1a60a0`);
+- [x] validar reinicialização completa do VPS e subida automática dos serviços;
+- [ ] instalar o comando restrito de deploy e remover o `sudo` irrestrito do usuário `deploy`.
 
 Critério de saída: testes verdes, backup recente e nenhuma vulnerabilidade crítica conhecida.
 

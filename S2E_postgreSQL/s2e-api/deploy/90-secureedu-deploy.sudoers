@@ -1,0 +1,3 @@
+# O usuario deploy pode disparar apenas o pipeline root-owned abaixo.
+# O argumento continua validado pelo proprio script.
+deploy ALL=(root) NOPASSWD: /usr/local/sbin/secureedu-deploy *

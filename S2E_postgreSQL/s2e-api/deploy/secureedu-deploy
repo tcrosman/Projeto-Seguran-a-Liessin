@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# Publica uma referencia Git explicita usando a topologia do VPS do SecureEdu.
+# Deve ser instalado como /usr/local/sbin/secureedu-deploy, root:root, modo 0755.
+
+set -Eeuo pipefail
+umask 027
+
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "Execute este comando por sudo." >&2
+  exit 1
+fi
+
+if [[ "$#" -ne 1 || ! "$1" =~ ^[A-Za-z0-9._/-]{1,120}$ ]]; then
+  echo "Uso: sudo /usr/local/sbin/secureedu-deploy <tag-ou-branch>" >&2
+  exit 2
+fi
+
+REF="$1"
+REPO=/opt/secureedu-git
+SOURCE="$REPO/S2E_postgreSQL"
+APP_ROOT=/opt/secureedu/S2E_postgreSQL
+APP="$APP_ROOT/s2e-api"
+VENV="$APP/.venv"
+TEST_VENV="$REPO/.test-venv"
+SSH_KEY=/home/deploy/.ssh/github_secureedu
+ROLLBACK_ROOT=/opt/secureedu-rollbacks
+STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
+ROLLBACK="$ROLLBACK_ROOT/$STAMP"
+OLD_COMMIT="$(sudo -u deploy git -C "$REPO" rev-parse HEAD)"
+
+rollback() {
+  status=$?
+  if [[ -d "$ROLLBACK/S2E_postgreSQL" ]]; then
+    echo "Falha na publicacao; restaurando o codigo anterior..." >&2
+    rsync -a --delete \
+      --exclude='.env' --exclude='.venv/' --exclude='logs/' --exclude='storage/' \
+      --exclude='*.db' --exclude='__pycache__/' --exclude='.pytest_cache/' \
+      "$ROLLBACK/S2E_postgreSQL/" "$APP_ROOT/"
+    chown -R secureedu:secureedu "$APP_ROOT"
+    sudo -u secureedu "$VENV/bin/pip" install --quiet -r "$APP/requirements.txt" || true
+    systemctl restart secureedu || true
+  fi
+  echo "Publicacao cancelada (codigo $status)." >&2
+  exit "$status"
+}
+trap rollback ERR
+
+echo "1/8 Backup do banco"
+systemctl start secureedu-backup.service
+systemctl is-failed --quiet secureedu-backup.service && exit 1
+
+echo "2/8 Atualizacao do repositorio"
+sudo -u deploy env GIT_SSH_COMMAND="ssh -i $SSH_KEY -o IdentitiesOnly=yes" \
+  git -C "$REPO" fetch --prune origin
+sudo -u deploy git -C "$REPO" checkout --detach "$REF"
+NEW_COMMIT="$(sudo -u deploy git -C "$REPO" rev-parse HEAD)"
+echo "Versao selecionada: ${NEW_COMMIT:0:12}"
+
+echo "3/8 Testes automatizados"
+sudo -u deploy "$TEST_VENV/bin/pip" install --quiet -r "$SOURCE/s2e-api/requirements.txt"
+sudo -u deploy "$TEST_VENV/bin/python" -m pytest -q "$SOURCE/s2e-api/tests"
+
+echo "4/8 Copia de reversao"
+install -d -m 0750 "$ROLLBACK_ROOT" "$ROLLBACK"
+cp -a "$APP_ROOT" "$ROLLBACK/S2E_postgreSQL"
+printf '%s\n' "$OLD_COMMIT" > "$ROLLBACK/commit-anterior.txt"
+
+echo "5/8 Instalacao do codigo"
+rsync -a --delete --chown=secureedu:secureedu \
+  --exclude='.env' --exclude='.venv/' --exclude='logs/' --exclude='storage/' \
+  --exclude='*.db' --exclude='__pycache__/' --exclude='.pytest_cache/' \
+  "$SOURCE/" "$APP_ROOT/"
+
+echo "6/8 Dependencias e migracoes"
+sudo -u secureedu "$VENV/bin/pip" install --quiet -r "$APP/requirements.txt"
+cd "$APP"
+sudo -u secureedu "$VENV/bin/python" setup_db.py
+
+echo "7/8 Reinicio"
+systemctl restart secureedu
+
+echo "8/8 Healthcheck"
+for attempt in $(seq 1 15); do
+  code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 \
+    -H 'X-Forwarded-Proto: https' http://127.0.0.1:8002/api/v1/health || true)"
+  [[ "$code" == 200 ]] && break
+  sleep 2
+done
+[[ "${code:-}" == 200 ]]
+
+trap - ERR
+printf '%s\n' "$NEW_COMMIT" > /opt/secureedu/DEPLOYED_COMMIT
+chmod 0644 /opt/secureedu/DEPLOYED_COMMIT
+echo "Publicacao concluida: ${NEW_COMMIT:0:12}"
+
