@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ 'Editar Solicitação' if sol else 'Solicitar Saída' }} — SecureEdu</title>
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="{{ estatico('css/style.css') }}">
   <style>
     .tipo-saida-group {
       display: flex;
@@ -36,7 +36,7 @@
 
   <div style="background:#fff; border-bottom:1px solid #e5e7eb; padding:14px 24px; display:flex; align-items:center; justify-content:space-between;">
     <div style="overflow:hidden; width:120px; height:34px;">
-      <img src="/static/images/logo-dark.png" style="width:190px; margin-left:-34px; margin-top:-5px;" alt="SecureEdu">
+      <img src="{{ estatico('images/logo-dark.png') }}" style="width:190px; margin-left:-34px; margin-top:-5px;" alt="SecureEdu">
     </div>
     <a href="{{ voltar_url or '/pais/dashboard' }}" class="btn btn-secondary" style="font-size:13px; padding:6px 14px;">← Voltar</a>
   </div>

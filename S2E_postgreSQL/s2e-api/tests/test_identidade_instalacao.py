@@ -13,9 +13,16 @@ def test_identidade_publica_esta_disponivel_nos_templates(app_teste):
 
 def test_contexto_publico_nao_expoe_credenciais(app_teste):
     with app_teste.test_request_context('/'):
-        contexto = app_teste.template_context_processors[None][1]()
+        # O índice 0 é o do próprio Flask (request, session, g); do 1 em diante são os nossos.
+        # Somados, e não por posição: a checagem vale para qualquer processador que seja
+        # registrado depois, que é justamente o que precisa continuar sob vigilância.
+        contexto = {}
+        for processador in app_teste.template_context_processors[None][1:]:
+            contexto.update(processador())
 
     assert set(contexto) == {
+        'csrf_token',   # do flask_wtf, não nosso — mas passa a ficar sob a mesma vigilância
+        'estatico',
         'app_name',
         'institution_id',
         'institution_name',

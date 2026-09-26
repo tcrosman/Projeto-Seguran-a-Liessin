@@ -23,8 +23,41 @@ def create_app():
     from app.config import Config
     app.config.from_object(Config)
 
+    # Versão nos endereços dos arquivos estáticos (CSS e logos).
+    #
+    # O nginx manda o navegador guardar /static/ por 7 dias (deploy/nginx-secureedu.conf), e o
+    # endereço era sempre o mesmo. Para quem já tinha aberto o site, o navegador nem perguntava
+    # se havia mudado: uma correção de CSS só chegaria quando o prazo vencesse, até uma semana
+    # depois da publicação — e nesse meio-tempo a pessoa via a tela antiga achando que o deploy
+    # não tinha funcionado.
+    #
+    # Com `?v=<data de modificação>`, cada publicação gera um endereço diferente e o navegador
+    # busca de novo na hora. Quem não mudou nada continua aproveitando os 7 dias, que é o
+    # objetivo do cache.
+    #
+    # Lido uma vez por processo, e não a cada render: a publicação reinicia o serviço
+    # (systemctl restart secureedu no deploy/secureedu-deploy), então o valor já nasce novo.
+    pasta_estaticos = os.path.join(os.path.dirname(__file__), 'static')
+    versoes_estaticos = {}
+
+    def estatico(caminho):
+        """Endereço de um arquivo em /static com a versão dele. Ex: estatico('css/style.css')."""
+        if caminho not in versoes_estaticos:
+            try:
+                marca = int(os.path.getmtime(os.path.join(pasta_estaticos, caminho)))
+            except OSError:
+                # Arquivo ausente não pode derrubar a página: serve sem versão, como antes.
+                marca = 0
+            versoes_estaticos[caminho] = marca
+        marca = versoes_estaticos[caminho]
+        return f"/static/{caminho}?v={marca}" if marca else f"/static/{caminho}"
+
     # Disponibiliza a identidade da instalação em todos os templates. O dicionário é
     # pequeno e contém somente configuração pública; credenciais nunca entram no contexto.
+    @app.context_processor
+    def inject_estatico():
+        return {'estatico': estatico}
+
     @app.context_processor
     def inject_installation_identity():
         return {
