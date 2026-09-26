@@ -361,6 +361,14 @@ body {
 
 .search-input::placeholder { color: #9ca3af; }
 
+/* Tabela que vira lista de cartões no celular (ver a regra em @media, mais abaixo).
+   Uma tabela de 4 a 6 colunas não cabe em 390px. Antes o conteúdo excedente era simplesmente
+   cortado pelo `overflow:hidden` do card; pôr rolagem lateral resolveu o "inalcançável", mas
+   criou outro problema: nada na tela indica que é preciso arrastar, então na prática o status
+   continuava invisível — e, na tabela de solicitações aguardando revisão, junto com ele ficavam
+   escondidos os botões Aprovar e Rejeitar, que são a razão de a tela existir.
+   Empilhar em cartões resolve os dois: tudo visível, sem gesto escondido. */
+
 /* Barra de filtro (busca + data + botão) usada em /saidas. Em telas largas os três ficam
    numa linha só; em telas estreitas, cada um vira bloco cheio e empilhado — de propósito,
    não por acaso. Depender só de flex-wrap aqui quebrava de formas diferentes em cada
@@ -1027,6 +1035,46 @@ body {
      empilhava nada — quem precisa virar coluna é o .saida-student em si, que é quem
      coloca avatar+nome e turma/série lado a lado. O divisor (borda esquerda) também
      precisa virar de lado, senão sobra uma linha vertical solta acima do texto. */
+  /* Tabela -> cartões. O !important existe porque a largura mínima e as bordas vêm de `style=`
+     inline nos templates, que de outro modo venceriam a media query. */
+  .tabela-cards { min-width: 0 !important; }
+  .tabela-cards thead { display: none; }
+  .tabela-cards tbody,
+  .tabela-cards tr,
+  .tabela-cards td { display: block; width: 100%; }
+
+  .tabela-cards tr {
+    border: 1px solid #e5e7eb !important;
+    border-radius: 10px;
+    background: #fff;
+    margin-bottom: 10px;
+    padding: 4px 2px;
+  }
+
+  /* Rótulo ACIMA do conteúdo, e não ao lado: várias células trazem duas informações (nome do
+     aluno + série, nome do responsável + e-mail). Lado a lado, o rótulo virava um item flex
+     irmão dessas duas linhas e as espalhava pela largura. Em cima, o conteúdo mantém a
+     estrutura que já tem — e fica igual ao card de saída pendente, que usa o mesmo desenho. */
+  .tabela-cards td {
+    display: block;
+    text-align: left;
+    padding: 7px 14px !important;
+  }
+
+  .tabela-cards td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 1px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #6b7280;
+  }
+
+  /* Célula sem rótulo — a dos botões Aprovar/Rejeitar. */
+  .tabela-cards td:not([data-label])::before { content: none; }
+
   .saida-student { flex-direction: column; align-items: flex-start; gap: 6px; }
   .saida-turma-serie {
     padding-left: 0;

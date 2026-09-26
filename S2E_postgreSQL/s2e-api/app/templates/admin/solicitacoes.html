@@ -53,7 +53,7 @@
         </h2>
         <div class="card" style="padding:0; overflow:hidden; margin-bottom:28px;">
           <div style="overflow-x:auto;">
-          <table style="width:100%; border-collapse:collapse; min-width:640px;">
+          <table class="tabela-cards" style="width:100%; border-collapse:collapse; min-width:640px;">
             <thead>
               <tr style="background:#fffbeb;">
                 <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #fde68a;">Aluno</th>
@@ -67,11 +67,11 @@
             <tbody>
               {% for s in aguardando %}
                 <tr class="linha-sol" data-busca="{{ (s.aluno_nome or '')|lower }} {{ (s.responsavel_nome or '')|lower }}" data-data="{{ s.data_solicitada }}" style="border-bottom:1px solid #f9fafb;">
-                  <td style="padding:12px 16px;">
+                  <td data-label="Aluno" style="padding:12px 16px;">
                     <div style="font-size:14px; font-weight:600; color:#111827;">{{ s.aluno_nome }}</div>
                     <div style="font-size:12px; color:#9ca3af;">{{ s.serie }} — Turma {{ s.turma }}</div>
                   </td>
-                  <td style="padding:12px 16px;">
+                  <td data-label="Responsável" style="padding:12px 16px;">
                     {% if s.responsavel_nome %}
                       <div style="font-size:13px; color:#374151;">{{ s.responsavel_nome }}</div>
                       <div style="font-size:12px; color:#9ca3af;">{{ s.responsavel_email }}</div>
@@ -80,14 +80,14 @@
                       <div style="font-size:12px; color:#9ca3af;">sem e-mail para notificar</div>
                     {% endif %}
                   </td>
-                  <td style="padding:12px 16px; font-size:13px; color:#374151;">
+                  <td data-label="Data" style="padding:12px 16px; font-size:13px; color:#374151;">
                     {{ s.data_solicitada }}
                     {% if s.horario_solicitado %}
                       <div style="font-size:12px; color:#9ca3af;">{{ s.horario_solicitado }}</div>
                     {% endif %}
                   </td>
-                  <td style="padding:12px 16px; font-size:13px; color:#374151;">{{ s.motivo or '—' }}</td>
-                  <td style="padding:12px 16px; font-size:13px; color:#374151;">
+                  <td data-label="Motivo" style="padding:12px 16px; font-size:13px; color:#374151;">{{ s.motivo or '—' }}</td>
+                  <td data-label="Saída" style="padding:12px 16px; font-size:13px; color:#374151;">
                     {% if s.tipo_saida == 'acompanhado' %}
                       <span style="font-weight:600;">👥 Acompanhado</span>
                       {% if s.acompanhante %}<div style="font-size:12px; color:#6b7280;">com {{ s.acompanhante }}</div>{% endif %}
@@ -127,7 +127,7 @@
         </h2>
         <div class="card" style="padding:0; overflow:hidden;">
           <div style="overflow-x:auto;">
-          <table style="width:100%; border-collapse:collapse; min-width:520px;">
+          <table class="tabela-cards" style="width:100%; border-collapse:collapse; min-width:520px;">
             <thead>
               <tr style="background:#f9fafb;">
                 <th style="text-align:left; padding:10px 16px; font-size:12px; color:#6b7280; font-weight:600; text-transform:uppercase; border-bottom:1px solid #e5e7eb;">Aluno</th>
@@ -139,10 +139,10 @@
             <tbody>
               {% for s in historico %}
                 <tr class="linha-sol" data-busca="{{ (s.aluno_nome or '')|lower }} {{ (s.responsavel_nome or '')|lower }}" data-data="{{ s.data_solicitada }}" style="border-bottom:1px solid #f9fafb;">
-                  <td style="padding:12px 16px; font-size:14px; font-weight:600; color:#111827;">{{ s.aluno_nome }}</td>
-                  <td style="padding:12px 16px; font-size:13px; color:#374151;">{{ s.responsavel_nome or '—' }}</td>
-                  <td style="padding:12px 16px; font-size:13px; color:#374151;">{{ s.data_solicitada }}</td>
-                  <td style="padding:12px 16px;">
+                  <td data-label="Aluno" style="padding:12px 16px; font-size:14px; font-weight:600; color:#111827;">{{ s.aluno_nome }}</td>
+                  <td data-label="Responsável" style="padding:12px 16px; font-size:13px; color:#374151;">{{ s.responsavel_nome or '—' }}</td>
+                  <td data-label="Data" style="padding:12px 16px; font-size:13px; color:#374151;">{{ s.data_solicitada }}</td>
+                  <td data-label="Status" style="padding:12px 16px;">
                     {% if s.status == 'aprovado' %}
                       {% if s.saida_status == 'concluida' %}
                         <span class="status-badge badge-aprovado">Saída realizada</span>
