@@ -33,12 +33,12 @@
         {% endfor %}
       {% endwith %}
 
-      <form method="get" style="display:flex; gap:10px; align-items:stretch; margin-bottom:20px; flex-wrap:wrap;">
+      <form method="get" class="filtro-saidas-form">
         <div class="search-wrap" style="flex:1; min-width:200px; margin-bottom:0;">
           <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <input class="search-input" type="text" name="busca" placeholder="Buscar aluno por nome..." value="{{ busca or '' }}" style="height:100%;">
         </div>
-        <input type="date" class="form-input" name="data" value="{{ data_selecionada }}" style="width:auto;">
+        <input type="date" class="form-input" name="data" value="{{ data_selecionada }}">
         <button type="submit" class="btn btn-primary" style="padding:8px 18px;">Filtrar</button>
         {% if busca %}
           <a href="/saidas?data={{ data_selecionada }}" class="btn btn-secondary" style="padding:8px 14px;">Limpar</a>
