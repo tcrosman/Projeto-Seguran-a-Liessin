@@ -85,19 +85,18 @@
   <div class="card">
     <div class="icon">⚠️</div>
     <h1>Banco de dados indisponível</h1>
-    <p>O sistema não conseguiu se conectar ao banco de dados. Isso geralmente ocorre quando o projeto do Supabase está pausado.</p>
+    <p>O sistema não conseguiu se conectar ao banco de dados. Normalmente isso é temporário.</p>
 
+    {# Esta tela aparece para qualquer visitante — inclusive pais. Antes ela mandava todo mundo
+       abrir o painel do Supabase e clicar em "Resume", instrução que deixou de fazer sentido
+       quando o banco passou a rodar no próprio servidor: seguir aquilo não resolvia nada e
+       ainda atrasava o aviso a quem podia agir. #}
     <div class="steps">
-      <strong>Como resolver:</strong><br>
-      1. Acesse <strong>supabase.com/dashboard</strong><br>
-      2. Localize o projeto (estará com badge <em>"Paused"</em>)<br>
-      3. Clique em <strong>Resume</strong> e aguarde ~2 minutos<br>
-      4. Volte e tente novamente
+      <strong>O que fazer:</strong><br>
+      1. Aguarde alguns minutos e clique em <strong>Tentar novamente</strong><br>
+      2. Se o problema continuar, avise a secretaria da escola<br>
+      3. A escola aciona o responsável técnico, que verifica o servidor
     </div>
-
-    <p style="font-size:12px; color:#9ca3af;">
-      O plano gratuito do Supabase pausa projetos automaticamente após ~7 dias sem uso.
-    </p>
 
     <a href="/pais" class="btn">Tentar novamente</a>
   </div>

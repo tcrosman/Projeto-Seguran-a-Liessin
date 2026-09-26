@@ -677,8 +677,9 @@ def register_routes(app):
                     if tem_anexo:
                         anexo_ok, erro_anexo = validar_upload_documento(doc)
                         # Teto próprio, bem abaixo do MAX_CONTENT_LENGTH (16 MB) que vale para a
-                        # request inteira: o anexo agora ocupa espaço no banco, e o plano free do
-                        # Supabase tem 500 MB. Uma foto de atestado cabe folgada em 5 MB.
+                        # request inteira: o anexo é guardado no banco, então cada arquivo entra
+                        # também em toda cópia de backup. Uma foto de atestado cabe folgada em
+                        # 5 MB, e o limite evita que um PDF pesado inche a tabela e os backups.
                         if anexo_ok:
                             doc.seek(0, os.SEEK_END)
                             tamanho = doc.tell()
@@ -972,7 +973,8 @@ def register_routes(app):
     @app.route("/admin/backup")
     @admin_required
     def admin_backup():
-        flash("Backups são gerenciados automaticamente pelo Supabase. Acesse o painel do Supabase para exportar os dados.", "success")
+        flash("O servidor faz cópias automáticas do banco várias vezes ao dia. "
+              "Para restaurar uma cópia ou exportar os dados, fale com o responsável técnico pelo servidor.", "success")
         return redirect("/configuracoes")
     
     @app.route("/novo", methods=["GET", "POST"])

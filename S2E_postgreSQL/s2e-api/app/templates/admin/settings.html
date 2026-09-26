@@ -101,6 +101,19 @@
       border-radius: 20px;
       transition: background 0.15s, color 0.15s;
     }
+    /* Mesmo visual dos cards de ação, mas sem prometer clique: este é só informativo. */
+    .cfg-info-card { cursor: default; }
+    .cfg-info-card:hover {
+      border-color: #e5e7eb;
+      box-shadow: none;
+      transform: none;
+    }
+    .cfg-action-note {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #6b7280;
+      line-height: 1.5;
+    }
     .cfg-alert {
       display: flex;
       align-items: flex-start;
@@ -157,8 +170,8 @@
         </div>
         <div class="cfg-stat">
           <div class="cfg-stat-icon" style="background:#fefce8; color:#ca8a04;">💾</div>
-          <div class="cfg-stat-value" style="font-size:18px;">Supabase</div>
-          <div class="cfg-stat-label">Backups gerenciados</div>
+          <div class="cfg-stat-value" style="font-size:18px;">Automático</div>
+          <div class="cfg-stat-label">Backups do servidor</div>
         </div>
       </div>
 
@@ -179,12 +192,15 @@
           <div class="cfg-action-cta">Gerenciar →</div>
         </a>
 
-        <a href="https://supabase.com/dashboard" target="_blank" rel="noopener" class="cfg-action-btn">
+        {# Card informativo, e não botão: não há nada que o administrador precise fazer aqui.
+           Antes isto era um link para o painel do Supabase — que deixou de ser o banco desta
+           instalação quando o sistema passou a rodar com PostgreSQL no próprio servidor. #}
+        <div class="cfg-action-btn cfg-info-card">
           <div class="cfg-action-icon" style="background:#fefce8; color:#ca8a04;">💾</div>
           <div class="cfg-action-title">Backup</div>
-          <div class="cfg-action-sub">Gerenciado automaticamente pelo Supabase</div>
-          <div class="cfg-action-cta">Abrir Supabase →</div>
-        </a>
+          <div class="cfg-action-sub">O servidor copia o banco sozinho, várias vezes ao dia</div>
+          <div class="cfg-action-note">Para restaurar uma cópia, fale com o responsável técnico</div>
+        </div>
 
       </div>
 
