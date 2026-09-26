@@ -12,16 +12,26 @@ def test_identidade_publica_esta_disponivel_nos_templates(app_teste):
 
 
 def test_contexto_publico_nao_expoe_credenciais(app_teste):
-    with app_teste.test_request_context('/'):
-        # O índice 0 é o do próprio Flask (request, session, g); do 1 em diante são os nossos.
-        # Somados, e não por posição: a checagem vale para qualquer processador que seja
-        # registrado depois, que é justamente o que precisa continuar sob vigilância.
-        contexto = {}
-        for processador in app_teste.template_context_processors[None][1:]:
-            contexto.update(processador())
+    """O que ESTE app põe nos templates é lista fechada; credenciais não entram.
 
-    assert set(contexto) == {
-        'csrf_token',   # do flask_wtf, não nosso — mas passa a ficar sob a mesma vigilância
+    Filtrado por módulo, e não por posição na lista: o Flask e o flask_wtf registram os deles
+    antes e depois dos nossos, e o que cada um injeta muda entre versões — o flask_wtf mais novo
+    do servidor acrescenta `csrf_meta_tag` ao `csrf_token`, e fixar a lista inteira fazia a suíte
+    passar na máquina de quem escreveu e quebrar no deploy.
+    """
+    processadores = app_teste.template_context_processors[None]
+
+    with app_teste.test_request_context('/'):
+        nosso = {}
+        for processador in processadores:
+            if processador.__module__ == 'app':
+                nosso.update(processador())
+
+        todo_o_contexto = {}
+        for processador in processadores:
+            todo_o_contexto.update(processador())
+
+    assert set(nosso) == {
         'estatico',
         'app_name',
         'institution_id',
@@ -29,4 +39,7 @@ def test_contexto_publico_nao_expoe_credenciais(app_teste):
         'institution_short_name',
         'institution_support_email',
     }
-    assert not any('password' in chave.lower() or 'secret' in chave.lower() for chave in contexto)
+    # Vale para o contexto inteiro, inclusive o que vier de biblioteca: nenhuma credencial
+    # pode chegar ao template, não importa quem a tenha colocado lá.
+    assert not any('password' in chave.lower() or 'secret' in chave.lower()
+                   for chave in todo_o_contexto)
