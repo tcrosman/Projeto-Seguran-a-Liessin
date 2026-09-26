@@ -13,9 +13,17 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.apoio import BancoFalso, CorreioFalso
-
+# ANTES do `from tests.apoio ...` abaixo, e não depois: é esta linha que coloca s2e-api no
+# caminho de importação, e sem ela o pacote `tests` não é encontrado.
+#
+# Com a ordem invertida, a suíte só rodava se o diretório atual já fosse s2e-api — aí o próprio
+# pytest o acrescentava ao caminho e o import passava por acaso. De qualquer outro lugar,
+# quebrava com "No module named 'tests'" antes mesmo de coletar um teste. Foi o que aconteceu no
+# deploy/secureedu-deploy, que chama o pytest pelo caminho completo sem entrar na pasta: a etapa
+# de testes falhava sempre, e a publicação era cancelada sem chegar a instalar nada.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from tests.apoio import BancoFalso, CorreioFalso
 
 # Antes de qualquer import de app: sem thread de manutenção e sem banco da escola real.
 os.environ['MANUTENCAO_AUTOMATICA'] = 'false'

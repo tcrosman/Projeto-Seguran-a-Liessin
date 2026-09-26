@@ -195,9 +195,14 @@ def test_o_mapa_de_variacoes_nao_tem_chave_repetida():
     """Chave repetida num dicionário literal não é erro: a última vence, em silêncio. Foi assim
     que "3 ano" apontava para o fundamental numa linha e para o médio noutra."""
     import collections
+    from pathlib import Path
+
     from app.config import Config
 
-    fonte = open(Config.__module__.replace('.', '/') + '.py', encoding='utf-8').read()
+    # Ancorado no arquivo de teste: o deploy chama o pytest de fora da pasta s2e-api, e o caminho
+    # relativo quebrava com FileNotFoundError antes de checar qualquer chave repetida.
+    raiz = Path(__file__).resolve().parents[1]
+    fonte = (raiz / (Config.__module__.replace('.', '/') + '.py')).read_text(encoding='utf-8')
     bloco = fonte.split('NORMALIZE_SERIE = {')[1].split('\n    }')[0]
     chaves = re.findall(r"'([^']+)':\s*'[^']+'", bloco)
 

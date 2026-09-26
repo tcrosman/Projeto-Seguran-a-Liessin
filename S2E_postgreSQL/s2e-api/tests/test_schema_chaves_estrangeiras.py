@@ -7,9 +7,15 @@ O que estes testes protegem não é a existência das chaves, é a **ação de c
 que acontece com dado operacional quando uma pessoa é apagada. Trocar um SET NULL por CASCADE
 aqui apagaria saídas de alunos em silêncio.
 """
+from pathlib import Path
+
 import pytest
 
 from app.core.database import _CHAVES_ESTRANGEIRAS
+
+# Ancorado no arquivo de teste, e não no diretório atual: o deploy roda o pytest de fora da
+# pasta s2e-api, e um caminho relativo levava a FileNotFoundError em vez de testar algo.
+_RAIZ = Path(__file__).resolve().parents[1]
 
 
 def _acao(tabela, coluna):
@@ -83,7 +89,7 @@ def test_toda_chave_declara_a_acao_explicitamente():
 
 def test_as_colunas_declaradas_existem_no_codigo():
     """Uma chave sobre coluna que não existe some no log e ninguém percebe."""
-    fonte = open('app/core/database.py', encoding='utf-8').read()
+    fonte = (_RAIZ / 'app' / 'core' / 'database.py').read_text(encoding='utf-8')
     for tabela, coluna, referida, _acao_ in _CHAVES_ESTRANGEIRAS:
         assert coluna in fonte, f"{tabela}.{coluna} não aparece no schema"
         assert referida in fonte, f"tabela referida {referida} não aparece no schema"

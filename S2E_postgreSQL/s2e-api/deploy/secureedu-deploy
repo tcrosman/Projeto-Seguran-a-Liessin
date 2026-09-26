@@ -52,13 +52,29 @@ systemctl is-failed --quiet secureedu-backup.service && exit 1
 echo "2/8 Atualizacao do repositorio"
 sudo -u deploy env GIT_SSH_COMMAND="ssh -i $SSH_KEY -o IdentitiesOnly=yes" \
   git -C "$REPO" fetch --prune origin
-sudo -u deploy git -C "$REPO" checkout --detach "$REF"
+# Resolve a referencia para um commit ANTES de trocar de versao. `checkout --detach <nome>` com
+# um nome que so existe no remoto faz o git tentar criar a branch local (-b) para rastrea-la, e
+# ele recusa: "'--detach' cannot be used with '-b/-B/--orphan'". Ou seja, publicar uma branch
+# nova — o caso comum — falhava sempre. Aceita tanto "feature/x" quanto "origin/feature/x".
+COMMIT_ALVO="$(sudo -u deploy git -C "$REPO" rev-parse --verify --quiet "${REF}^{commit}" || true)"
+if [[ -z "$COMMIT_ALVO" ]]; then
+  COMMIT_ALVO="$(sudo -u deploy git -C "$REPO" rev-parse --verify --quiet "origin/${REF}^{commit}" || true)"
+fi
+if [[ -z "$COMMIT_ALVO" ]]; then
+  echo "Referencia '$REF' nao encontrada no repositorio apos o fetch." >&2
+  exit 3
+fi
+sudo -u deploy git -C "$REPO" checkout --detach "$COMMIT_ALVO"
 NEW_COMMIT="$(sudo -u deploy git -C "$REPO" rev-parse HEAD)"
 echo "Versao selecionada: ${NEW_COMMIT:0:12}"
 
 echo "3/8 Testes automatizados"
 sudo -u deploy "$TEST_VENV/bin/pip" install --quiet -r "$SOURCE/s2e-api/requirements.txt"
-sudo -u deploy "$TEST_VENV/bin/python" -m pytest -q "$SOURCE/s2e-api/tests"
+# De dentro de s2e-api: o pytest resolve `tests.apoio` a partir do diretorio atual, e chamar pelo
+# caminho completo de fora da pasta quebrava a coleta inteira com "No module named 'tests'".
+# O conftest tambem passou a se virar sozinho, mas rodar daqui mantem o comportamento igual ao
+# de quem roda a suite na mao.
+(cd "$SOURCE/s2e-api" && sudo -u deploy "$TEST_VENV/bin/python" -m pytest -q tests)
 
 echo "4/8 Copia de reversao"
 install -d -m 0750 "$ROLLBACK_ROOT" "$ROLLBACK"
