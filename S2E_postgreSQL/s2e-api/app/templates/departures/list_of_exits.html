@@ -56,16 +56,18 @@
         <div class="saida-card">
           <div class="saida-card-top">
             <div class="saida-student">
-              {% if saida.foto_src %}
-                <img src="{{ saida.foto_src }}" class="saida-student-photo" alt="Foto de {{ saida.aluno }}">
-              {% else %}
-                <div class="student-avatar" style="background: #dc2626; width:32px; height:32px; font-size:12px; flex-shrink:0;">{{ saida.aluno[0] if saida.aluno else '?' }}</div>
-              {% endif %}
-              <div>
-                <div class="saida-student-label">Nome Completo</div>
-                <div class="saida-student-name">{{ saida.aluno or '—' }}</div>
+              <div class="saida-student-main">
+                {% if saida.foto_src %}
+                  <img src="{{ saida.foto_src }}" class="saida-student-photo" alt="Foto de {{ saida.aluno }}">
+                {% else %}
+                  <div class="student-avatar" style="background: #dc2626; width:32px; height:32px; font-size:12px; flex-shrink:0;">{{ saida.aluno[0] if saida.aluno else '?' }}</div>
+                {% endif %}
+                <div>
+                  <div class="saida-student-label">Nome Completo</div>
+                  <div class="saida-student-name">{{ saida.aluno or '—' }}</div>
+                </div>
               </div>
-              <div class="saida-turma-serie" style="text-align:left; padding-left:16px; border-left:1px solid #e5e7eb; margin-left:8px;">
+              <div class="saida-turma-serie">
                 <div class="saida-turma-serie-label">Turma/Série</div>
                 <div class="saida-turma-serie-val">{{ saida.serie or '—' }} &bull; Turma {{ saida.turma or '—' }}</div>
               </div>
