@@ -128,10 +128,12 @@ class DepartureRepository(BaseRepository):
 
     def cleanup_old(self, days: int = 30) -> int:
         """Remove saídas concluídas mais antigas que X dias"""
+        if not isinstance(days, int) or not 1 <= days <= 3650:
+            raise ValueError("Período de retenção inválido")
         with get_db() as conn:
-            cursor = conn.execute(f"""
+            cursor = conn.execute("""
                 DELETE FROM saidas
                 WHERE status='concluida'
-                AND data_saida < TO_CHAR(CURRENT_DATE - INTERVAL '{days} days', 'YYYY-MM-DD')
-            """)
+                AND data_saida < TO_CHAR(CURRENT_DATE - (%s * INTERVAL '1 day'), 'YYYY-MM-DD')
+            """, (days,))
             return cursor.rowcount

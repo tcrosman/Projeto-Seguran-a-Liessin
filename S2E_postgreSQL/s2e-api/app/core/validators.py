@@ -1,5 +1,21 @@
 import unicodedata
+from datetime import datetime
+from app.core.clock import school_now
+from PIL import Image, UnidentifiedImageError
 from app.config import Config
+
+
+def validar_agendamento(data, horario):
+    """Valida no servidor a data e a hora informadas no navegador."""
+    try:
+        saida = datetime.strptime(f'{data} {horario}', '%Y-%m-%d %H:%M')
+        if saida.strftime('%Y-%m-%d %H:%M') != f'{data} {horario}':
+            raise ValueError
+    except (ValueError, TypeError):
+        return "Data ou horário inválido."
+    if saida <= school_now():
+        return "Escolha uma data e um horário futuros."
+    return None
 
 
 def _chave_normalizada(valor):
@@ -35,15 +51,17 @@ def is_valid_image(file_stream):
     Retorna True se for imagem, False caso contrário.
     """
     posicao = file_stream.tell()
-    file_stream.seek(0)
-    header = file_stream.read(12)
-    file_stream.seek(posicao)
-
-    return (
-        header[:3] == b'\xff\xd8\xff' or           # JPEG
-        header[:8] == b'\x89PNG\r\n\x1a\n' or      # PNG
-        header[:6] in (b'GIF87a', b'GIF89a')        # GIF
-    )
+    try:
+        file_stream.seek(0)
+        with Image.open(file_stream) as image:
+            if image.width * image.height > 20_000_000:
+                return False
+            image.verify()
+            return image.format in {'JPEG', 'PNG', 'GIF'}
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
+        return False
+    finally:
+        file_stream.seek(posicao)
 
 
 def is_valid_pdf(file_stream):
@@ -54,52 +72,18 @@ def is_valid_pdf(file_stream):
     posicao = file_stream.tell()
     file_stream.seek(0)
     
-    # Lê os primeiros 4 bytes
+    # Cabeçalho e marcador final: um cabeçalho isolado não basta.
     cabecalho = file_stream.read(4)
+    file_stream.seek(0, 2)
+    size = file_stream.tell()
+    file_stream.seek(max(0, size - 2048))
+    tail = file_stream.read()
     
     # Restaura posição
     file_stream.seek(posicao)
     
     # PDF deve começar com %PDF
-    return cabecalho == b'%PDF'
-
-
-def validar_tipo_arquivo(file_stream, extensoes_permitidas, mimes_permitidos):
-    """
-    Verifica se o arquivo é realmente do tipo que diz ser.
-    
-    Args:
-        file_stream: objeto do arquivo (request.files['...'])
-        extensoes_permitidas: tuple de extensões ('jpg', 'png', 'pdf')
-        mimes_permitidos: tuple de MIME types ('image/jpeg', 'image/png', 'application/pdf')
-    
-    Returns:
-        (bool, str) - (é válido, mensagem de erro)
-    """
-    nome = file_stream.filename
-    if not nome or '.' not in nome:
-        return False, "Nome de arquivo inválido"
-    
-    # 1. Verifica extensão
-    ext = nome.rsplit('.', 1)[1].lower()
-    if ext not in extensoes_permitidas:
-        return False, f"Extensão .{ext} não permitida"
-    
-    # 2. Verifica MIME type real (lê o conteúdo)
-    file_stream.seek(0)
-    try:
-        import magic
-        mime = magic.from_buffer(file_stream.read(1024), mime=True)
-        file_stream.seek(0)
-        
-        if mime not in mimes_permitidos:
-            return False, f"Tipo de arquivo real '{mime}' não corresponde à extensão .{ext}"
-        
-        return True, "OK"
-    except Exception as e:
-        # Se magic falhar, pelo menos verifica extensão
-        file_stream.seek(0)
-        return True, "OK (validação básica)"
+    return cabecalho == b'%PDF' and b'%%EOF' in tail
 
 
 def validar_upload_imagem(file):
@@ -115,8 +99,22 @@ def validar_upload_imagem(file):
     if not allowed_file(file.filename):
         return False, f"Tipo de arquivo não permitido. Use: {', '.join(Config.ALLOWED_EXTENSIONS)}"
     
+    ext = file.filename.rsplit('.', 1)[1].lower()
+    if ext not in {'jpg', 'jpeg', 'png', 'gif'}:
+        return False, "Envie uma imagem JPEG, PNG ou GIF"
+    file.stream.seek(0, 2)
+    size = file.stream.tell()
+    file.stream.seek(0)
+    if size == 0 or size > 5 * 1024 * 1024:
+        return False, "A imagem deve ter até 5 MB"
     if not is_valid_image(file):
         return False, "Arquivo não é uma imagem válida (pode estar corrompido ou ser falso)"
+    with Image.open(file.stream) as image:
+        expected = {'jpg': 'JPEG', 'jpeg': 'JPEG', 'png': 'PNG', 'gif': 'GIF'}[ext]
+        if image.format != expected:
+            file.stream.seek(0)
+            return False, "O conteúdo não corresponde à extensão da imagem"
+    file.stream.seek(0)
     
     return True, "OK"
 
@@ -135,12 +133,16 @@ def validar_upload_documento(file):
         return False, f"Tipo de arquivo não permitido. Use: {', '.join(Config.ALLOWED_EXTENSIONS)}"
     
     ext = file.filename.rsplit('.', 1)[1].lower()
+    file.stream.seek(0, 2)
+    size = file.stream.tell()
+    file.stream.seek(0)
+    if size == 0 or size > 10 * 1024 * 1024:
+        return False, "O documento deve ter até 10 MB"
     
     if ext == 'pdf':
         if not is_valid_pdf(file):
             return False, "Arquivo não é um PDF válido"
     elif ext in ['jpg', 'jpeg', 'png', 'gif']:
-        if not is_valid_image(file):
-            return False, "Arquivo não é uma imagem válida"
+        return validar_upload_imagem(file)
     
     return True, "OK"

@@ -1,0 +1,7 @@
+-- Substituir pelo SELECT aprovado pelo TI e salvar como filhos.sql em diretório privado.
+-- Retornar a lista COMPLETA de filhos ativos autorizados para esse responsável.
+-- Colunas obrigatórias: external_student_id, student_name, class_name, grade.
+SELECT id_externo_aluno AS external_student_id, nome AS student_name,
+       turma AS class_name, serie AS grade
+FROM tabela_exemplo_vinculos
+WHERE id_externo_responsavel = %(external_parent_id)s

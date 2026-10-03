@@ -1,0 +1,6 @@
+-- Substituir pelo SELECT aprovado pelo TI e salvar como responsavel.sql em diretório privado.
+-- Retornar no máximo uma linha, com external_parent_id, email e active (BOOLEAN).
+-- %(email)s é parâmetro seguro; não interpolar valores manualmente.
+SELECT id_externo AS external_parent_id, email, ativo AS active
+FROM tabela_exemplo_responsaveis
+WHERE lower(email) = %(email)s

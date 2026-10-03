@@ -495,8 +495,8 @@
           <li><span>Para corrigir dados de uma saída ainda pendente, clique em <strong>Editar</strong> ao lado do botão de autorização.</span></li>
         </ol>
         <div class="tip-box">
-          <strong>Histórico de 30 dias</strong>
-          O sistema mantém o registro das saídas por 30 dias. Saídas com mais de 30 dias são removidas automaticamente.
+          <strong>Histórico de saídas</strong>
+          O histórico fica disponível conforme a política de retenção definida pela escola.
         </div>
       </div>
 
@@ -545,7 +545,7 @@
 
           <div class="tip-box">
             <strong>Não é necessário inserir e-mail do responsável</strong>
-            O vínculo entre pai e aluno é feito pelo próprio responsável no Portal dos Responsáveis, com confirmação automática pelo TOTVS. A escola não precisa cadastrar esse dado.
+            Na operação oficial, o vínculo será carregado das consultas PostgreSQL aprovadas pelo TI. Na demonstração local, use apenas vínculos fictícios preparados pela equipe.
           </div>
         </div>
       </div>
@@ -593,7 +593,7 @@
           </ol>
           <div class="tip-box">
             <strong>Como funciona o vínculo com o aluno?</strong>
-            Após a aprovação, o próprio responsável busca o filho pelo nome no portal e clica em "Sou responsável". O TOTVS valida a relação e o vínculo é salvo. A escola não precisa fazer isso manualmente.
+            Após a aprovação, o portal confirma o responsável e atualiza a lista completa de filhos pelas consultas PostgreSQL da escola. O responsável não pode vincular alunos pela interface.
           </div>
           <div class="warn-box">
             <strong>Conta bloqueada vs. rejeitada</strong>

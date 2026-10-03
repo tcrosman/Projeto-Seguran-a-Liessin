@@ -43,7 +43,7 @@ class UserRepository(BaseRepository):
         """Atualiza a senha do usuário"""
         with get_db() as conn:
             cursor = conn.execute(
-                "UPDATE usuarios SET password = %s WHERE id = %s",
+                "UPDATE usuarios SET password = %s, auth_version = auth_version + 1 WHERE id = %s",
                 (generate_password_hash(new_password, method='pbkdf2:sha256'), id)
             )
             return cursor.rowcount > 0

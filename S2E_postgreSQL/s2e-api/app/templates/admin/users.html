@@ -99,11 +99,13 @@
                 {% if user.id == session.user_id %}
                   <span style="font-size: 12px; color: #f59e0b; font-weight: 600;">você</span>
                 {% else %}
-                  <a href="/deletar_usuario/{{ user.id }}"
-                     onclick="return confirm('Deletar {{ user.username }}?')"
-                     class="action-btn danger" title="Deletar usuário">
+                  <form method="POST" action="/deletar_usuario/{{ user.id }}" style="display:inline;"
+                        onsubmit="return confirm('Deletar este usuário?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="action-btn danger" title="Deletar usuário" style="border:0; cursor:pointer;">
                     <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                  </a>
+                    </button>
+                  </form>
                 {% endif %}
                </td>
              </tr>

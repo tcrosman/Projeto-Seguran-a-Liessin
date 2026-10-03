@@ -8,13 +8,17 @@ sys.path.insert(0, str(Path(__file__).parent / 's2e-api'))
 
 from app.core.database import get_db
 
-print('Testando conexão PostgreSQL...')
-try:
-    with get_db() as conn:
-        users = conn.execute('SELECT username, role FROM usuarios').fetchall()
-    print('Conexão OK!')
-    print('Usuários no banco:')
-    for u in users:
-        print(f'  Usuário: {u["username"]} | Função: {u["role"]}')
-except Exception as e:
-    print(f'ERRO: {e}')
+
+def main():
+    """Diagnóstico sem listar usuários ou detalhes da conexão."""
+    try:
+        with get_db() as conn:
+            conn.execute('SELECT 1')
+        print('Conexão PostgreSQL disponível.')
+    except Exception:
+        print('Conexão PostgreSQL indisponível.')
+        raise SystemExit(1)
+
+
+if __name__ == '__main__':
+    main()

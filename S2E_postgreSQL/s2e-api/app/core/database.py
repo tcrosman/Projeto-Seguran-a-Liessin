@@ -1,7 +1,7 @@
 import psycopg2
 import psycopg2.extras
 from contextlib import contextmanager
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -14,13 +14,19 @@ def _get_connection():
     if not url:
         raise RuntimeError("DATABASE_URL não configurada no .env")
     p = urlparse(url)
+    sslmode = os.getenv('DATABASE_SSLMODE', 'require')
+    if sslmode not in {'require', 'verify-ca', 'verify-full'} and not (
+        os.getenv('APP_ENV', 'production').lower() == 'test'
+        and p.hostname in {'localhost', '127.0.0.1', '::1'}
+    ):
+        raise RuntimeError('DATABASE_SSLMODE alternativo permitido somente em teste local')
     return psycopg2.connect(
         host=p.hostname,
         port=p.port or 5432,
-        dbname=p.path.lstrip('/'),
-        user=p.username,
-        password=p.password,
-        sslmode='require'
+        dbname=unquote(p.path.lstrip('/')),
+        user=unquote(p.username) if p.username else None,
+        password=unquote(p.password) if p.password else None,
+        sslmode=sslmode
     )
 
 
@@ -77,10 +83,40 @@ def init_db(app):
 def migrate_database():
     """Migrações automáticas — verifica information_schema antes de ALTER TABLE."""
     with get_db() as conn:
+        conn.execute("SELECT pg_advisory_xact_lock(746392019)")
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS alunos (
+                id SERIAL PRIMARY KEY, nome TEXT NOT NULL, turma TEXT NOT NULL,
+                serie TEXT NOT NULL, saida_seg TEXT, saida_ter TEXT,
+                saida_qua TEXT, saida_qui TEXT, saida_sex TEXT,
+                responsaveis TEXT, foto_path TEXT
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id SERIAL PRIMARY KEY, username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL, role TEXT NOT NULL DEFAULT 'basico',
+                email TEXT
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS saidas (
+                id SERIAL PRIMARY KEY, aluno INTEGER NOT NULL,
+                data_saida TEXT NOT NULL, horario TEXT NOT NULL,
+                motivo TEXT NOT NULL, status TEXT NOT NULL,
+                responsavel_escola TEXT, tipo_saida TEXT, acompanhante TEXT,
+                documento_path TEXT
+            )
+        """)
+        if not _col_exists(conn, 'usuarios', 'auth_version'):
+            conn.execute("ALTER TABLE usuarios ADD COLUMN auth_version INTEGER NOT NULL DEFAULT 0")
         # Colunas extras na tabela alunos
         for col in ['telefone', 'email_responsavel', 'data_nascimento', 'alergias', 'observacoes']:
             if not _col_exists(conn, 'alunos', col):
                 conn.execute(f"ALTER TABLE alunos ADD COLUMN {col} TEXT")
+        if not _col_exists(conn, 'alunos', 'school_external_id'):
+            conn.execute('ALTER TABLE alunos ADD COLUMN school_external_id TEXT')
+        conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS uq_alunos_school_external_id ON alunos(school_external_id)')
 
         # Coluna usuario_autorizou na tabela saidas
         if not _col_exists(conn, 'saidas', 'usuario_autorizou'):
@@ -121,6 +157,10 @@ def migrate_database():
                 criado_em   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        if not _col_exists(conn, 'responsaveis', 'auth_version'):
+            conn.execute("ALTER TABLE responsaveis ADD COLUMN auth_version INTEGER NOT NULL DEFAULT 0")
+        if not _col_exists(conn, 'responsaveis', 'school_external_id'):
+            conn.execute('ALTER TABLE responsaveis ADD COLUMN school_external_id TEXT')
 
         # Tokens de 2FA enviados por email (6 dígitos, expiram em 10 min)
         conn.execute("""
@@ -155,7 +195,13 @@ def migrate_database():
             if not _col_exists(conn, 'solicitacoes_saida', col):
                 conn.execute(f"ALTER TABLE solicitacoes_saida ADD COLUMN {col} TEXT")
 
-        # Vínculos pai→aluno validados pelo TOTVS (substituiu email_responsavel em alunos)
+        # Associação explícita para novas aprovações. Registros anteriores ficam
+        # nulos até uma conciliação supervisionada, sem associação presumida.
+        if not _col_exists(conn, 'saidas', 'solicitacao_id'):
+            conn.execute("ALTER TABLE saidas ADD COLUMN solicitacao_id INTEGER REFERENCES solicitacoes_saida(id)")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_saidas_solicitacao ON saidas(solicitacao_id) WHERE solicitacao_id IS NOT NULL")
+
+        # Vínculos confirmados pela consulta escolar; dados legados ficam para conciliação.
         conn.execute("""
             CREATE TABLE IF NOT EXISTS vinculos_pais_alunos (
                 id             SERIAL PRIMARY KEY,
@@ -177,10 +223,20 @@ def migrate_database():
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS auth_attempts (
+                key TEXT PRIMARY KEY,
+                failures INTEGER NOT NULL,
+                window_start TIMESTAMP NOT NULL,
+                blocked_until TIMESTAMP
+            )
+        """)
+
 
 def expirar_saidas_nao_liberadas(conn):
     """Marca como 'nao_realizada' as saídas aprovadas cuja data já passou sem terem sido liberadas pela segurança."""
     conn.execute("""
         UPDATE saidas SET status = 'nao_realizada'
-        WHERE status = 'pendente' AND data_saida < TO_CHAR(CURRENT_DATE, 'YYYY-MM-DD')
+        WHERE status = 'pendente'
+          AND data_saida < TO_CHAR((CURRENT_TIMESTAMP AT TIME ZONE 'America/Sao_Paulo')::date, 'YYYY-MM-DD')
     """)

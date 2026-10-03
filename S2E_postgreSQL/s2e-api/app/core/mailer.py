@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 # Garante que o .env da pasta s2e-api/ seja carregado independente de onde o servidor é iniciado
 _env_path = Path(__file__).resolve().parents[2] / '.env'
-load_dotenv(dotenv_path=_env_path, override=True)
+load_dotenv(dotenv_path=_env_path, override=False)
 
 _PLACEHOLDERS = {'seu_email@gmail.com', 'sua_senha_de_app', '', 'seu_email', 'sua_senha', 'cole-aqui-sua-senha-de-app'}
 
@@ -34,11 +34,11 @@ def enviar_email(destinatario, assunto, corpo_html):
         msg['To'] = destinatario
         msg.attach(MIMEText(corpo_html, 'html', 'utf-8'))
 
-        with smtplib.SMTP_SSL(smtp_host, smtp_port) as smtp:
+        with smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10) as smtp:
             smtp.login(smtp_user, smtp_password)
             smtp.send_message(msg)
 
-        print(f"[MAILER] Email enviado com sucesso para {destinatario}")
+        print("[MAILER] Email enviado com sucesso")
         return True
 
     except smtplib.SMTPAuthenticationError:
@@ -46,9 +46,9 @@ def enviar_email(destinatario, assunto, corpo_html):
               "Verifique SMTP_USER e SMTP_PASSWORD no .env. "
               "Para Gmail, use uma Senha de App, não a senha normal da conta.")
         return False
-    except smtplib.SMTPException as e:
-        print(f"[MAILER] ERRO SMTP: {e}")
+    except smtplib.SMTPException:
+        print("[MAILER] ERRO SMTP ao enviar e-mail")
         return False
-    except Exception as e:
-        print(f"[MAILER] ERRO inesperado ao enviar e-mail: {e}")
+    except Exception:
+        print("[MAILER] ERRO inesperado ao enviar e-mail")
         return False

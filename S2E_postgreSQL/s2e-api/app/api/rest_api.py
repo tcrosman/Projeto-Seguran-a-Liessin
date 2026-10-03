@@ -14,6 +14,7 @@ import json
 
 def register_rest_routes(app):
     """Registra todas as rotas da API REST — ver aviso no topo do arquivo antes de ativar."""
+    raise RuntimeError("API REST desativada: exige autenticação própria e revisão de CSRF antes de ser registrada.")
 
     # ==================== AUTENTICAÇÃO API ====================
     @app.route("/api/v1/login", methods=["POST"])

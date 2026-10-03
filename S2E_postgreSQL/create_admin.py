@@ -7,24 +7,26 @@ from app import create_app
 from app.core.database import get_db
 from werkzeug.security import generate_password_hash
 
-app = create_app()
 
-with app.app_context():
-    with get_db() as conn:
-        # Verifica se já existe
+def main():
+    password = os.getenv('INITIAL_ADMIN_PASSWORD', '')
+    from app.schemas.user_schema import UserSchema
+    error = UserSchema._check_password_strength(password)
+    if error or len(password) < 12:
+        raise SystemExit("INITIAL_ADMIN_PASSWORD precisa ter 12 caracteres e atender à política de senhas.")
+
+    app = create_app()
+    with app.app_context(), get_db() as conn:
         exists = conn.execute("SELECT id FROM usuarios WHERE username = 'admin'").fetchone()
         if exists:
-            print("ℹ️ Usuário admin já existe!")
-        else:
-            conn.execute("""
-                INSERT INTO usuarios (username, password, role, email)
-                VALUES (%s, %s, %s, %s)
-            """, (
-                'admin',
-                generate_password_hash('Admin@2024!', method='pbkdf2:sha256'),
-                'admin',
-                'admin@secureedu.com'
-            ))
-            print("✅ Usuário admin criado!")
-            print("   👤 Usuário: admin")
-            print("   🔑 Senha: Admin@2024!")
+            print("Usuário admin já existe; nenhuma alteração feita.")
+            return
+        conn.execute(
+            "INSERT INTO usuarios (username, password, role, email) VALUES (%s, %s, %s, %s)",
+            ('admin', generate_password_hash(password, method='pbkdf2:sha256'), 'admin', os.getenv('INITIAL_ADMIN_EMAIL', '')),
+        )
+    print("Usuário admin criado; a senha não será exibida.")
+
+
+if __name__ == '__main__':
+    main()

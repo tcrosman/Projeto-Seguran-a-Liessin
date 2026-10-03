@@ -5,10 +5,13 @@ from app.core.database import get_db
 
 def log_operacao(usuario, acao, detalhes, ip=None):
     """Registra log em arquivo texto com IP opcional"""
+    def safe(value):
+        return str(value or '').replace('\r', ' ').replace('\n', ' ').replace('\t', ' ')[:500]
+
     os.makedirs('logs', exist_ok=True)
-    ip_str = f" [{ip}]" if ip else ""
+    ip_str = f" [{safe(ip)}]" if ip else ""
     with open('logs/system.log', 'a', encoding='utf-8') as f:
-        f.write(f"[{datetime.now()}]{ip_str} {usuario} - {acao}: {detalhes}\n")
+        f.write(f"[{datetime.now()}]{ip_str} {safe(usuario)} - {safe(acao)}: {safe(detalhes)}\n")
 
 def log_aluno(aluno_id, usuario_id, acao, dados_antigos=None, dados_novos=None):
     """Registra auditoria de aluno no banco"""
