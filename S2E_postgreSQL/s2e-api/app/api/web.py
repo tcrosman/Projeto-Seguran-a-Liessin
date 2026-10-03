@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, session, flash, send_from_directory
-from app.api.middleware import login_required, admin_required
+from app.api.middleware import login_required, admin_required, solicitacao_required
 from app.core.database import get_db, expirar_saidas_nao_liberadas
 from app.core.audit_logger import log_operacao
 from app.config import Config
@@ -91,12 +91,13 @@ def register_routes(app):
             return redirect("/saidas")
         solicitacoes_pendentes = 0
         responsaveis_pendentes = 0
-        if session.get('role') == 'admin':
+        if session.get('role') in ('admin', 'basico'):
             with get_db() as conn:
                 r = conn.execute("SELECT COUNT(*) AS c FROM solicitacoes_saida WHERE status = 'aguardando'").fetchone()
                 solicitacoes_pendentes = r['c'] if r else 0
-                r2 = conn.execute("SELECT COUNT(*) AS c FROM responsaveis WHERE status = 'pendente'").fetchone()
-                responsaveis_pendentes = r2['c'] if r2 else 0
+                if session.get('role') == 'admin':
+                    r2 = conn.execute("SELECT COUNT(*) AS c FROM responsaveis WHERE status = 'pendente'").fetchone()
+                    responsaveis_pendentes = r2['c'] if r2 else 0
         return render_template("dashboard/home.html",
                                solicitacoes_pendentes=solicitacoes_pendentes,
                                responsaveis_pendentes=responsaveis_pendentes)
@@ -335,7 +336,7 @@ def register_routes(app):
     
     # ==================== SAÍDAS ====================
     @app.route("/registrar_saida", methods=["GET", "POST"])
-    @login_required
+    @admin_required
     def registrar_saida():
         aluno_pre_selecionado = request.args.get("aluno_id")
         
@@ -811,7 +812,7 @@ def register_routes(app):
     # ==================== ADMIN: SOLICITAÇÕES DE SAÍDA ====================
 
     @app.route("/admin/solicitacoes")
-    @admin_required
+    @solicitacao_required
     def admin_solicitacoes():
         with get_db() as conn:
             conn.execute("""
@@ -838,7 +839,7 @@ def register_routes(app):
         return render_template("admin/solicitacoes.html", aguardando=aguardando, historico=historico)
 
     @app.route("/admin/solicitacoes/<int:sol_id>/aprovar", methods=["POST"])
-    @admin_required
+    @solicitacao_required
     def admin_aprovar_solicitacao(sol_id):
         with get_db() as conn:
             sol = conn.execute("""

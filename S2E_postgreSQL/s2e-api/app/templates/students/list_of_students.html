@@ -20,7 +20,7 @@
       <div class="list-topbar">
         <div class="list-topbar-left">
           <h1>Alunos</h1>
-          <p>Registrar saída ou ver histórico</p>
+          <p>{% if session.role == 'admin' %}Registrar saída ou {% endif %}ver histórico</p>
         </div>
       </div>
 
@@ -61,9 +61,11 @@
                   <td style="width:15%; color:#6b7280;">{{ aluno.serie }}</td>
                   <td style="width:10%; color:#6b7280;">{{ aluno.turma }}</td>
                   <td style="text-align:right; width:40%;">
-                    <a href="/registrar_saida?aluno_id={{ aluno.id }}" class="btn btn-primary" style="padding: 7px 14px; font-size: 13px;">
-                      Registrar Saída
-                    </a>
+                    {% if session.role == 'admin' %}
+                      <a href="/registrar_saida?aluno_id={{ aluno.id }}" class="btn btn-primary" style="padding: 7px 14px; font-size: 13px;">
+                        Registrar Saída
+                      </a>
+                    {% endif %}
                     <a href="/historico_aluno/{{ aluno.id }}" class="btn btn-secondary" style="padding: 7px 14px; font-size: 13px;">
                       Ver Histórico
                     </a>

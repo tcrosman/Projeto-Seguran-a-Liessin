@@ -51,3 +51,14 @@ def log_access(f):
                 log.write(f"[{datetime.now()}] {session['username']} - ACESSOU: {request.path}\n")
         return f(*args, **kwargs)
     return decorated_function
+
+def solicitacao_required(f):
+    """Permite revisar solicitações aos perfis admin e básico."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect('/')
+        if session.get('role') not in ('admin', 'basico'):
+            return "Acesso negado", 403
+        return f(*args, **kwargs)
+    return decorated_function

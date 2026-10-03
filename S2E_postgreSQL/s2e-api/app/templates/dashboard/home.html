@@ -19,7 +19,7 @@
         <a href="/cadastro_aluno" class="home-card blue">
           <div class="home-card-icon">📋</div>
           <div class="home-card-title">ALUNOS</div>
-          <div class="home-card-sub">Registrar saída · Ver histórico do aluno</div>
+          <div class="home-card-sub">{% if session.role == 'admin' %}Registrar saída · {% endif %}Ver histórico do aluno</div>
         </a>
         {% if session.role == 'admin' %}
         <a href="/cadastro_massa" class="home-card green">
@@ -40,7 +40,7 @@
         </a>
       </div>
 
-      {% if session.role == 'admin' and (solicitacoes_pendentes > 0 or responsaveis_pendentes > 0) %}
+      {% if session.role in ['admin', 'basico'] and (solicitacoes_pendentes > 0 or responsaveis_pendentes > 0) %}
       <div style="margin-top:24px; display:flex; flex-direction:column; gap:10px;">
         {% if solicitacoes_pendentes > 0 %}
           <a href="/admin/solicitacoes" style="display:flex; align-items:center; gap:12px; background:#fffbeb;
@@ -52,7 +52,7 @@
             </div>
           </a>
         {% endif %}
-        {% if responsaveis_pendentes > 0 %}
+        {% if session.role == 'admin' and responsaveis_pendentes > 0 %}
           <a href="/admin/responsaveis" style="display:flex; align-items:center; gap:12px; background:#eff6ff;
              border:1.5px solid #bfdbfe; border-radius:12px; padding:14px 18px; text-decoration:none; color:inherit;">
             <span style="font-size:20px;">👤</span>
