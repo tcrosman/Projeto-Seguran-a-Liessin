@@ -44,8 +44,11 @@ apagados. Antes de enviar um aviso de liberação a um responsável já cadastra
 o vínculo também é reconfirmado; falha da consulta não impede a liberação física,
 mas impede o envio daquele aviso. Responsáveis que nunca se cadastraram no
 portal não recebem o aviso por esse fluxo. A rotina de demonstração
-(`SCHOOL_DIRECTORY_MODE=demo`) só funciona
-em `localhost` com `APP_ENV=development/test` e e-mails fictícios autorizados.
+(`SCHOOL_DIRECTORY_MODE=demo`) funciona em localhost com e-mails fictícios
+autorizados. Em um endereço remoto HTTPS ela exige também
+`SCHOOL_DEMO_REMOTE_ALLOWED=true`, uma conta `responsaveis.is_demo=true` e
+**todos** os filhos vinculados com `alunos.is_demo=true`. Não habilitar para
+dados reais. O login de funcionários não depende desse modo.
 
 ## Antes de ativar
 
@@ -59,3 +62,8 @@ em `localhost` com `APP_ENV=development/test` e e-mails fictícios autorizados.
   portal; a consulta escolar não entrega senha.
 - Só liberar produção após revisão das pendências em `SECURITY_REVIEW.md` e
   aprovação operacional da infraestrutura pelo TI.
+
+Se já existem pais reais usando o portal, **não** ativar `demo` como único modo
+na instalação atual: esses pais não estão na lista fictícia e perderiam acesso.
+Nesse caso, usar uma instalação de homologação isolada até as consultas SQL
+oficiais estarem disponíveis.

@@ -116,6 +116,8 @@ def migrate_database():
                 conn.execute(f"ALTER TABLE alunos ADD COLUMN {col} TEXT")
         if not _col_exists(conn, 'alunos', 'school_external_id'):
             conn.execute('ALTER TABLE alunos ADD COLUMN school_external_id TEXT')
+        if not _col_exists(conn, 'alunos', 'is_demo'):
+            conn.execute('ALTER TABLE alunos ADD COLUMN is_demo BOOLEAN NOT NULL DEFAULT FALSE')
         conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS uq_alunos_school_external_id ON alunos(school_external_id)')
 
         # Coluna usuario_autorizou na tabela saidas
@@ -161,6 +163,8 @@ def migrate_database():
             conn.execute("ALTER TABLE responsaveis ADD COLUMN auth_version INTEGER NOT NULL DEFAULT 0")
         if not _col_exists(conn, 'responsaveis', 'school_external_id'):
             conn.execute('ALTER TABLE responsaveis ADD COLUMN school_external_id TEXT')
+        if not _col_exists(conn, 'responsaveis', 'is_demo'):
+            conn.execute('ALTER TABLE responsaveis ADD COLUMN is_demo BOOLEAN NOT NULL DEFAULT FALSE')
 
         # Tokens de 2FA enviados por email (6 dígitos, expiram em 10 min)
         conn.execute("""

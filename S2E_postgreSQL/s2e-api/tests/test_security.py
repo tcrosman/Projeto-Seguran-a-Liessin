@@ -22,6 +22,7 @@ from app.core.tokens import digest_token
 from app.core.rate_limit import login_identity
 from app.core.validators import validar_agendamento, validar_upload_documento, validar_upload_imagem
 from app.services.school_directory import SchoolDirectoryError, _query
+from app.services import school_sync
 from app.services.school_sync import _demo_allowed
 
 
@@ -251,6 +252,34 @@ class SecurityTests(unittest.TestCase):
                     _query('responsavel.sql', 'email')
                 query_file.write_text('SELECT %(email)s AS email', encoding='utf-8')
                 self.assertEqual(_query('responsavel.sql', 'email'), 'SELECT %(email)s AS email')
+
+    def test_remote_demo_requires_fictitious_account_and_children(self):
+        class DemoDb:
+            def __init__(self):
+                self.child_is_real = False
+
+            def execute(self, sql, params=()):
+                if 'SELECT is_demo FROM responsaveis' in sql:
+                    return Cursor({'is_demo': True})
+                if 'a.is_demo = FALSE' in sql:
+                    return Cursor({'exists': 1} if self.child_is_real else None)
+                return Cursor()
+
+        db = DemoDb()
+
+        @contextmanager
+        def demo_db():
+            yield db
+
+        with patch.object(school_sync, 'get_db', demo_db), patch.dict(os.environ, {
+            'APP_ENV': 'production', 'BASE_URL': 'https://portal.example.test',
+            'SCHOOL_DEMO_EMAILS': 'parent@example.test', 'SCHOOL_DEMO_REMOTE_ALLOWED': 'true',
+        }):
+            self.assertTrue(_demo_allowed('parent@example.test', 10))
+            db.child_is_real = True
+            self.assertFalse(_demo_allowed('parent@example.test', 10))
+            with self.assertRaises(SchoolDirectoryError):
+                _demo_allowed('parent@example.test')
 
     def test_example_secret_is_rejected(self):
         from app import create_app

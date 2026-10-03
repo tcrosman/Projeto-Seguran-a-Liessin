@@ -1,5 +1,7 @@
 """Reconciliação local e atômica dos vínculos vindos da escola."""
 
+from __future__ import annotations
+
 import os
 from urllib.parse import urlparse
 
@@ -7,19 +9,39 @@ from app.core.database import get_db
 from app.services.school_directory import SchoolDirectoryError, load_household
 
 
-def _demo_allowed(email: str) -> bool:
-    if (os.getenv('APP_ENV', 'production').lower() not in {'development', 'test'}
-            or urlparse(os.getenv('BASE_URL', '')).hostname not in {'localhost', '127.0.0.1', '::1'}):
-        raise SchoolDirectoryError('Demonstração permitida somente em ambiente local')
+def _demo_allowed(email: str, parent_id: int | None = None) -> bool:
+    environment = os.getenv('APP_ENV', 'production').lower()
+    base = urlparse(os.getenv('BASE_URL', ''))
     allowed = {item.strip().lower() for item in os.getenv('SCHOOL_DEMO_EMAILS', '').split(',') if item.strip()}
-    return email.strip().lower() in allowed
+    normalized_email = email.strip().lower()
+    if normalized_email not in allowed:
+        return False
+    if environment in {'development', 'test'} and base.hostname in {'localhost', '127.0.0.1', '::1'}:
+        return True
+    if (environment not in {'staging', 'production'} or base.scheme != 'https'
+            or os.getenv('SCHOOL_DEMO_REMOTE_ALLOWED', 'false').lower() != 'true'
+            or parent_id is None):
+        raise SchoolDirectoryError('Demonstração remota não autorizada')
+    # No site público, a lista de e-mails sozinha não basta: a conta e todos
+    # os alunos ligados a ela precisam estar explicitamente marcados como fake.
+    with get_db() as conn:
+        account = conn.execute("""
+            SELECT is_demo FROM responsaveis
+            WHERE id = %s AND lower(email) = %s AND status = 'aprovado'
+        """, (parent_id, normalized_email)).fetchone()
+        non_demo_child = conn.execute("""
+            SELECT 1 FROM vinculos_pais_alunos v
+            JOIN alunos a ON a.id = v.aluno_id
+            WHERE v.responsavel_id = %s AND a.is_demo = FALSE LIMIT 1
+        """, (parent_id,)).fetchone()
+    return bool(account and account['is_demo'] is True and not non_demo_child)
 
 
 def refresh_parent(parent_id: int, email: str) -> bool:
     """Falha fechada. Em SQL, a consulta escolar é a fonte autoritativa dos vínculos."""
     mode = os.getenv('SCHOOL_DIRECTORY_MODE', 'off').lower()
     if mode == 'demo':
-        return _demo_allowed(email)
+        return _demo_allowed(email, parent_id)
     if mode != 'sql':
         raise SchoolDirectoryError('Diretório escolar não configurado')
     household = load_household(email)
