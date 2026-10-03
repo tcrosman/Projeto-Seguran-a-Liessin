@@ -61,13 +61,15 @@ def register_routes(app):
             return render_template("auth/login.html", erro="Muitas tentativas de login. Tente novamente em 5 minutos.")
 
         if request.method == "POST":
+            username = request.form.get("u", "").strip()
+            senha = request.form.get("s", "")
             with get_db() as conn:
                 user = conn.execute(
-                    "SELECT id, role, username, password FROM usuarios WHERE username=%s",
-                    (request.form["u"],)
+                    "SELECT id, role, username, password FROM usuarios WHERE LOWER(TRIM(username))=LOWER(%s)",
+                    (username,)
                 ).fetchone()
 
-            if user and check_password_hash(user['password'], request.form["s"]):
+            if user and check_password_hash(user['password'], senha):
                 # Login OK — zera contadores deste IP
                 _falhas_por_ip.pop(ip, None)
                 _bloqueios_por_ip.pop(ip, None)
@@ -78,9 +80,9 @@ def register_routes(app):
                 return redirect("/inicio")
             else:
                 registrar_falha(ip)
-                tentativa_usuario = request.form.get("u", "")
+                tentativa_usuario = username
                 log_operacao(tentativa_usuario or "desconhecido", "LOGIN_FALHA", "senha incorreta ou usuário inexistente", ip=ip)
-                return render_template("auth/login.html", erro="Usuário ou senha incorretos.")
+                return render_template("auth/login.html", erro="Usuário ou senha incorretos.", usuario=username)
 
         return render_template("auth/login.html")
     

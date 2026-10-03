@@ -220,50 +220,11 @@ def register_parent_routes(app):
 
     # ==================== VINCULAR FILHO ====================
 
-    @app.route("/pais/vincular", methods=["GET", "POST"])
+    @app.route("/pais/vincular")
     @pai_required
     def pais_vincular():
-        email = session['pai_email']
-        erro = None
-
-        if request.method == "POST":
-            nome_filho = request.form.get("nome_filho", "").strip()
-            if not nome_filho:
-                erro = "Digite o nome completo do seu filho."
-            else:
-                with get_db() as conn:
-                    candidatos = conn.execute(
-                        """SELECT id, nome FROM alunos
-                           WHERE LOWER(nome) = LOWER(%s)
-                           AND id NOT IN (
-                               SELECT aluno_id FROM vinculos_pais_alunos WHERE responsavel_id = %s
-                           )""",
-                        (nome_filho, session['pai_id'])
-                    ).fetchall()
-
-                if not candidatos:
-                    erro = "Nenhum aluno com esse nome encontrado. Verifique o nome exato como cadastrado na escola."
-                else:
-                    totus = get_totus_client()
-                    vinculados = []
-                    for c in candidatos:
-                        if totus.validar_vinculo(email, c['id']):
-                            vinculados.append(c)
-
-                    if not vinculados:
-                        erro = "O TOTVS não confirmou vínculo entre você e este aluno. Se acredita que é um erro, entre em contato com a secretaria."
-                    else:
-                        with get_db() as conn:
-                            for v in vinculados:
-                                conn.execute(
-                                    "INSERT INTO vinculos_pais_alunos (responsavel_id, aluno_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
-                                    (session['pai_id'], v['id'])
-                                )
-                        nomes = ", ".join(v['nome'] for v in vinculados)
-                        flash(f"Vínculo confirmado com sucesso: {nomes}!", "success")
-                        return redirect("/pais/dashboard")
-
-        return render_template("pais/vincular_filhos.html", erro=erro, nome=session['pai_nome'])
+        flash("Os filhos são vinculados automaticamente pelos dados confirmados pela escola.", "success")
+        return redirect("/pais/dashboard")
 
     # ==================== SOLICITAR SAÍDA ====================
 

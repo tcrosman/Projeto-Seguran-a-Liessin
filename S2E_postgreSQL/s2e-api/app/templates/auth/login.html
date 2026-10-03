@@ -29,7 +29,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="form-group">
         <label class="form-label">Usuário</label>
-        <input class="form-input" name="u" placeholder="Digite seu usuário" required autocomplete="username">
+        <input class="form-input" name="u" placeholder="Digite seu usuário" value="{{ usuario or '' }}" required autocomplete="username" autocapitalize="none" spellcheck="false">
       </div>
       <div class="form-group">
         <label class="form-label">Senha</label>
