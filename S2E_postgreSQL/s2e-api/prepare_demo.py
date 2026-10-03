@@ -16,6 +16,8 @@ from app.core.database import get_db
 def main():
     parser = argparse.ArgumentParser(description='Preparar conta fictícia para demonstração')
     parser.add_argument('--email', required=True, help='E-mail da conta fictícia já aprovada')
+    parser.add_argument('--create-demo-child', action='store_true',
+                        help='Criar um único aluno sintético se a conta ainda não tiver filhos')
     args = parser.parse_args()
     email = args.email.strip().lower()
     allowed = {item.strip().lower() for item in os.getenv('SCHOOL_DEMO_EMAILS', '').split(',') if item.strip()}
@@ -27,37 +29,73 @@ def main():
 
     with get_db() as conn:
         account = conn.execute("""
-            SELECT id, nome, status FROM responsaveis WHERE lower(email) = %s
+            SELECT id, nome, status, school_external_id FROM responsaveis WHERE lower(email) = %s
         """, (email,)).fetchone()
         if not account or account['status'] != 'aprovado':
             parser.error('Conta fictícia não encontrada ou ainda não aprovada')
+        if account['school_external_id'] and not account['school_external_id'].startswith('demo:'):
+            parser.error('A conta tem identificador escolar oficial; operação recusada')
         children = conn.execute("""
             SELECT a.id, a.nome, a.school_external_id
             FROM vinculos_pais_alunos v JOIN alunos a ON a.id = v.aluno_id
             WHERE v.responsavel_id = %s ORDER BY a.id
         """, (account['id'],)).fetchall()
-    if not children:
+    if not children and not args.create_demo_child:
         parser.error('A conta não tem alunos vinculados; prepare os dados fictícios antes')
     if any(row['school_external_id'] and not row['school_external_id'].startswith('demo:')
            for row in children):
         parser.error('Há aluno com identificador escolar oficial; operação recusada')
 
     print(f"Conta selecionada: ID {account['id']} — {account['nome']} ({email})")
-    print('Alunos vinculados que serão marcados como fictícios:')
-    for row in children:
-        print(f"  ID {row['id']} — {row['nome']}")
+    if children:
+        print('Alunos vinculados que serão marcados como fictícios:')
+        for row in children:
+            print(f"  ID {row['id']} — {row['nome']}")
+    else:
+        print('Nenhum aluno vinculado. Será criado um único aluno sintético:')
+        print('  Aluno Fictício — Teste do Diretor (turma DEMO, série DEMO)')
     if input('Se todos são fictícios, digite MARCAR FICTICIOS: ').strip() != 'MARCAR FICTICIOS':
         print('Cancelado sem alterações.')
         return
 
     ids = [row['id'] for row in children]
     with get_db() as conn:
+        current_account = conn.execute("""
+            SELECT status, school_external_id FROM responsaveis WHERE id = %s FOR UPDATE
+        """, (account['id'],)).fetchone()
+        if (not current_account or current_account['status'] != 'aprovado'
+                or (current_account['school_external_id']
+                    and not current_account['school_external_id'].startswith('demo:'))):
+            raise RuntimeError('A conta mudou durante a confirmação; operação cancelada')
         current = conn.execute("""
             SELECT aluno_id FROM vinculos_pais_alunos
             WHERE responsavel_id = %s ORDER BY aluno_id FOR UPDATE
         """, (account['id'],)).fetchall()
         if [row['aluno_id'] for row in current] != ids:
             raise RuntimeError('Os vínculos mudaram durante a confirmação; operação cancelada')
+        if args.create_demo_child and not ids:
+            external_id = f"demo:director:{account['id']}:child-1"
+            child = conn.execute("""
+                INSERT INTO alunos (school_external_id, nome, turma, serie, is_demo)
+                VALUES (%s, %s, %s, %s, TRUE)
+                ON CONFLICT (school_external_id) DO NOTHING
+                RETURNING id
+            """, (external_id, 'Aluno Fictício — Teste do Diretor', 'DEMO', 'DEMO')).fetchone()
+            if not child:
+                raise RuntimeError('Aluno sintético já existe; operação cancelada para evitar duplicidade')
+            ids = [child['id']]
+            conn.execute("""
+                INSERT INTO vinculos_pais_alunos (responsavel_id, aluno_id)
+                VALUES (%s, %s)
+            """, (account['id'], child['id']))
+        else:
+            current_children = conn.execute("""
+                SELECT id, school_external_id FROM alunos WHERE id = ANY(%s) FOR UPDATE
+            """, (ids,)).fetchall()
+            if len(current_children) != len(ids) or any(
+                    row['school_external_id'] and not row['school_external_id'].startswith('demo:')
+                    for row in current_children):
+                raise RuntimeError('Um aluno mudou durante a confirmação; operação cancelada')
         conn.execute('UPDATE responsaveis SET is_demo = TRUE WHERE id = %s AND status = %s',
                      (account['id'], 'aprovado'))
         conn.execute('UPDATE alunos SET is_demo = TRUE WHERE id = ANY(%s)', (ids,))
