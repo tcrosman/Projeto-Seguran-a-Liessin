@@ -67,3 +67,11 @@ Se já existem pais reais usando o portal, **não** ativar `demo` como único mo
 na instalação atual: esses pais não estão na lista fictícia e perderiam acesso.
 Nesse caso, usar uma instalação de homologação isolada até as consultas SQL
 oficiais estarem disponíveis.
+
+Para a primeira demonstração remota, após a migração, cadastre e aprove pelo
+portal uma conta com e-mail de teste que possa receber 2FA, vincule somente
+alunos fictícios e configure esse e-mail em `SCHOOL_DEMO_EMAILS`. O operador
+deve então executar `sudo -u secureedu .venv/bin/python prepare_demo.py
+--email EMAIL_DE_TESTE` na pasta `s2e-api`, conferir os nomes exibidos e digitar
+`MARCAR FICTICIOS`. O script recusa contas sem filhos e alunos com ID escolar
+oficial, e não solicita nem imprime senhas. Não usar contas ou alunos reais.

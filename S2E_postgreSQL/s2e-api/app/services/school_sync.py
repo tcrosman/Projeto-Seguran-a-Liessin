@@ -18,7 +18,7 @@ def _demo_allowed(email: str, parent_id: int | None = None) -> bool:
         return False
     if environment in {'development', 'test'} and base.hostname in {'localhost', '127.0.0.1', '::1'}:
         return True
-    if (environment not in {'staging', 'production'} or base.scheme != 'https'
+    if (environment not in {'test', 'staging', 'production'} or base.scheme != 'https'
             or os.getenv('SCHOOL_DEMO_REMOTE_ALLOWED', 'false').lower() != 'true'
             or parent_id is None):
         raise SchoolDirectoryError('Demonstração remota não autorizada')

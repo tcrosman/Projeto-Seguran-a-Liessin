@@ -341,6 +341,35 @@ class PostgresFlowTests(unittest.TestCase):
                     conn.execute('DELETE FROM school_test_parents WHERE external_id = %s',
                                  (source_parent_id,))
 
+    def test_prepare_remote_demo_marks_only_selected_fake_family(self):
+        import prepare_demo
+        from app.services.school_sync import refresh_parent
+
+        with self.get_db() as conn:
+            self.parent_id = conn.execute("""
+                INSERT INTO responsaveis (email, nome, password_hash, status)
+                VALUES (%s, 'Responsável Fictício', 'hash', 'aprovado') RETURNING id
+            """, (self.parent_email,)).fetchone()['id']
+            conn.execute('INSERT INTO vinculos_pais_alunos (responsavel_id, aluno_id) VALUES (%s, %s)',
+                         (self.parent_id, self.student_id))
+        with patch.dict(os.environ, {
+            'APP_ENV': 'test', 'BASE_URL': 'https://portal.example.test',
+            'SCHOOL_DIRECTORY_MODE': 'demo', 'SCHOOL_DEMO_REMOTE_ALLOWED': 'true',
+            'SCHOOL_DEMO_EMAILS': self.parent_email,
+        }), patch('sys.argv', ['prepare_demo.py', '--email', self.parent_email]), \
+                patch('builtins.input', return_value='MARCAR FICTICIOS'), \
+                patch('builtins.print'):
+            self.assertFalse(refresh_parent(self.parent_id, self.parent_email))
+            prepare_demo.main()
+            self.assertTrue(refresh_parent(self.parent_id, self.parent_email))
+        with self.get_db() as conn:
+            parent_flag = conn.execute('SELECT is_demo FROM responsaveis WHERE id = %s',
+                                       (self.parent_id,)).fetchone()['is_demo']
+            child_flag = conn.execute('SELECT is_demo FROM alunos WHERE id = %s',
+                                      (self.student_id,)).fetchone()['is_demo']
+        self.assertTrue(parent_flag)
+        self.assertTrue(child_flag)
+
 
 if __name__ == '__main__':
     unittest.main()

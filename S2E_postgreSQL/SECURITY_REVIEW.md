@@ -56,7 +56,7 @@ Nenhuma consulta real, credencial ou conexão com o banco escolar foi recebida.
 - Inventário estático: 31 formulários HTML; nenhum POST sem campo CSRF. A proteção global também rejeitou POST sem token no teste.
 - Treze testes isolados passaram, cobrindo login/logout de três perfis de funcionários, acesso direto a URLs, CSRF, IDOR, 2FA, upload inválido, horário, rejeição de chave de exemplo, restrição da demonstração e rejeição de consultas ausentes/malformadas.
 - Duas execuções consecutivas das migrações passaram em PostgreSQL 16 descartável.
-- Três testes com PostgreSQL descartável passaram: os fluxos anteriores e a nova consulta escolar com sincronização, revogação de vínculo e bloqueio de responsável inativo. A rota `/healthz` retornou 204 com banco disponível e 503 em falha simulada.
+- Quatro testes com PostgreSQL descartável passaram: os fluxos anteriores, a nova consulta escolar com sincronização/revogação e o preparo controlado de uma família fictícia para demonstração. A rota `/healthz` retornou 204 com banco disponível e 503 em falha simulada.
 - `.env` está ignorado e não é rastreado no estado atual. Busca por padrões de chaves/URLs com senha em arquivos rastreados não encontrou correspondências; isso não substitui uma varredura de segredos em todo o histórico remoto.
 - Nenhum teste usou Supabase. O contêiner de teste foi removido após a execução.
 
