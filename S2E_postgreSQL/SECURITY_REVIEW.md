@@ -63,7 +63,7 @@ Nenhuma consulta real, credencial ou conexão com o banco escolar foi recebida.
 
 - Sintaxe de todos os arquivos Python e `git diff --check`: sem erros.
 - Inventário estático: 31 formulários HTML; nenhum POST sem campo CSRF. A proteção global também rejeitou POST sem token no teste.
-- Em 06/10/2026, foram executados 20 testes locais: 19 passaram e 1 foi pulado por exigir PostgreSQL descartável local. Incluem login/logout de três perfis de funcionários, acesso direto a URLs, CSRF, IDOR, 2FA, upload inválido, horário, restrição da demonstração, validação das consultas escolares, a verificação dos botões por perfil e a preparação controlada de contas fictícias.
+- Em 06/10/2026, foram executados 21 testes locais: 20 passaram e 1 foi pulado por exigir PostgreSQL descartável local. Incluem login/logout de três perfis de funcionários, acesso direto a URLs, CSRF, IDOR, 2FA, upload inválido, horário, restrição da demonstração, validação das consultas escolares, a verificação dos botões por perfil e a preparação controlada de contas fictícias.
 - Duas execuções consecutivas das migrações passaram em PostgreSQL 16 descartável.
 - Quatro testes com PostgreSQL descartável passaram: os fluxos anteriores, a nova consulta escolar com sincronização/revogação e o preparo controlado de uma família fictícia para demonstração. A rota `/healthz` retornou 204 com banco disponível e 503 em falha simulada.
 - `.env` não está rastreado no estado atual. A busca por padrões comuns de chaves/URLs com senha em arquivos rastreados não encontrou correspondências; isso não substitui uma varredura de segredos em todo o histórico remoto, especialmente porque o repositório está público.
