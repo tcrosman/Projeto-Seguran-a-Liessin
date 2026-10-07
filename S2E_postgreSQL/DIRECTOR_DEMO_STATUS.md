@@ -21,10 +21,12 @@ Atualizado em 06/10/2026 (horário de São Paulo). Branch: `codex/director-demo`
 
 Senhas não foram geradas nem publicadas no repositório. As contas novas devem ter senhas aleatórias diferentes, entregues ao responsável pelo teste por canal privado e trocadas ou revogadas ao término da demonstração.
 
+Patrick também deve executar o fluxo de **responsável/pai** com `patrick.moreno@liessin.com.br`: login, código 2FA enviado a esse e-mail, visualização do aluno fictício e envio de uma solicitação. Esse acesso não deve ser confundido com as três contas de equipe.
+
 ## Sequência necessária antes de entregar o teste
 
 1. Confirmar os e-mails das contas de equipe e se Patrick precisa testar também a Segurança da portaria. Usar uma conta distinta por perfil; não reutilizar contas `homolog` nem seus segredos.
-2. Restabelecer acesso operacional ao VPS, confirmar a versão em execução e fazer backup verificável. Duas tentativas de SSH de 06/10/2026 expiraram; a página inicial pública respondeu HTTP 200 por HTTPS, o que não confirma o estado do serviço ou banco.
+2. Restabelecer acesso operacional ao VPS, confirmar a versão em execução e fazer backup verificável. As tentativas de SSH de 06/10/2026 expiraram; o terminal web antigo da Hostinger também expirou e requer novo login do proprietário no hPanel. A página inicial da equipe e a dos pais responderam HTTP 200 por HTTPS e `/healthz` respondeu 204, mas isso não confirma o estado das contas nem o fluxo completo.
 3. Implantar a branch de demonstração com janela monitorada, preservar `.env` e banco, verificar o login e `/healthz`. A branch não é um ambiente isolado; voltar o código a `a4613ac` não desfaz alterações no banco ou contas.
 4. Criar somente as contas fictícias aprovadas com o preparador já implantado e validar seus perfis, e-mails, login e recuperação. Não registrar senhas em Git, relatórios ou logs. Confirmar a conta de responsável e o código 2FA no endereço de Patrick.
 5. Ensaiar com contas fictícias: responsável solicita; Básico ou Avançado aprova; Segurança ou Avançado libera. Testar também os bloqueios: Básico não registra/libera, Segurança não registra/aprova e responsável não vê outros alunos. O dono do projeto pode repetir o fluxo com suas contas `homolog` sem compartilhar essas senhas.
@@ -32,4 +34,4 @@ Senhas não foram geradas nem publicadas no repositório. As contas novas devem 
 
 ## Revisão pelo chefe de TI/CI
 
-O código está atualmente em repositório público do GitHub. A revisão pode usar a branch e comentários públicos sem dados sensíveis. A escola deve receber o relatório `SECURITY_REVIEW.md` e as evidências de teste; detalhes internos de infraestrutura, credenciais, dados reais e consultas escolares não devem ser adicionados ao GitHub público. A aprovação de segurança e a conexão PostgreSQL somente leitura continuam pendentes.
+**Adiada por solicitação do proprietário até confirmação posterior.** O código está atualmente em repositório público do GitHub. Quando a revisão for autorizada, comentários públicos não devem conter dados sensíveis; detalhes internos de infraestrutura, credenciais, dados reais e consultas escolares não devem ser adicionados ao GitHub público. A aprovação de segurança e a conexão PostgreSQL somente leitura continuam pendentes, mas não bloqueiam o teste fictício do diretor.
