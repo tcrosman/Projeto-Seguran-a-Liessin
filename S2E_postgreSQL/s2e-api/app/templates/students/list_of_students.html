@@ -20,7 +20,7 @@
       <div class="list-topbar">
         <div class="list-topbar-left">
           <h1>Alunos</h1>
-          <p>{% if session.role == 'admin' %}Registrar saída ou {% endif %}ver histórico</p>
+          <p>Alunos sincronizados com o banco escolar — consulta e histórico</p>
         </div>
       </div>
 
@@ -69,15 +69,6 @@
                     <a href="/historico_aluno/{{ aluno.id }}" class="btn btn-secondary" style="padding: 7px 14px; font-size: 13px;">
                       Ver Histórico
                     </a>
-                    {% if session.role == 'admin' %}
-                    <form method="POST" action="/deletar_aluno/{{ aluno.id }}" style="display:inline;"
-                          onsubmit="return confirm('Apagar este aluno? Esta ação não pode ser desfeita.')">
-                      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                      <button type="submit" class="action-btn danger" title="Apagar aluno" style="border:0; cursor:pointer;">
-                      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                      </button>
-                    </form>
-                    {% endif %}
                   </td>
                 </tr>
                 {% endfor %}
@@ -93,7 +84,7 @@
       {% else %}
         <div class="search-empty">
           <div style="font-size:36px; margin-bottom:8px;">👥</div>
-          Nenhum aluno cadastrado ainda.
+          Nenhum aluno sincronizado com o banco escolar.
         </div>
       {% endif %}
     </div>

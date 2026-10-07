@@ -32,7 +32,12 @@ def register_routes(app):
         return send_from_directory(os.path.join(static_folder, 'images'), filename)
     
     # ==================== AUTENTICAÇÃO ====================
-    @app.route("/", methods=["GET", "POST"])
+    @app.route("/", methods=["GET"])
+    def entrada_principal():
+        """Responsáveis são o público principal do sistema."""
+        return redirect("/pais/login")
+
+    @app.route("/colaboradores", methods=["GET", "POST"])
     def login():
         ip = request.remote_addr
         
@@ -88,7 +93,7 @@ def register_routes(app):
     def logout():
         log_operacao(session.get('username', 'desconhecido'), "LOGOUT", "", ip=request.remote_addr)
         session.clear()
-        return redirect("/")
+        return redirect("/colaboradores")
     
     @app.route("/esqueci_senha", methods=["GET", "POST"])
     def esqueci_senha():
@@ -180,12 +185,13 @@ def register_routes(app):
                     if locked and datetime.now() <= datetime.strptime(locked['expires_at'], "%Y-%m-%d %H:%M:%S"):
                         conn.execute("UPDATE usuarios SET password = %s, auth_version = auth_version + 1 WHERE id = %s", (generate_password_hash(nova, method='pbkdf2:sha256'), locked['user_id']))
                         conn.execute("DELETE FROM reset_tokens WHERE token IN (%s, %s)", (digest_token(token), token))
-                        return redirect("/?resetado=1")
+                        return redirect("/colaboradores?resetado=1")
                 erro = "Link inválido ou expirado. Solicite um novo."
         
         return render_template("auth/reset.html", erro=erro, token=token if user_id else None)
     
     # ==================== ALUNOS ====================
+    @app.route("/alunos")
     @app.route("/cadastro_aluno")
     @login_required
     def cadastro_aluno():
@@ -225,6 +231,7 @@ def register_routes(app):
     @app.route("/editar_aluno/<int:id_aluno>", methods=["GET", "POST"])
     @admin_required
     def editar_aluno(id_aluno):
+        return "Alunos são mantidos exclusivamente pelo banco escolar.", 403
         log_operacao(session.get('username'), "ACESSO_DADOS_SAUDE", f"editou aluno ID={id_aluno}", ip=request.remote_addr)
         from app.core.validators import normalizar_serie
 
@@ -270,6 +277,7 @@ def register_routes(app):
     @app.route("/deletar_aluno/<int:id_aluno>", methods=["POST"])
     @admin_required
     def deletar_aluno(id_aluno):
+        return "Alunos são mantidos exclusivamente pelo banco escolar.", 403
         with get_db() as conn:
             relacionado = conn.execute("""
                 SELECT (
@@ -544,6 +552,7 @@ def register_routes(app):
     @app.route("/cadastro_massa", methods=["GET", "POST"])
     @admin_required
     def cadastro_massa():
+        return "Alunos são importados exclusivamente do banco escolar.", 403
         from app.core.audit_logger import log_operacao
         import pandas as pd
         import os
@@ -780,6 +789,7 @@ def register_routes(app):
     @app.route("/configurar_horarios", methods=["GET", "POST"])
     @admin_required
     def configurar_horarios():
+        return "Dados dos alunos são mantidos exclusivamente pelo banco escolar.", 403
         if request.method == "POST":
             with get_db() as conn:
                 for serie in Config.SERIES:

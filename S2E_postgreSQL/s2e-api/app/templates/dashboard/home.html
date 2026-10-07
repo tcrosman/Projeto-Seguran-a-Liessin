@@ -16,16 +16,16 @@
       <h1 class="home-title">Sistema de Controle de Saídas</h1>
 
       <div class="home-grid">
-        <a href="/cadastro_aluno" class="home-card blue">
-          <div class="home-card-icon">📋</div>
+        <a href="/alunos" class="home-card blue">
+          <div class="home-card-icon">🎓</div>
           <div class="home-card-title">ALUNOS</div>
-          <div class="home-card-sub">{% if session.role == 'admin' %}Registrar saída · {% endif %}Ver histórico do aluno</div>
+          <div class="home-card-sub">Consultar alunos e históricos</div>
         </a>
         {% if session.role == 'admin' %}
-        <a href="/cadastro_massa" class="home-card green">
-          <div class="home-card-icon">👤</div>
-          <div class="home-card-title">CADASTRAR ALUNO</div>
-          <div class="home-card-sub">Adicionar alunos ao sistema</div>
+        <a href="/registrar_saida" class="home-card green">
+          <div class="home-card-icon">📋</div>
+          <div class="home-card-title">REGISTRAR SAÍDA</div>
+          <div class="home-card-sub">Registrar uma saída manualmente</div>
         </a>
         {% endif %}
         <a href="/saidas" class="home-card yellow">
@@ -33,7 +33,7 @@
           <div class="home-card-title">SAÍDAS</div>
           <div class="home-card-sub">Ver e autorizar saídas</div>
         </a>
-        <a href="/manual" class="home-card cyan {% if session.role != 'admin' %}home-card-centered{% endif %}">
+        <a href="/manual" class="home-card cyan">
           <div class="home-card-icon" aria-hidden="true">
             <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
           </div>

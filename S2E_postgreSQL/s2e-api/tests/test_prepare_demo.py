@@ -63,14 +63,16 @@ class PrepareDemoTests(unittest.TestCase):
                 contextlib.redirect_stdout(io.StringIO()):
             prepare_demo.main()
 
-    def test_creates_only_one_synthetic_child_after_confirmation(self):
+    def test_creates_three_synthetic_children_after_confirmation(self):
         db = _Db()
         self.run_command(db)
-        self.assertEqual(len(db.writes), 4)
+        self.assertEqual(len(db.writes), 8)
         self.assertIn('demo:director:9:child-1', db.writes[0][1])
-        self.assertIn('Aluno Fictício — Teste do Diretor', db.writes[0][1])
+        self.assertIn('TESTE — Aluno Fictício 1', db.writes[0][1])
         self.assertEqual(db.writes[1][1], (9, 42))
-        self.assertEqual(db.writes[-1][1], ([42],))
+        self.assertIn('demo:director:9:child-2', db.writes[2][1])
+        self.assertIn('demo:director:9:child-3', db.writes[4][1])
+        self.assertEqual(db.writes[-1][1], ([42, 42, 42],))
 
     def test_no_confirmation_makes_no_changes(self):
         db = _Db()

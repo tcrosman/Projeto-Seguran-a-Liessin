@@ -16,8 +16,10 @@ from app.core.database import get_db
 def main():
     parser = argparse.ArgumentParser(description='Preparar conta fictícia para demonstração')
     parser.add_argument('--email', required=True, help='E-mail da conta fictícia já aprovada')
-    parser.add_argument('--create-demo-child', action='store_true',
-                        help='Criar um único aluno sintético se a conta ainda não tiver filhos')
+    parser.add_argument('--create-demo-children', action='store_true',
+                        help='Criar três alunos sintéticos se a conta ainda não tiver filhos')
+    # Compatibilidade com o comando usado na preparação anterior.
+    parser.add_argument('--create-demo-child', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
     email = args.email.strip().lower()
     allowed = {item.strip().lower() for item in os.getenv('SCHOOL_DEMO_EMAILS', '').split(',') if item.strip()}
@@ -40,7 +42,8 @@ def main():
             FROM vinculos_pais_alunos v JOIN alunos a ON a.id = v.aluno_id
             WHERE v.responsavel_id = %s ORDER BY a.id
         """, (account['id'],)).fetchall()
-    if not children and not args.create_demo_child:
+    create_children = args.create_demo_children or args.create_demo_child
+    if not children and not create_children:
         parser.error('A conta não tem alunos vinculados; prepare os dados fictícios antes')
     if any(row['school_external_id'] and not row['school_external_id'].startswith('demo:')
            for row in children):
@@ -52,8 +55,10 @@ def main():
         for row in children:
             print(f"  ID {row['id']} — {row['nome']}")
     else:
-        print('Nenhum aluno vinculado. Será criado um único aluno sintético:')
-        print('  Aluno Fictício — Teste do Diretor (turma DEMO, série DEMO)')
+        print('Nenhum aluno vinculado. Serão criados três alunos sintéticos:')
+        print('  TESTE — Aluno Fictício 1 (6º ano EF, turma A)')
+        print('  TESTE — Aluno Fictício 2 (8º ano EF, turma B)')
+        print('  TESTE — Aluno Fictício 3 (3º ano EM, turma A)')
     if input('Se todos são fictícios, digite MARCAR FICTICIOS: ').strip() != 'MARCAR FICTICIOS':
         print('Cancelado sem alterações.')
         return
@@ -73,21 +78,27 @@ def main():
         """, (account['id'],)).fetchall()
         if [row['aluno_id'] for row in current] != ids:
             raise RuntimeError('Os vínculos mudaram durante a confirmação; operação cancelada')
-        if args.create_demo_child and not ids:
-            external_id = f"demo:director:{account['id']}:child-1"
-            child = conn.execute("""
-                INSERT INTO alunos (school_external_id, nome, turma, serie, is_demo)
-                VALUES (%s, %s, %s, %s, TRUE)
-                ON CONFLICT (school_external_id) DO NOTHING
-                RETURNING id
-            """, (external_id, 'Aluno Fictício — Teste do Diretor', 'DEMO', 'DEMO')).fetchone()
-            if not child:
-                raise RuntimeError('Aluno sintético já existe; operação cancelada para evitar duplicidade')
-            ids = [child['id']]
-            conn.execute("""
-                INSERT INTO vinculos_pais_alunos (responsavel_id, aluno_id)
-                VALUES (%s, %s)
-            """, (account['id'], child['id']))
+        if create_children and not ids:
+            demo_children = (
+                ('child-1', 'TESTE — Aluno Fictício 1', 'A', '6º ano EF'),
+                ('child-2', 'TESTE — Aluno Fictício 2', 'B', '8º ano EF'),
+                ('child-3', 'TESTE — Aluno Fictício 3', 'A', '3º ano EM'),
+            )
+            for suffix, name, class_group, grade in demo_children:
+                external_id = f"demo:director:{account['id']}:{suffix}"
+                child = conn.execute("""
+                    INSERT INTO alunos (school_external_id, nome, turma, serie, is_demo)
+                    VALUES (%s, %s, %s, %s, TRUE)
+                    ON CONFLICT (school_external_id) DO NOTHING
+                    RETURNING id
+                """, (external_id, name, class_group, grade)).fetchone()
+                if not child:
+                    raise RuntimeError('Aluno sintético já existe; operação cancelada para evitar duplicidade')
+                ids.append(child['id'])
+                conn.execute("""
+                    INSERT INTO vinculos_pais_alunos (responsavel_id, aluno_id)
+                    VALUES (%s, %s)
+                """, (account['id'], child['id']))
         else:
             current_children = conn.execute("""
                 SELECT id, school_external_id FROM alunos WHERE id = ANY(%s) FOR UPDATE

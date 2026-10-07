@@ -350,7 +350,6 @@
           <li><a href="#registrar">Alunos</a></li>
           <li><a href="#saidas">Saídas</a></li>
           <li><a href="#historico">Histórico do Aluno</a></li>
-          <li><a href="#cadastrar">Cadastrar Aluno</a></li>
           <li><a href="#configuracoes">Configurações</a></li>
           <li><a href="#responsaveis">Aprovar Responsáveis</a></li>
           <li><a href="#solicitacoes">Solicitações dos Pais</a></li>
@@ -385,7 +384,7 @@
           </div>
         </div>
         <ol class="steps">
-          <li><span>Abra o sistema no navegador. A tela de login será exibida automaticamente.</span></li>
+          <li><span>Acesse <strong>/colaboradores</strong>. O endereço principal do sistema abre primeiro o Portal dos Responsáveis.</span></li>
           <li><span>No campo <strong>Usuário</strong>, digite o nome de usuário que foi criado para você.</span></li>
           <li><span>No campo <strong>Senha</strong>, digite sua senha.</span></li>
           <li><span>Clique no botão <strong>Entrar</strong>. Você será redirecionado ao Menu Principal.</span></li>
@@ -425,14 +424,14 @@
                 <div style="font-size:11px; font-weight:700; color:#374151; margin-bottom:10px;">Sistema de Controle de Saídas</div>
                 <div class="home-mockup-grid">
                   <div class="home-mockup-card blue">
-                    <div class="icon">📋</div>
+                    <div class="icon">🎓</div>
                     <div class="title">ALUNOS</div>
-                    <div class="sub">Registrar saída · Ver histórico</div>
+                    <div class="sub">Consultar alunos e históricos</div>
                   </div>
                   <div class="home-mockup-card green">
-                    <div class="icon">👤</div>
-                    <div class="title">CADASTRAR ALUNO</div>
-                    <div class="sub">Adicionar alunos ao sistema</div>
+                    <div class="icon">📋</div>
+                    <div class="title">REGISTRAR SAÍDA</div>
+                    <div class="sub">Registro manual pelo administrador</div>
                   </div>
                   <div class="home-mockup-card yellow">
                     <div class="icon">✅</div>
@@ -459,7 +458,7 @@
           <div class="section-number">3</div>
           <div>
             <div class="section-title">Alunos</div>
-            <div class="section-sub">Registrar saídas e consultar o histórico de cada aluno</div>
+            <div class="section-sub">Consultar alunos sincronizados e seus históricos</div>
           </div>
         </div>
         <ol class="steps">
@@ -471,11 +470,11 @@
         </ol>
         <div class="tip-box">
           <strong>Formulário de Registro de Saída</strong>
-          Ao clicar em <b>Registrar Saída</b>, preencha: <b>Data</b>, <b>Horário</b>, <b>Motivo</b> (ex: consulta médica) e <b>Responsável da escola</b> (funcionário que autorizou a saída). Em seguida, selecione o <b>Tipo de Saída</b>: se for <b>acompanhado</b>, um campo aparecerá para informar o nome do acompanhante. Opcionalmente, você pode anexar um <b>documento do responsável</b> pela retirada (RG, CNH, etc.).
+          Somente o administrador pode registrar uma saída diretamente. Preencha data, horário, motivo, responsável da escola e tipo de saída. Os pedidos comuns são registrados pelos responsáveis e passam pela aprovação da escola.
         </div>
         <div class="warn-box">
-          <strong>Remover aluno</strong>
-          Como administrador, você verá um ícone de <b>lixeira</b> ao lado de cada aluno. A remoção só é permitida se o aluno não tiver saídas pendentes. A ação é irreversível — o sistema pedirá confirmação antes de excluir.
+          <strong>Cadastro dos alunos</strong>
+          Alunos não podem ser criados, alterados ou excluídos neste sistema. Os dados vêm exclusivamente do banco escolar. Na homologação, aparecem apenas os alunos fictícios preparados pela equipe.
         </div>
       </div>
 
@@ -515,45 +514,9 @@
         </ol>
       </div>
 
-      <div class="manual-section" id="cadastrar">
-        <div class="section-header">
-          <div class="section-number">6</div>
-          <div>
-            <div class="section-title">Cadastrar Aluno</div>
-            <div class="section-sub">Adicionar alunos individualmente ou em lote via Excel</div>
-          </div>
-        </div>
-        <div class="admin-section">
-          <span class="admin-badge">Apenas administradores</span>
-          <p style="margin-bottom: 14px;">Acesse pelo <strong>cartão verde "Cadastrar Aluno" no Menu Principal</strong>, ou via <strong>Configurações → Cadastrar Aluno</strong>. A tela tem duas abas:</p>
-
-          <p style="font-size:13px; font-weight:700; color:#111827; margin-bottom:8px;">👤 Aba: Cadastro Individual</p>
-          <ol class="steps">
-            <li><span>Preencha o <strong>Nome Completo</strong>, <strong>Série</strong> e <strong>Turma</strong> (obrigatórios).</span></li>
-            <li><span>Ao selecionar a <strong>Série</strong>, os horários de saída são preenchidos automaticamente com os padrões configurados.</span></li>
-            <li><span><strong>Responsáveis (opcional):</strong> liste os nomes das pessoas autorizadas a retirar o aluno.</span></li>
-            <li><span><strong>Foto (opcional):</strong> clique na área de foto e selecione uma imagem JPG ou PNG.</span></li>
-            <li><span>Clique em <strong>Cadastrar Aluno</strong>.</span></li>
-          </ol>
-
-          <p style="font-size:13px; font-weight:700; color:#111827; margin-bottom:8px; margin-top:16px;">📊 Aba: Importar Excel</p>
-          <ol class="steps">
-            <li><span>Prepare um arquivo <strong>.xlsx</strong> com as colunas obrigatórias: <strong>nome</strong>, <strong>turma</strong> e <strong>serie</strong>. Colunas opcionais: <code>saida_seg</code>, <code>saida_ter</code>, <code>saida_qua</code>, <code>saida_qui</code>, <code>saida_sex</code>, <code>responsaveis</code>.</span></li>
-            <li><span>Clique na área de upload e selecione o arquivo Excel.</span></li>
-            <li><span><strong>Fotos (opcional):</strong> coloque as fotos dos alunos em uma pasta, nomeando cada arquivo com o nome exato do aluno como está na planilha. Clique em "Selecionar pasta" e escolha essa pasta.</span></li>
-            <li><span>Clique em <strong>Importar Planilha</strong>. O sistema confirmará quantos alunos foram cadastrados.</span></li>
-          </ol>
-
-          <div class="tip-box">
-            <strong>Não é necessário inserir e-mail do responsável</strong>
-            Na operação oficial, o vínculo será carregado das consultas PostgreSQL aprovadas pelo TI. Na demonstração local, use apenas vínculos fictícios preparados pela equipe.
-          </div>
-        </div>
-      </div>
-
       <div class="manual-section" id="configuracoes">
         <div class="section-header">
-          <div class="section-number">7</div>
+          <div class="section-number">6</div>
           <div>
             <div class="section-title">Configurações</div>
             <div class="section-sub">Horários padrão, usuários e backup</div>
@@ -562,8 +525,7 @@
         <div class="admin-section">
           <span class="admin-badge">Apenas administradores</span>
           <p style="margin-bottom: 12px;"><strong>👤 Usuários:</strong> Cria e gerencia os acessos dos funcionários ao sistema.</p>
-          <p style="margin-bottom: 12px;"><strong>🕐 Horários Padrão:</strong> Define automaticamente o horário de saída ao cadastrar um novo aluno.</p>
-          <p style="margin-bottom: 12px;"><strong>👨‍👩‍👧 Responsáveis:</strong> Aprova, bloqueia e busca contas de pais e responsáveis. Veja a seção 8 para detalhes.</p>
+          <p style="margin-bottom: 12px;"><strong>👨‍👩‍👧 Responsáveis:</strong> Aprova, bloqueia e busca contas de pais e responsáveis. Veja a seção 7 para detalhes.</p>
           <p style="margin-bottom: 12px;"><strong>💾 Backup:</strong> Salva uma cópia completa do banco de dados.</p>
           <div class="warn-box">
             <strong>Atenção</strong>
@@ -574,7 +536,7 @@
 
       <div class="manual-section" id="responsaveis">
         <div class="section-header">
-          <div class="section-number">8</div>
+          <div class="section-number">7</div>
           <div>
             <div class="section-title">Aprovar Responsáveis</div>
             <div class="section-sub">Gerenciar contas dos pais no portal</div>
@@ -605,7 +567,7 @@
 
       <div class="manual-section" id="solicitacoes">
         <div class="section-header">
-          <div class="section-number">9</div>
+          <div class="section-number">8</div>
           <div>
             <div class="section-title">Solicitações dos Pais</div>
             <div class="section-sub">Revisar pedidos de saída antecipada enviados pelo portal</div>

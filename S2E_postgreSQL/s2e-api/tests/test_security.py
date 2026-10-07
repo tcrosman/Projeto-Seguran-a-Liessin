@@ -152,7 +152,7 @@ class SecurityTests(unittest.TestCase):
             self.addCleanup(item.stop)
         self.client = self.app.test_client()
 
-    def csrf(self, path='/'):
+    def csrf(self, path='/colaboradores'):
         body = self.client.get(path).get_data(as_text=True)
         match = re.search(r'name="csrf_token" value="([^"]+)"', body)
         self.assertIsNotNone(match)
@@ -169,7 +169,7 @@ class SecurityTests(unittest.TestCase):
                 self.client = self.app.test_client()
                 csrf = self.csrf()
                 with patch.object(web, 'is_limited', return_value=False), patch.object(web, 'clear_failures'):
-                    response = self.client.post('/', data={'csrf_token': csrf, 'u': role, 's': 'Senha@123456'})
+                    response = self.client.post('/colaboradores', data={'csrf_token': csrf, 'u': role, 's': 'Senha@123456'})
                 self.assertEqual(response.status_code, 302)
                 with self.client.session_transaction() as state:
                     self.assertEqual(state['role'], role)
@@ -178,6 +178,22 @@ class SecurityTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 302)
                 with self.client.session_transaction() as state:
                     self.assertNotIn('user_id', state)
+
+    def test_main_entry_is_for_parents_and_staff_has_separate_entry(self):
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.location, '/pais/login')
+        self.assertEqual(self.client.get('/colaboradores').status_code, 200)
+
+    def test_students_cannot_be_changed_locally(self):
+        self.session_as('admin')
+        self.assertEqual(self.client.get('/cadastro_massa').status_code, 403)
+        self.assertEqual(self.client.get('/editar_aluno/1').status_code, 403)
+        csrf = self.csrf('/inicio')
+        self.assertEqual(
+            self.client.post('/deletar_aluno/1', data={'csrf_token': csrf}).status_code,
+            403,
+        )
 
     def test_role_checks_on_direct_urls(self):
         for role, forbidden in (

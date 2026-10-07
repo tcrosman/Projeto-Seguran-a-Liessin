@@ -91,7 +91,7 @@ class PostgresFlowTests(unittest.TestCase):
     def staff_login(self, role):
         client = self.app.test_client()
         csrf = self.csrf(client, '/')
-        response = client.post('/', data={
+        response = client.post('/colaboradores', data={
             'csrf_token': csrf, 'u': self.staff_names[role], 's': self.staff_password,
         })
         self.assertEqual(response.location, '/inicio')

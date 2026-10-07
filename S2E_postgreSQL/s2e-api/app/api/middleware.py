@@ -58,7 +58,7 @@ def login_required(f):
     def decorated_function(*args, **kwargs):
         role = active_staff_role()
         if role is None:
-            return redirect('/')
+            return redirect('/colaboradores')
         if role == 'vigia' and f.__name__ not in _VIGIA_ALLOWED_ENDPOINTS:
             return "Acesso negado: porteiros só podem acessar a lista de saídas.", 403
         return f(*args, **kwargs)
@@ -70,7 +70,7 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         role = active_staff_role()
         if role is None:
-            return redirect('/')
+            return redirect('/colaboradores')
         if role != 'admin':
             return "Acesso negado", 403
         return f(*args, **kwargs)
@@ -91,7 +91,7 @@ def solicitacao_required(f):
     def decorated_function(*args, **kwargs):
         role = active_staff_role()
         if role is None:
-            return redirect('/')
+            return redirect('/colaboradores')
         if role not in ('admin', 'basico'):
             return "Acesso negado", 403
         return f(*args, **kwargs)
@@ -104,7 +104,7 @@ def release_required(f):
     def decorated_function(*args, **kwargs):
         role = active_staff_role()
         if role is None:
-            return redirect('/')
+            return redirect('/colaboradores')
         if role not in ('admin', 'vigia'):
             return "Acesso negado", 403
         return f(*args, **kwargs)
