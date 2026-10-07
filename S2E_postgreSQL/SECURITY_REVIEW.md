@@ -1,10 +1,10 @@
 # SecureEdu — revisão técnica para TI/CI
 
-Atualizado em 06/10/2026 (horário de São Paulo). Escopo: código da branch `codex/director-demo`, testes locais e verificações externas limitadas do portal. Esta é uma avaliação para o chefe de TI/CI, **não** uma certificação de segurança nem aprovação para dados escolares reais.
+Atualizado em 07/10/2026 (horário de São Paulo). Escopo: código da branch `codex/director-demo`, testes locais e verificações externas limitadas do portal. Esta é uma avaliação para o chefe de TI/CI, **não** uma certificação de segurança nem aprovação para dados escolares reais.
 
 ### Estado verificado para esta entrega
 
-- A branch de demonstração está em `cc1f378`, publicada no GitHub. Ela **não foi implantada** no VPS. O último commit de produção confirmado anteriormente foi `a4613ac` (03/10/2026); a versão em execução precisa ser reconfirmada no VPS antes de qualquer deploy ou assinatura de revisão.
+- A branch de demonstração `codex/director-demo` está publicada no GitHub. Ela **não foi implantada** no VPS. O último commit de produção confirmado anteriormente foi `a4613ac` (03/10/2026); a versão em execução precisa ser reconfirmada no VPS antes de qualquer deploy ou assinatura de revisão.
 - Em 06/10/2026, `https://portalsecureedu.com/` respondeu HTTP 200 por HTTPS, com cabeçalhos HSTS, `X-Frame-Options: DENY` e cookie de sessão `Secure`, `HttpOnly` e `SameSite=Lax`. Isso comprova apenas a resposta dessa rota, não o funcionamento de login, e-mail, banco, backup ou restauração.
 - A tentativa de SSH nesta atualização expirou sem conexão. Nenhuma alteração de contas ou configuração foi feita no VPS nesta revisão.
 - O repositório `tcrosman/Projeto-Seguran-a-Liessin` responde publicamente sem autenticação. Não inserir senhas, `.env`, dados reais de alunos, logs sensíveis ou relatórios internos de infraestrutura no GitHub público. A busca atual por padrões comuns de chaves e URLs com senha em arquivos rastreados não encontrou resultado; **o histórico completo ainda requer varredura própria**.

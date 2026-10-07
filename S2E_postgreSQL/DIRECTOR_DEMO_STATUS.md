@@ -1,6 +1,6 @@
 # SecureEdu — preparação do teste do diretor
 
-Atualizado em 06/10/2026 (horário de São Paulo). Branch: `codex/director-demo`.
+Atualizado em 07/10/2026 (horário de São Paulo). Branch: `codex/director-demo`.
 
 ## Feito nesta etapa
 
@@ -31,6 +31,14 @@ Patrick também deve executar o fluxo de **responsável/pai** com `patrick.moren
 4. Criar somente as contas fictícias com o preparador já implantado e validar seus perfis e login. Essas três contas não terão recuperação por e-mail; não registrar senhas em Git, relatórios ou logs. Confirmar a conta de pai, sua senha conhecida por Patrick ou redefinição via portal, e o código 2FA no endereço dele.
 5. Ensaiar com contas fictícias: responsável solicita; Básico ou Avançado aprova; Segurança ou Avançado libera. Testar também os bloqueios: Básico não registra/libera, Segurança não registra/aprova e responsável não vê outros alunos. O dono do projeto pode repetir o fluxo com suas contas `homolog` sem compartilhar essas senhas.
 6. Entregar ao diretor apenas os nomes de acesso e senhas temporárias por canal privado. Registrar aceite ou problemas do fluxo. Não é necessário fornecer consultas escolares oficiais para este teste.
+
+## Ponto de retomada para outro desenvolvedor
+
+- Repositório público: `https://github.com/tcrosman/Projeto-Seguran-a-Liessin`. Trabalhar a partir da branch `codex/director-demo`; não presumir que ela é um ambiente separado do VPS ou do banco de produção.
+- Antes de publicar, comparar o commit remoto com o local, conferir `git status`, ler este documento e `SECURITY_REVIEW.md`, repetir os testes e validar backup e possibilidade de reversão. Não copiar `.env`, senhas ou dados escolares para GitHub ou para uma IA.
+- O script `/usr/local/sbin/secureedu-deploy` visto anteriormente reinicia `secureedu`. Como o proprietário exigiu que o login permaneça disponível, não usá-lo sem antes estabelecer e comprovar uma estratégia de troca sem indisponibilidade. Reverter apenas o código não reverte migrações nem contas criadas.
+- Após implantação segura, criar as três contas temporárias exclusivamente com `s2e-api/prepare_director_staff.py --parent-email patrick.moreno@liessin.com.br`, em terminal interativo, observando as verificações do próprio script. Nunca publicar as senhas geradas; entregá-las por canal privado.
+- A revisão de segurança do chefe de TI/CI e a integração com o PostgreSQL escolar somente leitura ficam para depois da confirmação explícita do proprietário. Não usar dados reais nesta fase.
 
 ## Revisão pelo chefe de TI/CI
 
