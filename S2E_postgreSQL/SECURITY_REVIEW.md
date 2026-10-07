@@ -1,6 +1,14 @@
 # SecureEdu — revisão técnica para TI/CI
 
-Data: 03/10/2026. Escopo: código local em `s2e-api` e scripts adjacentes. Nenhuma conexão com a base ou o servidor de produção foi feita. A revisão não certifica a segurança da implantação.
+Atualizado em 06/10/2026 (horário de São Paulo). Escopo: código da branch `codex/director-demo`, testes locais e verificações externas limitadas do portal. Esta é uma avaliação para o chefe de TI/CI, **não** uma certificação de segurança nem aprovação para dados escolares reais.
+
+### Estado verificado para esta entrega
+
+- A branch de demonstração está em `cc1f378`, publicada no GitHub. Ela **não foi implantada** no VPS. O último commit de produção confirmado anteriormente foi `a4613ac` (03/10/2026); a versão em execução precisa ser reconfirmada no VPS antes de qualquer deploy ou assinatura de revisão.
+- Em 06/10/2026, `https://portalsecureedu.com/` respondeu HTTP 200 por HTTPS, com cabeçalhos HSTS, `X-Frame-Options: DENY` e cookie de sessão `Secure`, `HttpOnly` e `SameSite=Lax`. Isso comprova apenas a resposta dessa rota, não o funcionamento de login, e-mail, banco, backup ou restauração.
+- A tentativa de SSH nesta atualização expirou sem conexão. Nenhuma alteração de contas ou configuração foi feita no VPS nesta revisão.
+- O repositório `tcrosman/Projeto-Seguran-a-Liessin` responde publicamente sem autenticação. Não inserir senhas, `.env`, dados reais de alunos, logs sensíveis ou relatórios internos de infraestrutura no GitHub público. A busca atual por padrões comuns de chaves e URLs com senha em arquivos rastreados não encontrou resultado; **o histórico completo ainda requer varredura própria**.
+- O modo de demonstração remota é permitido apenas com HTTPS, configuração explícita, e-mail na lista autorizada e contas/alunos marcados como fictícios. Não é integração com a base escolar. A conta de responsável de Patrick e o aluno fictício foram preparados anteriormente; o login completo com senha e 2FA ainda precisa de ensaio real.
 
 Atualização após esclarecimento da escola: **não haverá API da TOTVS**. A fonte
 oficial será um PostgreSQL somente leitura, com duas consultas aprovadas pelo TI.
@@ -32,7 +40,8 @@ Nenhuma consulta real, credencial ou conexão com o banco escolar foi recebida.
 | Alto | Aprovação, edição e liberação simultâneas podiam gerar duplicação ou reabrir saída já liberada. | Bloqueios de linha e de aluno nos fluxos ativos. Ainda falta uma restrição única de pendência no banco após saneamento de dados existentes. |
 | Alto | Erro de importação de planilha podia renderizar conteúdo informado pelo usuário como HTML. | Removido `safe`; mensagens escapadas e erros internos ocultos. |
 | Alto | Uploads confiavam em assinaturas curtas e extensões; fotos em lote não eram verificadas. | Decodificação de imagens por Pillow, limite por arquivo, extensão compatível, PDF com cabeçalho e marcador final, nomes aleatórios, acesso autenticado. PDF ainda requer antivírus/inspeção de conteúdo se a política da escola exigir. |
-| Alto | A antiga validação por API não sincronizava filhos e podia aceitar valores não booleanos. | A integração REST foi removida. Consultas PostgreSQL de leitura usam parâmetros e contrato estrito; o portal sincroniza filhos por ID externo, revoga vínculos ausentes e bloqueia acesso quando a fonte falha. Modo de demonstração só em localhost. |
+| Alto | A antiga validação por API não sincronizava filhos e podia aceitar valores não booleanos. | A integração REST foi removida. Consultas PostgreSQL de leitura usam parâmetros e contrato estrito; o portal sincroniza filhos por ID externo, revoga vínculos ausentes e bloqueia acesso quando a fonte falha. A demonstração remota exige controles explícitos para contas fictícias. |
+| Médio | O perfil básico via o botão de liberação, embora o servidor negasse a ação. O manual básico também dizia que ele podia liberar saídas. | Corrigidos na branch `codex/director-demo`: botão de liberar só para admin e segurança da portaria, botão de editar só para admin e manual alinhado à matriz de permissões. Ainda não implantado. |
 | Médio | Uma consulta de histórico podia buscar campos de saúde sem precisar deles; logs aceitavam quebras de linha. | Consulta minimizada; linhas de auditoria normalizadas; logs de SMTP não exibem destinatários, tokens ou detalhes de exceção. |
 | Médio | Função de retenção não chamada montava intervalo SQL por interpolação. | Intervalo parametrizado e validado. Não foi ativada exclusão automática de histórico. |
 | Médio | Os manuais prometiam remoção automática após 30 dias, mas não havia agendamento. | Texto corrigido. `maintenance.py` permite agendar a passagem para `nao_realizada` e limpar contadores antigos; não remove histórico escolar. |
@@ -54,18 +63,19 @@ Nenhuma consulta real, credencial ou conexão com o banco escolar foi recebida.
 
 - Sintaxe de todos os arquivos Python e `git diff --check`: sem erros.
 - Inventário estático: 31 formulários HTML; nenhum POST sem campo CSRF. A proteção global também rejeitou POST sem token no teste.
-- Treze testes isolados passaram, cobrindo login/logout de três perfis de funcionários, acesso direto a URLs, CSRF, IDOR, 2FA, upload inválido, horário, rejeição de chave de exemplo, restrição da demonstração e rejeição de consultas ausentes/malformadas.
+- Em 06/10/2026, foram executados 20 testes locais: 19 passaram e 1 foi pulado por exigir PostgreSQL descartável local. Incluem login/logout de três perfis de funcionários, acesso direto a URLs, CSRF, IDOR, 2FA, upload inválido, horário, restrição da demonstração, validação das consultas escolares, a verificação dos botões por perfil e a preparação controlada de contas fictícias.
 - Duas execuções consecutivas das migrações passaram em PostgreSQL 16 descartável.
 - Quatro testes com PostgreSQL descartável passaram: os fluxos anteriores, a nova consulta escolar com sincronização/revogação e o preparo controlado de uma família fictícia para demonstração. A rota `/healthz` retornou 204 com banco disponível e 503 em falha simulada.
-- `.env` está ignorado e não é rastreado no estado atual. Busca por padrões de chaves/URLs com senha em arquivos rastreados não encontrou correspondências; isso não substitui uma varredura de segredos em todo o histórico remoto.
+- `.env` não está rastreado no estado atual. A busca por padrões comuns de chaves/URLs com senha em arquivos rastreados não encontrou correspondências; isso não substitui uma varredura de segredos em todo o histórico remoto, especialmente porque o repositório está público.
 - Nenhum teste usou Supabase. O contêiner de teste foi removido após a execução.
 
 ## Orientações para revisão do chefe de TI/CI
 
-1. Revisar o diff sem publicar; preservar as alterações locais que já existiam no começo da tarefa.
+1. Revisar no GitHub a branch `codex/director-demo` e compará-la com `a4613ac`. O código é público; comentários de revisão em uma solicitação de mudança podem ser públicos também. Não colocar dados escolares ou detalhes de infraestrutura nesses comentários.
 2. Fazer backup verificável e ensaio de restauração; aplicar as migrações somente em cópia/homologação antes da produção. Conferir especialmente `auth_version`, `auth_attempts` e `saidas.solicitacao_id`.
 3. Conciliar registros legados e identificar se a antiga senha fixa de administrador foi usada. Se foi, alterar credenciais e revisar acessos anteriores.
 4. Executar os testes isolados com `PYTHON_DOTENV_DISABLED=1` e sem URL de produção. O teste PostgreSQL exige `APP_ENV=test` e `SECUREEDU_TEST_DATABASE_URL` apontando especificamente para `secureedu_test` em loopback.
-5. Validar as consultas PostgreSQL e os IDs externos, o envio/reenvio de e-mail, certificados TLS, proxy/Nginx e a política de retenção com a equipe responsável.
+5. Antes de uso escolar real, validar as consultas PostgreSQL e os IDs externos, o envio/reenvio de e-mail, certificados TLS, proxy/Nginx e a política de retenção com a equipe responsável. **As consultas oficiais não são requisito para o teste fictício do diretor.**
+6. Para a revisão desta demonstração, verificar no VPS a versão implantada, as permissões de cada conta fictícia, backup recente e restauração possível. Executar o fluxo completo com contas fictícias sem usar alunos reais.
 
 Fontes para as recomendações de infraestrutura: [ciclo de suporte do Python](https://devguide.python.org/versions/), [Flask com Gunicorn e proxy](https://flask.palletsprojects.com/en/stable/deploying/gunicorn/), [validação TLS em Requests](https://requests.readthedocs.io/en/stable/user/advanced/).
