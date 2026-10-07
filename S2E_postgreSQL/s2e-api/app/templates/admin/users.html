@@ -61,8 +61,8 @@
               <label class="form-label">Tipo <span>*</span></label>
               <select class="form-select" name="r" required>
                 <option value="basico">Básico</option>
-                <option value="vigia">Segurança</option>
-                <option value="admin">Admin</option>
+                <option value="vigia">Segurança da portaria</option>
+                <option value="admin">Avançado (admin)</option>
               </select>
             </div>
           </div>
@@ -88,9 +88,9 @@
               <td style="color: #6b7280; font-size: 13px;">{{ user.email or '—' }}</td>
               <td>
                 {% if user.role == 'admin' %}
-                  <span class="badge badge-admin">Admin</span>
+                  <span class="badge badge-admin">Avançado (admin)</span>
                 {% elif user.role == 'vigia' %}
-                  <span class="badge badge-basico" style="background:#fef9c3;color:#854d0e;">Segurança</span>
+                  <span class="badge badge-basico" style="background:#fef9c3;color:#854d0e;">Segurança da portaria</span>
                 {% else %}
                   <span class="badge badge-basico">Básico</span>
                 {% endif %}

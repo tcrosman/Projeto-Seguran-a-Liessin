@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
-from flask import Flask, session
+from flask import Flask, render_template, session
 from flask_wtf.csrf import CSRFProtect
 from werkzeug.datastructures import FileStorage
 from werkzeug.security import generate_password_hash
@@ -193,6 +193,26 @@ class SecurityTests(unittest.TestCase):
         self.client = self.app.test_client()
         self.session_as('admin')
         self.assertEqual(self.client.get('/concluir_saida/1').status_code, 405)
+
+    def test_departure_actions_visible_only_to_authorized_roles(self):
+        pending = {
+            'id': 7, 'aluno': 'Aluno Fictício', 'serie': 'DEMO', 'turma': 'DEMO',
+            'foto_path': None, 'horario': '12:00', 'motivo': 'Teste',
+            'responsavel_escola': 'Equipe', 'tipo_saida': 'sozinho',
+            'acompanhante': None, 'documento_path': None, 'status': 'pendente',
+        }
+        for role, release_visible, edit_visible in (
+            ('admin', True, True), ('basico', False, False), ('vigia', True, False),
+        ):
+            with self.subTest(role=role), self.app.test_request_context('/saidas'):
+                session.update(user_id=self.db.users[role]['id'], role=role,
+                               username=role, auth_version=0)
+                html = render_template(
+                    'departures/list_of_exits.html', pendentes=[pending],
+                    concluidas=[], nao_realizadas=[], data_selecionada='2026-10-06', busca='',
+                )
+                self.assertEqual('/concluir_saida/7' in html, release_visible)
+                self.assertEqual('/editar_saida/7' in html, edit_visible)
 
     def test_parent_idor_and_revocation(self):
         with self.client.session_transaction() as state:
