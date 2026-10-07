@@ -25,8 +25,8 @@ Senhas não foram geradas nem publicadas no repositório. As contas novas devem 
 
 1. Confirmar os e-mails das contas de equipe e se Patrick precisa testar também a Segurança da portaria. Usar uma conta distinta por perfil; não reutilizar contas `homolog` nem seus segredos.
 2. Restabelecer acesso operacional ao VPS, confirmar a versão em execução e fazer backup verificável. Duas tentativas de SSH de 06/10/2026 expiraram; a página inicial pública respondeu HTTP 200 por HTTPS, o que não confirma o estado do serviço ou banco.
-3. Criar somente as contas fictícias aprovadas e validar seus perfis, e-mails, login e recuperação. Não registrar senhas em Git, relatórios ou logs. Confirmar a conta de responsável e o código 2FA no endereço de Patrick.
-4. Implantar a branch de demonstração com janela monitorada, preservar `.env` e banco, verificar o login e `/healthz`. A branch não é um ambiente isolado; voltar o código a `a4613ac` não desfaz alterações no banco ou contas.
+3. Implantar a branch de demonstração com janela monitorada, preservar `.env` e banco, verificar o login e `/healthz`. A branch não é um ambiente isolado; voltar o código a `a4613ac` não desfaz alterações no banco ou contas.
+4. Criar somente as contas fictícias aprovadas com o preparador já implantado e validar seus perfis, e-mails, login e recuperação. Não registrar senhas em Git, relatórios ou logs. Confirmar a conta de responsável e o código 2FA no endereço de Patrick.
 5. Ensaiar com contas fictícias: responsável solicita; Básico ou Avançado aprova; Segurança ou Avançado libera. Testar também os bloqueios: Básico não registra/libera, Segurança não registra/aprova e responsável não vê outros alunos. O dono do projeto pode repetir o fluxo com suas contas `homolog` sem compartilhar essas senhas.
 6. Entregar ao diretor apenas os nomes de acesso e senhas temporárias por canal privado. Registrar aceite ou problemas do fluxo. Não é necessário fornecer consultas escolares oficiais para este teste.
 
