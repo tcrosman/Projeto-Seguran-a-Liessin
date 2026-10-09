@@ -415,9 +415,9 @@ def register_routes(app):
             # Marca como não realizadas as saídas aprovadas cujo dia já passou sem liberação
             expirar_saidas_nao_liberadas(conn)
 
-            # A portaria só precisa ver saídas pendentes de liberação; não deve
-            # receber histórico ou registros ainda em revisão.
-            status_clause = " AND s.status = 'pendente'" if session.get('role') == 'vigia' else ''
+            # A portaria vê as saídas pendentes e as já liberadas do dia,
+            # mas não recebe registros não realizados ou de outros dias.
+            status_clause = " AND s.status IN ('pendente', 'concluida')" if session.get('role') == 'vigia' else ''
             if busca:
                 rows = conn.execute("""
                     SELECT s.id, a.nome as aluno, s.horario, s.motivo, s.responsavel_escola, s.tipo_saida, s.acompanhante, s.documento_path, s.status,

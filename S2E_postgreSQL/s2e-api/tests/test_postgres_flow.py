@@ -206,6 +206,10 @@ class PostgresFlowTests(unittest.TestCase):
             guard_csrf = self.csrf(guard, '/saidas')
             released = guard.post(f'/concluir_saida/{exit_id}', data={'csrf_token': guard_csrf})
             self.assertEqual(released.location, '/saidas')
+            completed_page = guard.get('/saidas').get_data(as_text=True)
+            self.assertIn(self.child_name, completed_page)
+            self.assertRegex(completed_page, r'Concluídas\s*<span class="section-count">1</span>')
+            self.assertNotIn(f'/concluir_saida/{exit_id}', completed_page)
             with self.get_db() as conn:
                 released_status = conn.execute('SELECT status FROM saidas WHERE id = %s', (exit_id,)).fetchone()['status']
             self.assertEqual(released_status, 'concluida')

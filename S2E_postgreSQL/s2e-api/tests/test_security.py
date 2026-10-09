@@ -42,6 +42,8 @@ class FakeDb:
     def __init__(self):
         self.role = 'admin'
         self.parent_active = True
+        self.departures = []
+        self.departure_queries = []
         self.users = {
             'admin': {'id': 1, 'username': 'admin', 'role': 'admin', 'auth_version': 0, 'password': generate_password_hash('Senha@123456', method='pbkdf2:sha256')},
             'basico': {'id': 2, 'username': 'basico', 'role': 'basico', 'auth_version': 0, 'password': generate_password_hash('Senha@123456', method='pbkdf2:sha256')},
@@ -58,7 +60,10 @@ class FakeDb:
             return Cursor({'id': params[0], 'email': 'parent@example.test', 'auth_version': 0} if self.parent_active else None)
         if 'FROM alunos a' in sql and 'vinculos_pais_alunos' in sql:
             return Cursor(None)
-        if 'FROM saidas s' in sql or 'FROM solicitacoes_saida ss' in sql:
+        if 'FROM saidas s' in sql:
+            self.departure_queries.append(sql)
+            return Cursor(rows=self.departures)
+        if 'FROM solicitacoes_saida ss' in sql:
             return Cursor(rows=[])
         return Cursor()
 
@@ -213,6 +218,28 @@ class SecurityTests(unittest.TestCase):
                 )
                 self.assertEqual('/concluir_saida/7' in html, release_visible)
                 self.assertEqual('/editar_saida/7' in html, edit_visible)
+
+    def test_basic_home_describes_departures_as_view_only(self):
+        self.session_as('basico')
+        html = self.client.get('/inicio').get_data(as_text=True)
+        self.assertIn('Ver saídas', html)
+        self.assertNotIn('Ver e liberar saídas', html)
+        self.assertNotIn('Ver e autorizar saídas', html)
+
+    def test_guard_sees_completed_departures_today(self):
+        self.db.departures = [{
+            'id': 7, 'aluno': 'Aluno Fictício', 'serie': 'DEMO', 'turma': 'DEMO',
+            'foto_path': None, 'horario': '12:00', 'motivo': 'Teste',
+            'responsavel_escola': 'Equipe', 'tipo_saida': 'sozinho',
+            'acompanhante': None, 'documento_path': None, 'status': 'concluida',
+        }]
+        self.session_as('vigia')
+        with patch.object(web, 'expirar_saidas_nao_liberadas'):
+            html = self.client.get('/saidas').get_data(as_text=True)
+        self.assertIn('Aluno Fictício', html)
+        self.assertIn('Concluídas', html)
+        self.assertIn("s.status IN ('pendente', 'concluida')", self.db.departure_queries[-1])
+        self.assertNotIn('/concluir_saida/7', html)
 
     def test_parent_idor_and_revocation(self):
         with self.client.session_transaction() as state:
