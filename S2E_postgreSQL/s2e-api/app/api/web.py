@@ -722,12 +722,6 @@ def register_routes(app):
                                total_saidas=total_saidas,
                                saidas_hoje=saidas_hoje)
 
-    @app.route("/admin/backup")
-    @admin_required
-    def admin_backup():
-        flash("Backups são gerenciados automaticamente pelo Supabase. Acesse o painel do Supabase para exportar os dados.", "success")
-        return redirect("/configuracoes")
-    
     @app.route("/novo", methods=["GET", "POST"])
     @admin_required
     def gerenciar_usuarios():

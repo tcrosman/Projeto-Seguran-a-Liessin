@@ -241,6 +241,15 @@ class SecurityTests(unittest.TestCase):
         self.assertIn("s.status IN ('pendente', 'concluida')", self.db.departure_queries[-1])
         self.assertNotIn('/concluir_saida/7', html)
 
+    def test_settings_does_not_offer_obsolete_supabase_backup(self):
+        with self.app.test_request_context('/configuracoes'):
+            html = render_template('admin/settings.html', total_alunos=1,
+                                   total_usuarios=3, total_saidas=1, saidas_hoje=1)
+        self.assertNotIn('Supabase', html)
+        self.assertNotIn('supabase.com', html)
+        self.session_as('admin')
+        self.assertEqual(self.client.get('/admin/backup').status_code, 404)
+
     def test_parent_idor_and_revocation(self):
         with self.client.session_transaction() as state:
             state.update(pai_id=10, pai_nome='Responsável', pai_email='parent@example.test', auth_version=0)
