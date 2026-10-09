@@ -979,6 +979,7 @@ def register_routes(app):
                 JOIN responsaveis r ON r.id = ss.responsavel_id
                 JOIN alunos a ON a.id = ss.aluno_id
                 WHERE ss.id = %s AND ss.status = 'aguardando'
+                FOR UPDATE OF ss
             """, (sol_id,)).fetchone()
 
             if not sol:
@@ -986,7 +987,7 @@ def register_routes(app):
                 return redirect("/admin/solicitacoes")
 
             conn.execute(
-                "UPDATE solicitacoes_saida SET status = 'rejeitado', revisado_por = %s, revisado_em = NOW() WHERE id = %s",
+                "UPDATE solicitacoes_saida SET status = 'rejeitado', revisado_por = %s, revisado_em = NOW() WHERE id = %s AND status = 'aguardando'",
                 (session['user_id'], sol_id)
             )
 

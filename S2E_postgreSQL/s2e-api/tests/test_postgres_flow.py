@@ -5,8 +5,10 @@ import re
 import secrets
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
+from threading import Barrier
 from urllib.parse import urlparse
 from unittest.mock import patch
 
@@ -96,6 +98,53 @@ class PostgresFlowTests(unittest.TestCase):
         })
         self.assertEqual(response.location, '/inicio')
         return client
+
+    def test_simultaneous_approval_and_rejection_remain_consistent(self):
+        from app.core.clock import school_now
+        with self.get_db() as conn:
+            self.parent_id = conn.execute("""
+                INSERT INTO responsaveis (email, nome, password_hash, status)
+                VALUES (%s, 'Responsável de Teste', %s, 'aprovado') RETURNING id
+            """, (self.parent_email, generate_password_hash(
+                self.staff_password, method='pbkdf2:sha256',
+            ))).fetchone()['id']
+            request_id = conn.execute("""
+                INSERT INTO solicitacoes_saida
+                    (responsavel_id, aluno_id, data_solicitada, horario_solicitado,
+                     motivo, tipo_saida, acompanhante)
+                VALUES (%s, %s, %s, '12:00', 'Consulta', 'acompanhado', 'Responsável de Teste')
+                RETURNING id
+            """, (self.parent_id, self.student_id,
+                  (school_now() + timedelta(days=2)).strftime('%Y-%m-%d'))).fetchone()['id']
+
+        approver = self.staff_login('admin')
+        rejecter = self.staff_login('basico')
+        approve_csrf = self.csrf(approver, '/admin/solicitacoes')
+        reject_csrf = self.csrf(rejecter, '/admin/solicitacoes')
+        barrier = Barrier(2)
+
+        def review(client, action, csrf):
+            barrier.wait(timeout=5)
+            response = client.post(
+                f'/admin/solicitacoes/{request_id}/{action}', data={'csrf_token': csrf},
+            )
+            return response.status_code, response.location
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            approved = pool.submit(review, approver, 'aprovar', approve_csrf)
+            rejected = pool.submit(review, rejecter, 'rejeitar', reject_csrf)
+            for result in (approved.result(timeout=10), rejected.result(timeout=10)):
+                self.assertEqual(result, (302, '/admin/solicitacoes'))
+
+        with self.get_db() as conn:
+            status = conn.execute(
+                'SELECT status FROM solicitacoes_saida WHERE id = %s', (request_id,),
+            ).fetchone()['status']
+            exits = conn.execute(
+                'SELECT COUNT(*) AS count FROM saidas WHERE solicitacao_id = %s', (request_id,),
+            ).fetchone()['count']
+        self.assertIn(status, ('aprovado', 'rejeitado'))
+        self.assertEqual(exits, 1 if status == 'aprovado' else 0)
 
     def test_signup_approval_2fa_request_reapproval_and_release(self):
         from app.api import pais

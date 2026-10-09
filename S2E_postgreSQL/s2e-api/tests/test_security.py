@@ -396,6 +396,14 @@ class SecurityTests(unittest.TestCase):
             rejected = self.client.post('/admin/solicitacoes/12/rejeitar', data={'csrf_token': csrf})
             self.assertEqual(rejected.location, '/admin/solicitacoes')
             self.assertTrue(any("status = 'rejeitado'" in sql for sql, _ in flow.actions))
+            review_reads = [sql for sql, _ in flow.actions if 'FROM solicitacoes_saida ss' in sql]
+            self.assertEqual(len(review_reads), 2)
+            self.assertTrue(all('FOR UPDATE OF ss' in sql for sql in review_reads))
+            self.assertTrue(any(
+                "UPDATE solicitacoes_saida SET status = 'rejeitado'" in sql
+                and "WHERE id = %s AND status = 'aguardando'" in sql
+                for sql, _ in flow.actions
+            ))
         self.assertEqual(self.client.post('/concluir_saida/1', data={'csrf_token': csrf}).status_code, 403)
 
     def test_guard_releases_a_pending_exit(self):
